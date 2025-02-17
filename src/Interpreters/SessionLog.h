@@ -2,10 +2,11 @@
 
 #include <Interpreters/SystemLog.h>
 #include <Interpreters/ClientInfo.h>
-#include <Access/Common/AuthenticationData.h>
+#include <Access/Common/AuthenticationType.h>
 #include <Core/NamesAndTypes.h>
 #include <Core/NamesAndAliases.h>
-#include <Columns/IColumn.h>
+#include <Columns/IColumn_fwd.h>
+#include <Storages/ColumnsDescription.h>
 
 namespace DB
 {
@@ -18,6 +19,10 @@ enum SessionLogElementType : int8_t
 };
 
 class ContextAccess;
+struct User;
+using UserPtr = std::shared_ptr<const User>;
+using ContextAccessPtr = std::shared_ptr<const ContextAccess>;
+class AuthenticationData;
 
 /** A struct which will be inserted as row into session_log table.
   *
@@ -33,7 +38,7 @@ struct SessionLogElement
     SessionLogElement(const UUID & auth_id_, Type type_);
     SessionLogElement(const SessionLogElement &) = default;
     SessionLogElement & operator=(const SessionLogElement &) = default;
-    SessionLogElement(SessionLogElement &&) = default;
+    SessionLogElement(SessionLogElement &&) = default; /// NOLINT(performance-noexcept-move-constructor,hicpp-noexcept-move)
     SessionLogElement & operator=(SessionLogElement &&) = default;
 
     UUID auth_id;
@@ -44,8 +49,8 @@ struct SessionLogElement
     time_t event_time{};
     Decimal64 event_time_microseconds{};
 
-    String user;
-    AuthenticationType user_identified_with = AuthenticationType::NO_PASSWORD;
+    std::optional<String> user;
+    std::optional<AuthenticationType> user_identified_with;
     String external_auth_server;
     Strings roles;
     Strings profiles;
@@ -56,7 +61,7 @@ struct SessionLogElement
 
     static std::string name() { return "SessionLog"; }
 
-    static NamesAndTypesList getNamesAndTypes();
+    static ColumnsDescription getColumnsDescription();
     static NamesAndAliases getNamesAndAliases() { return {}; }
 
     void appendToBlock(MutableColumns & columns) const;
@@ -67,11 +72,21 @@ struct SessionLogElement
 class SessionLog : public SystemLog<SessionLogElement>
 {
     using SystemLog<SessionLogElement>::SystemLog;
-
 public:
-    void addLoginSuccess(const UUID & auth_id, std::optional<String> session_id, const Context & login_context);
-    void addLoginFailure(const UUID & auth_id, const ClientInfo & info, const String & user, const Exception & reason);
-    void addLogOut(const UUID & auth_id, const String & user, const ClientInfo & client_info);
+    void addLoginSuccess(const UUID & auth_id,
+                         const String & session_id,
+                         const Settings & settings,
+                         const ContextAccessPtr & access,
+                         const ClientInfo & client_info,
+                         const UserPtr & login_user,
+                         const AuthenticationData & user_authenticated_with);
+
+    void addLoginFailure(const UUID & auth_id, const ClientInfo & info, const std::optional<String> & user, const Exception & reason);
+    void addLogOut(
+        const UUID & auth_id,
+        const UserPtr & login_user,
+        const AuthenticationData & user_authenticated_with,
+        const ClientInfo & client_info);
 };
 
 }

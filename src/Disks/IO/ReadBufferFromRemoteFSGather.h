@@ -1,73 +1,61 @@
 #pragma once
 
-#include <Common/config.h>
-#include <Disks/IDiskRemote.h>
+#include <Disks/ObjectStorages/IObjectStorage.h>
+#include <IO/AsynchronousReader.h>
 #include <IO/ReadBufferFromFile.h>
 #include <IO/ReadSettings.h>
-
-#if USE_AZURE_BLOB_STORAGE
-#include <azure/storage/blobs.hpp>
-#endif
-
-namespace Aws { namespace S3 { class S3Client; } }
+#include "config.h"
 
 namespace Poco { class Logger; }
 
 namespace DB
 {
+class FilesystemCacheLog;
 
 /**
  * Remote disk might need to split one clickhouse file into multiple files in remote fs.
  * This class works like a proxy to allow transition from one file into multiple.
  */
-class ReadBufferFromRemoteFSGather : public ReadBuffer
+class ReadBufferFromRemoteFSGather final : public ReadBufferFromFileBase
 {
 friend class ReadIndirectBufferFromRemoteFS;
 
 public:
+    using ReadBufferCreator = std::function<std::unique_ptr<ReadBufferFromFileBase>(bool restricted_seek, const StoredObject & object)>;
+
     ReadBufferFromRemoteFSGather(
-        const RemoteMetadata & metadata_,
+        ReadBufferCreator && read_buffer_creator_,
+        const StoredObjects & blobs_to_read_,
         const ReadSettings & settings_,
-        const String & path_);
+        std::shared_ptr<FilesystemCacheLog> cache_log_,
+        bool use_external_buffer_,
+        size_t buffer_size);
 
-    String getFileName() const;
+    ~ReadBufferFromRemoteFSGather() override;
 
-    void reset();
+    String getFileName() const override { return current_object.remote_path; }
+
+    String getInfoForLog() override { return current_buf ? current_buf->getInfoForLog() : ""; }
 
     void setReadUntilPosition(size_t position) override;
 
-    struct ReadResult
-    {
-        size_t size = 0;
-        size_t offset = 0;
-    };
+    void setReadUntilEnd() override { setReadUntilPosition(getFileSize()); }
 
-    ReadResult readInto(char * data, size_t size, size_t offset, size_t ignore = 0);
+    std::optional<size_t> tryGetFileSize() override { return getTotalSize(blobs_to_read); }
 
-    size_t getFileSize() const;
+    size_t getFileOffsetOfBufferEnd() const override { return file_offset_of_buffer_end; }
 
-    size_t getFileOffsetOfBufferEnd() const;
+    off_t seek(off_t offset, int whence) override;
 
-    bool initialized() const { return current_buf != nullptr; }
+    off_t getPosition() override { return file_offset_of_buffer_end - available(); }
 
-    String getInfoForLog();
+    bool isSeekCheap() override;
 
-    size_t getImplementationBufferOffset() const;
-
-protected:
-    virtual SeekableReadBufferPtr createImplementationBuffer(const String & path, size_t file_size) = 0;
-
-    RemoteMetadata metadata;
-
-    ReadSettings settings;
-
-    bool use_external_buffer;
-
-    size_t read_until_position = 0;
-
-    String current_path;
+    bool isContentCached(size_t offset, size_t size) override;
 
 private:
+    SeekableReadBufferPtr createImplementationBuffer(const StoredObject & object, size_t start_offset);
+
     bool nextImpl() override;
 
     void initialize();
@@ -76,132 +64,25 @@ private:
 
     bool moveToNextBuffer();
 
-    SeekableReadBufferPtr current_buf;
+    void appendUncachedReadInfo();
 
-    size_t current_buf_idx = 0;
+    void reset();
 
+    const ReadSettings settings;
+    const StoredObjects blobs_to_read;
+    const ReadBufferCreator read_buffer_creator;
+    const std::shared_ptr<FilesystemCacheLog> cache_log;
+    const String query_id;
+    const bool use_external_buffer;
+    const bool with_file_cache;
+
+    size_t read_until_position = 0;
     size_t file_offset_of_buffer_end = 0;
 
-    /**
-     * File:                        |___________________|
-     * Buffer:                            |~~~~~~~|
-     * file_offset_of_buffer_end:                 ^
-     */
-    size_t bytes_to_ignore = 0;
+    StoredObject current_object;
+    size_t current_buf_idx = 0;
+    SeekableReadBufferPtr current_buf;
 
-    String canonical_path;
-
-    Poco::Logger * log;
+    LoggerPtr log;
 };
-
-
-#if USE_AWS_S3
-/// Reads data from S3 using stored paths in metadata.
-class ReadBufferFromS3Gather final : public ReadBufferFromRemoteFSGather
-{
-public:
-    ReadBufferFromS3Gather(
-        const String & path_,
-        std::shared_ptr<Aws::S3::S3Client> client_ptr_,
-        const String & bucket_,
-        IDiskRemote::Metadata metadata_,
-        size_t max_single_read_retries_,
-        const ReadSettings & settings_)
-        : ReadBufferFromRemoteFSGather(metadata_, settings_, path_)
-        , client_ptr(std::move(client_ptr_))
-        , bucket(bucket_)
-        , max_single_read_retries(max_single_read_retries_)
-    {
-    }
-
-    SeekableReadBufferPtr createImplementationBuffer(const String & path, size_t file_size) override;
-
-private:
-    std::shared_ptr<Aws::S3::S3Client> client_ptr;
-    String bucket;
-    UInt64 max_single_read_retries;
-};
-#endif
-
-
-#if USE_AZURE_BLOB_STORAGE
-/// Reads data from AzureBlob Storage using paths stored in metadata.
-class ReadBufferFromAzureBlobStorageGather final : public ReadBufferFromRemoteFSGather
-{
-public:
-    ReadBufferFromAzureBlobStorageGather(
-        const String & path_,
-        std::shared_ptr<Azure::Storage::Blobs::BlobContainerClient> blob_container_client_,
-        IDiskRemote::Metadata metadata_,
-        size_t max_single_read_retries_,
-        size_t max_single_download_retries_,
-        const ReadSettings & settings_)
-        : ReadBufferFromRemoteFSGather(metadata_, settings_, path_)
-        , blob_container_client(blob_container_client_)
-        , max_single_read_retries(max_single_read_retries_)
-        , max_single_download_retries(max_single_download_retries_)
-    {
-    }
-
-    SeekableReadBufferPtr createImplementationBuffer(const String & path, size_t file_size) override;
-
-private:
-    std::shared_ptr<Azure::Storage::Blobs::BlobContainerClient> blob_container_client;
-    size_t max_single_read_retries;
-    size_t max_single_download_retries;
-};
-#endif
-
-
-class ReadBufferFromWebServerGather final : public ReadBufferFromRemoteFSGather
-{
-public:
-    ReadBufferFromWebServerGather(
-            const String & path_,
-            const String & uri_,
-            RemoteMetadata metadata_,
-            ContextPtr context_,
-            const ReadSettings & settings_)
-        : ReadBufferFromRemoteFSGather(metadata_, settings_, path_)
-        , uri(uri_)
-        , context(context_)
-    {
-    }
-
-    SeekableReadBufferPtr createImplementationBuffer(const String & path, size_t file_size) override;
-
-private:
-    String uri;
-    ContextPtr context;
-};
-
-
-#if USE_HDFS
-/// Reads data from HDFS using stored paths in metadata.
-class ReadBufferFromHDFSGather final : public ReadBufferFromRemoteFSGather
-{
-public:
-    ReadBufferFromHDFSGather(
-            const String & path_,
-            const Poco::Util::AbstractConfiguration & config_,
-            const String & hdfs_uri_,
-            IDiskRemote::Metadata metadata_,
-            const ReadSettings & settings_)
-        : ReadBufferFromRemoteFSGather(metadata_, settings_, path_)
-        , config(config_)
-    {
-        const size_t begin_of_path = hdfs_uri_.find('/', hdfs_uri_.find("//") + 2);
-        hdfs_directory = hdfs_uri_.substr(begin_of_path);
-        hdfs_uri = hdfs_uri_.substr(0, begin_of_path);
-    }
-
-    SeekableReadBufferPtr createImplementationBuffer(const String & path, size_t file_size) override;
-
-private:
-    const Poco::Util::AbstractConfiguration & config;
-    String hdfs_uri;
-    String hdfs_directory;
-};
-#endif
-
 }

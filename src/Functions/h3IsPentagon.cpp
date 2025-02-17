@@ -1,4 +1,4 @@
-#include "config_functions.h"
+#include "config.h"
 
 #if USE_H3
 
@@ -48,6 +48,11 @@ public:
         return std::make_shared<DataTypeUInt8>();
     }
 
+    DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override
+    {
+        return std::make_shared<DataTypeUInt8>();
+    }
+
     ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override
     {
         auto non_const_arguments = arguments;
@@ -80,7 +85,7 @@ public:
 
 }
 
-void registerFunctionH3IsPentagon(FunctionFactory & factory)
+REGISTER_FUNCTION(H3IsPentagon)
 {
     factory.registerFunction<FunctionH3IsPentagon>();
 }

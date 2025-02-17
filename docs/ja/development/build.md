@@ -1,130 +1,152 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 64
-toc_title: "Linux\u4E0A\u3067ClickHouse\u3092\u69CB\u7BC9\u3059\u308B\u65B9\u6CD5"
+slug: /ja/development/build
+sidebar_position: 64
+sidebar_label: Linux でのビルド
+title: Linux での ClickHouse のビルド方法
+description: Linux での ClickHouse のビルド方法
 ---
 
-# 開発のためのClickHouseを構築する方法 {#how-to-build-clickhouse-for-development}
+対応プラットフォーム:
 
-次のチュートリアルはUbuntu Linuxシステムに基づいています。
-適切な変更により、他のLinuxディストリビューションでも動作するはずです。
-サポートされるプラットフォーム:x86_64およびAArch64。 Power9のサポートは実験的です。
+- x86_64
+- AArch64
+- PowerPC 64 LE（エクスペリメンタル）
+- RISC-V 64（エクスペリメンタル）
 
-## Git、CMake、Pythonと忍者をインストールします {#install-git-cmake-python-and-ninja}
+## Ubuntu でのビルド
+
+以下のチュートリアルは Ubuntu Linux に基づいています。
+適切な変更を加えれば、他の Linux ディストリビューションでも機能するはずです。
+開発に推奨される最小の Ubuntu バージョンは 22.04 LTS です。
+
+### 必要条件のインストール {#install-prerequisites}
 
 ``` bash
-$ sudo apt-get install git cmake python ninja-build
+sudo apt-get update
+sudo apt-get install git cmake ccache python3 ninja-build nasm yasm gawk lsb-release wget software-properties-common gnupg
 ```
 
-古いシステムではcmakeの代わりにcmake3。
+### Clang コンパイラのインストールと使用
 
-## Clang 11 のインストール
+Ubuntu/Debian では LLVM の自動インストールスクリプトを使用できます。[こちら](https://apt.llvm.org/)をご覧ください。
 
-On Ubuntu/Debian you can use the automatic installation script (check [official webpage](https://apt.llvm.org/))
-
-```bash
+``` bash
 sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 ```
 
-``` bash
-$ export CC=clang
-$ export CXX=clang++
+注意: 問題がある場合は、次の方法も使用できます:
+
+```bash
+sudo apt-get install software-properties-common
+sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
 ```
 
-## ﾂつｨﾂ姪"ﾂ債ﾂつｹ {#checkout-clickhouse-sources}
+他の Linux ディストリビューションでは、LLVM の[事前ビルドパッケージ](https://releases.llvm.org/download.html)の利用可能性を確認してください。
+
+2024 年 3 月時点で、clang-17 以上が動作します。
+GCC はコンパイラとしてサポートされていません。
+特定の Clang バージョンでビルドするには:
+
+:::tip
+これは任意です。指示に従って Clang をインストールしたばかりの場合は、
+この環境変数を設定する前にインストールされているバージョンを確認してください。
+:::
 
 ``` bash
-$ git clone --recursive git@github.com:ClickHouse/ClickHouse.git
+export CC=clang-18
+export CXX=clang++-18
+```
+
+### Rust コンパイラのインストール
+
+まず、公式の [rust ドキュメント](https://www.rust-lang.org/tools/install)で `rustup` をインストールする手順に従ってください。
+
+C++ 依存関係と同様に、ClickHouse はベンダリングを使用してインストールされるものを正確に管理し、サードパーティのサービス（`crates.io` レジストリのような）に依存しないようにしています。
+
+リリースモードでは、最新の rustup toolchain のバージョンであれば、この依存関係で動作するはずですが、
+サニタイザを有効にする予定がある場合は、CI で使用されるものと同じ `std` と一致するバージョンを使用する必要があります（crates をベンダリングしています）:
+
+```bash
+rustup toolchain install nightly-2024-12-01
+rustup default nightly-2024-12-01
+rustup component add rust-src
+```
+
+### ClickHouse ソースをチェックアウトする {#checkout-clickhouse-sources}
+
+``` bash
+git clone --recursive --shallow-submodules git@github.com:ClickHouse/ClickHouse.git
 ```
 
 または
 
 ``` bash
-$ git clone --recursive https://github.com/ClickHouse/ClickHouse.git
+git clone --recursive --shallow-submodules https://github.com/ClickHouse/ClickHouse.git
 ```
 
-## ビルドClickHouse {#build-clickhouse}
+### ClickHouse をビルドする {#build-clickhouse}
 
 ``` bash
-$ cd ClickHouse
-$ mkdir build
-$ cd build
-$ cmake ..
-$ ninja
-$ cd ..
+cd ClickHouse
+mkdir build
+cmake -S . -B build
+cmake --build build  # または: `cd build; ninja`
 ```
 
-実行可能ファイルを作成するには、 `ninja clickhouse`.
-これは作成します `programs/clickhouse` 実行可能ファイル `client` または `server` 引数。
+:::tip
+`cmake` が利用可能な論理コア数を検出できない場合、ビルドは 1 スレッドで行われます。これを解決するには、`cmake` に `-j` フラグを使用して特定のスレッド数を使うように設定できます。例えば、`cmake --build build -j 16` です。また、フラグを常に設定しなくてもよいように、予め特定のジョブ数でビルドファイルを生成することもできます: `cmake -DPARALLEL_COMPILE_JOBS=16 -S . -B build`、ここで `16` は望むスレッド数です。
+:::
 
-# 任意のLinux上でClickHouseを構築する方法 {#how-to-build-clickhouse-on-any-linux}
+実行ファイルを作成するには、`cmake --build build --target clickhouse` を実行します（または: `cd build; ninja clickhouse`）。
+これで `build/programs/clickhouse` という実行ファイルが作成され、`client` または `server` 引数とともに使用できます。
 
-の構築が必要で以下のコンポーネント:
+## どの Linux でもビルドする {#how-to-build-clickhouse-on-any-linux}
 
--   Git（ソースをチェックアウトするためにのみ使用され、ビルドには必要ありません)
--   CMake3.10以降
--   忍者（推奨）または作る
--   C++コンパイラ:clang11以降
--   リンカ:lldまたはgold(古典的なGNU ldは動作しません)
--   Python(LLVMビルド内でのみ使用され、オプションです)
+ビルドには次のコンポーネントが必要です:
 
-すべてのコンポーネントがインストールされている場合、上記の手順と同じ方法でビルドできます。
+- Git（ソースのチェックアウトに使用、ビルドには不要）
+- CMake 3.20 以上
+- コンパイラ: clang-18 以上
+- リンカー: lld-17 以上
+- Ninja
+- Yasm
+- Gawk
+- rustc
 
-Ubuntu Eoanの例:
+すべてのコンポーネントがインストールされている場合、上記の手順と同様にビルドできます。
 
-    sudo apt update
-    sudo apt install git cmake ninja-build g++ python
-    git clone --recursive https://github.com/ClickHouse/ClickHouse.git
-    mkdir build && cd build
-    cmake ../ClickHouse
-    ninja
-
-OpenSUSEタンブルウィードの例:
-
-    sudo zypper install git cmake ninja gcc-c++ python lld
-    git clone --recursive https://github.com/ClickHouse/ClickHouse.git
-    mkdir build && cd build
-    cmake ../ClickHouse
-    ninja
-
-Fedora Rawhideの例:
-
-    sudo yum update
-    yum --nogpg install git cmake make gcc-c++ python3
-    git clone --recursive https://github.com/ClickHouse/ClickHouse.git
-    mkdir build && cd build
-    cmake ../ClickHouse
-    make -j $(nproc)
-
-# ClickHouseを構築する必要はありません {#you-dont-have-to-build-clickhouse}
-
-ClickHouseは、事前に構築されたバイナリとパッケージで利用可能です。 バイナリは移植性があり、任意のLinuxフレーバーで実行できます。
-
-これらのために、安定したprestable-試験スリリースして毎にコミットマスターすべてを引きます。
-
-から新鮮なビルドを見つけるには `master`,に行く [コミットページ](https://github.com/ClickHouse/ClickHouse/commits/master) 最初の緑色のチェックマークまたはコミットの近くにある赤い十字をクリックし、 “Details” 右の後にリンク “ClickHouse Build Check”.
-
-# ClickHouse Debianパッケージのビルド方法 {#how-to-build-clickhouse-debian-package}
-
-## GitとPbuilderのインストール {#install-git-and-pbuilder}
+OpenSUSE Tumbleweed の例:
 
 ``` bash
-$ sudo apt-get update
-$ sudo apt-get install git python pbuilder debhelper lsb-release fakeroot sudo debian-archive-keyring debian-keyring
+sudo zypper install git cmake ninja clang-c++ python lld nasm yasm gawk
+git clone --recursive https://github.com/ClickHouse/ClickHouse.git
+mkdir build
+cmake -S . -B build
+cmake --build build
 ```
 
-## ﾂつｨﾂ姪"ﾂ債ﾂつｹ {#checkout-clickhouse-sources-1}
+Fedora Rawhide の例:
 
 ``` bash
-$ git clone --recursive --branch master https://github.com/ClickHouse/ClickHouse.git
-$ cd ClickHouse
+sudo yum update
+sudo yum --nogpg install git cmake make clang python3 ccache lld nasm yasm gawk
+git clone --recursive https://github.com/ClickHouse/ClickHouse.git
+mkdir build
+cmake -S . -B build
+cmake --build build
 ```
 
-## 解放スクリプトの実行 {#run-release-script}
+## Docker でのビルド
 
-``` bash
-$ ./release
+CI ビルドには、`clickhouse/binary-builder` という Docker イメージを使用しています。このイメージには、バイナリとパッケージをビルドするために必要なすべてのものが含まれています。イメージの使用を簡略化するために `docker/packager/packager` というスクリプトがあります:
+
+```bash
+# 出力アーティファクト用のディレクトリ定義
+output_dir="build_results"
+# シンプルなビルド
+./docker/packager/packager --package-type=binary --output-dir "$output_dir"
+# debian パッケージのビルド
+./docker/packager/packager --package-type=deb --output-dir "$output_dir"
+# デフォルトでは、debian パッケージはスリムな LTO を使用するため、ビルドを高速化するためにこれをオーバーライドできます
+CMAKE_FLAGS='-DENABLE_THINLTO=' ./docker/packager/packager --package-type=deb --output-dir "./$(git rev-parse --show-cdup)/build_results"
 ```
-
-[元の記事](https://clickhouse.com/docs/en/development/build/) <!--hide-->

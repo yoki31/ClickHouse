@@ -38,13 +38,22 @@
 
 #define HAVE_ARPA_INET_H
 #define HAVE_ERRNO_H
+#define HAVE_GETSOCKNAME
 #define HAVE_FCNTL_H
 #define HAVE_NETDB_H
 #define HAVE_NETINET_IN_H
 #define HAVE_SETJMP_H
 #define HAVE_SYS_STAT_H
 #define HAVE_UNISTD_H
+#define HAVE_POLL_H
+#define HAVE_PTHREAD_H
 
 #define ENABLE_IPV6
 #define USE_OPENSSL
 #define USE_THREADS_POSIX
+#define USE_ARES
+
+#ifdef __illumos__
+#define HAVE_POSIX_STRERROR_R 1
+#define HAVE_STRERROR_R 1
+#endif

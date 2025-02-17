@@ -1,85 +1,90 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_folder_title: "\u8868\u30A8\u30F3\u30B8\u30F3"
+slug: /ja/engines/table-engines/
+toc_folder_title: テーブルエンジン
 toc_priority: 26
-toc_title: "\u306F\u3058\u3081\u306B"
+toc_title: はじめに
 ---
 
-# 表エンジン {#table_engines}
+# テーブルエンジン
 
-のテーブルエンジン型式の表を行います。:
+テーブルエンジン（テーブルの種類）は次の点を決定します：
 
--   データの格納方法と場所、データの書き込み先、およびデータの読み取り先。
--   サポートされているクエリと方法。
--   同時データアクセス。
--   インデックスが存在する場合の使用。
--   マルチスレッド要求の実行が可能かどうか。
--   データ複製パラメーター。
+- データの保存方法と保存場所、書き込みおよび読み込み先。
+- サポートされているクエリとその方法。
+- 同時データアクセス。
+- インデックスの使用（存在する場合）。
+- マルチスレッドでの要求実行が可能かどうか。
+- データレプリケーションのパラメータ。
 
-## エンジン家族 {#engine-families}
+## エンジンファミリー {#engine-families}
 
-### メルゲツリー {#mergetree}
+### MergeTree {#mergetree}
 
-高負荷仕事のための最も普遍的な、機能テーブルエンジン。 本物件の共有によるこれらのエンジンには迅速にデータを挿入とその後のバックグラウンドデータを処となります。 `MergeTree` 家族のエンジンの支援データレプリケーション（ [複製\*](mergetree-family/replication.md#table_engines-replication) バージョンのエンジン)分割、その他の機能で対応していないその他のエンジンです。
+高負荷タスク向けの最も汎用的かつ機能的なテーブルエンジンです。これらエンジンの共通の特徴は、データの迅速な挿入とその後のバックグラウンドでのデータ処理です。`MergeTree`ファミリーエンジンはデータのレプリケーション（エンジンの[Replicated\*](../../engines/table-engines/mergetree-family/replication.md#table_engines-replication) バージョン）、パーティション、二次データスキッピングインデックスなど、他のエンジンでサポートされていない機能をサポートしています。
 
-家族のエンジン:
+このファミリーに含まれるエンジン：
 
--   [メルゲツリー](mergetree-family/mergetree.md#mergetree)
--   [置換マージツリー](mergetree-family/replacingmergetree.md#replacingmergetree)
--   [サミングマーゲツリー](mergetree-family/summingmergetree.md#summingmergetree)
--   [AggregatingMergeTree](mergetree-family/aggregatingmergetree.md#aggregatingmergetree)
--   [折りたたみマージツリー](mergetree-family/collapsingmergetree.md#table_engine-collapsingmergetree)
--   [バージョニングコラプシングマーゲットリー](mergetree-family/versionedcollapsingmergetree.md#versionedcollapsingmergetree)
--   [GraphiteMergeTree](mergetree-family/graphitemergetree.md#graphitemergetree)
+- [MergeTree](../../engines/table-engines/mergetree-family/mergetree.md#mergetree)
+- [ReplacingMergeTree](../../engines/table-engines/mergetree-family/replacingmergetree.md#replacingmergetree)
+- [SummingMergeTree](../../engines/table-engines/mergetree-family/summingmergetree.md#summingmergetree)
+- [AggregatingMergeTree](../../engines/table-engines/mergetree-family/aggregatingmergetree.md#aggregatingmergetree)
+- [CollapsingMergeTree](../../engines/table-engines/mergetree-family/collapsingmergetree.md#table_engine-collapsingmergetree)
+- [VersionedCollapsingMergeTree](../../engines/table-engines/mergetree-family/versionedcollapsingmergetree.md#versionedcollapsingmergetree)
+- [GraphiteMergeTree](../../engines/table-engines/mergetree-family/graphitemergetree.md#graphitemergetree)
 
-### ログ {#log}
+### Log {#log}
 
-軽量 [エンジン](log-family/index.md) 最低の機能性を使って。 多くの小さなテーブル（最大約1万行）をすばやく書き込み、後で全体として読み込む必要がある場合に最も効果的です。
+最小の機能を持つ軽量な[エンジン](../../engines/table-engines/log-family/index.md)です。小規模なテーブル（最大約100万行）を迅速に書き込み、その後全体を読み取りたい場合に最も効果的です。
 
-家族のエンジン:
+このファミリーに含まれるエンジン：
 
--   [TinyLog](log-family/tinylog.md#tinylog)
--   [ストリップログ](log-family/stripelog.md#stripelog)
--   [ログ](log-family/log.md#log)
+- [TinyLog](../../engines/table-engines/log-family/tinylog.md#tinylog)
+- [StripeLog](../../engines/table-engines/log-family/stripelog.md#stripelog)
+- [Log](../../engines/table-engines/log-family/log.md#log)
 
-### 統合エンジン {#integration-engines}
+### インテグレーションエンジン {#integration-engines}
 
-エンジン用プリケーションデータストレージと処理システム。
+他のデータストレージおよび処理システムと通信するためのエンジンです。
 
-家族のエンジン:
+このファミリーに含まれるエンジン：
 
--   [カフカ](integrations/kafka.md#kafka)
--   [MySQL](integrations/mysql.md#mysql)
--   [ODBC](integrations/odbc.md#table-engine-odbc)
--   [JDBC](integrations/jdbc.md#table-engine-jdbc)
--   [HDFS](integrations/hdfs.md#hdfs)
+- [ODBC](../../engines/table-engines/integrations/odbc.md)
+- [JDBC](../../engines/table-engines/integrations/jdbc.md)
+- [MySQL](../../engines/table-engines/integrations/mysql.md)
+- [MongoDB](../../engines/table-engines/integrations/mongodb.md)
+- [Redis](../../engines/table-engines/integrations/redis.md)
+- [HDFS](../../engines/table-engines/integrations/hdfs.md)
+- [S3](../../engines/table-engines/integrations/s3.md)
+- [Kafka](../../engines/table-engines/integrations/kafka.md)
+- [EmbeddedRocksDB](../../engines/table-engines/integrations/embedded-rocksdb.md)
+- [RabbitMQ](../../engines/table-engines/integrations/rabbitmq.md)
+- [PostgreSQL](../../engines/table-engines/integrations/postgresql.md)
+- [S3Queue](../../engines/table-engines/integrations/s3queue.md)
+- [TimeSeries](../../engines/table-engines/integrations/time-series.md)
 
 ### 特殊エンジン {#special-engines}
 
-家族のエンジン:
+このファミリーに含まれるエンジン：
 
--   [分散](special/distributed.md#distributed)
--   [マテリアライズドビュー](special/materializedview.md#materializedview)
--   [辞書](special/dictionary.md#dictionary)
--   \[Merge\](special/merge.md#merge
--   [ファイル](special/file.md#file)
--   [Null](special/null.md#null)
--   [セット](special/set.md#set)
--   [参加](special/join.md#join)
--   [URL](special/url.md#table_engines-url)
--   [表示](special/view.md#table_engines-view)
--   [メモリ](special/memory.md#memory)
--   [バッファ](special/buffer.md#buffer)
+- [分散テーブル](../../engines/table-engines/special/distributed.md#distributed)
+- [Dictionary](../../engines/table-engines/special/dictionary.md#dictionary)
+- [Merge](../../engines/table-engines/special/merge.md#merge)
+- [File](../../engines/table-engines/special/file.md#file)
+- [Null](../../engines/table-engines/special/null.md#null)
+- [Set](../../engines/table-engines/special/set.md#set)
+- [Join](../../engines/table-engines/special/join.md#join)
+- [URL](../../engines/table-engines/special/url.md#table_engines-url)
+- [View](../../engines/table-engines/special/view.md#table_engines-view)
+- [Memory](../../engines/table-engines/special/memory.md#memory)
+- [Buffer](../../engines/table-engines/special/buffer.md#buffer)
+- [KeeperMap](../../engines/table-engines/special/keepermap.md)
 
-## 仮想列 {#table_engines-virtual_columns}
+## 仮想カラム {#table_engines-virtual_columns}
 
-仮想列は、エンジンのソースコードで定義されている整数テーブルエンジン属性です。
+仮想カラムは、エンジンのソースコード内で定義されている統合テーブルエンジンの属性です。
 
-仮想列を指定するべきではありません。 `CREATE TABLE` あなたはそれらを見ることができません `SHOW CREATE TABLE` と `DESCRIBE TABLE` クエリ結果。 仮想列も読み取り専用であるため、仮想列にデータを挿入することはできません。
+`CREATE TABLE` クエリで仮想カラムを指定すべきではなく、`SHOW CREATE TABLE` や `DESCRIBE TABLE` クエリの結果に仮想カラムが表示されることはありません。仮想カラムは読み取り専用のため、仮想カラムにデータを挿入することもできません。
 
-仮想列からデータを選択するには、仮想列の名前を指定する必要があります。 `SELECT` クエリ。 `SELECT *` 仮想列から値を返しません。
+仮想カラムからデータを選択するには、`SELECT` クエリでその名前を指定する必要があります。`SELECT *` では仮想カラムの値は返されません。
 
-テーブル仮想列のいずれかと同じ名前の列を持つテーブルを作成すると、仮想列にアクセスできなくなります。 これはお勧めしません。 競合を避けるために、仮想列名には通常、アンダースコアが付けられます。
-
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/) <!--hide-->
+テーブルを作成する際に、仮想カラムと同じ名前のカラムを作成した場合、仮想カラムは使用できなくなります。このようなことはお勧めしません。衝突を避けるために、仮想カラムの名前には通常アンダースコアを接頭辞として付けられています。

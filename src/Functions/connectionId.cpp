@@ -31,10 +31,10 @@ public:
     }
 };
 
-void registerFunctionConnectionId(FunctionFactory & factory)
+REGISTER_FUNCTION(ConnectionId)
 {
-    factory.registerFunction<FunctionConnectionId>(FunctionFactory::CaseInsensitive);
-    factory.registerAlias("connection_id", "connectionID", FunctionFactory::CaseInsensitive);
+    factory.registerFunction<FunctionConnectionId>({}, FunctionFactory::Case::Insensitive);
+    factory.registerAlias("connection_id", "connectionID", FunctionFactory::Case::Insensitive);
 }
 
 }

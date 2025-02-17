@@ -1,12 +1,14 @@
 ---
-toc_priority: 26
-toc_title: "Клиентские библиотеки от сторонних разработчиков"
+slug: /ru/interfaces/third-party/client-libraries
+sidebar_position: 26
+sidebar_label: "Клиентские библиотеки от сторонних разработчиков"
 ---
 
 # Клиентские библиотеки от сторонних разработчиков {#klientskie-biblioteki-ot-storonnikh-razrabotchikov}
 
-!!! warning "Disclaimer"
-    Яндекс не поддерживает перечисленные ниже библиотеки и не проводит тщательного тестирования для проверки их качества.
+:::danger Предупреждение
+ClickHouse Inc. не поддерживает перечисленные ниже библиотеки и не проводит тщательного тестирования для проверки их качества.
+:::
 
 -   Python:
     -   [infi.clickhouse_orm](https://github.com/Infinidat/infi.clickhouse_orm)
@@ -23,6 +25,7 @@ toc_title: "Клиентские библиотеки от сторонних р
     -   [SeasClick C++ client](https://github.com/SeasX/SeasClick)
     -   [glushkovds/phpclickhouse-laravel](https://packagist.org/packages/glushkovds/phpclickhouse-laravel)
     -   [kolya7k ClickHouse PHP extension](https://github.com//kolya7k/clickhouse-php)
+    -   [hyvor/clickhouse-php](https://github.com/hyvor/clickhouse-php)
 -   Go
     -   [clickhouse](https://github.com/kshvakov/clickhouse/)
     -   [go-clickhouse](https://github.com/roistat/go-clickhouse)
@@ -33,6 +36,9 @@ toc_title: "Клиентские библиотеки от сторонних р
     -   [node-clickhouse](https://github.com/apla/node-clickhouse)
     -   [nestjs-clickhouse](https://github.com/depyronick/nestjs-clickhouse)
     -   [clickhouse-client](https://github.com/depyronick/clickhouse-client)
+    -   [node-clickhouse-orm](https://github.com/zimv/node-clickhouse-orm)
+    -   [clickhouse-ts](https://github.com/bytadaniel/clickhouse-ts)
+    -   [clickcache](https://github.com/bytadaniel/clickcache)
 -   Perl
     -   [perl-DBD-ClickHouse](https://github.com/elcamlost/perl-DBD-ClickHouse)
     -   [HTTP-ClickHouse](https://metacpan.org/release/HTTP-ClickHouse)
@@ -41,9 +47,10 @@ toc_title: "Клиентские библиотеки от сторонних р
     -   [ClickHouse (Ruby)](https://github.com/shlima/click_house)
     -   [clickhouse-activerecord](https://github.com/PNixx/clickhouse-activerecord)
 -   Rust
+    -   [clickhouse.rs](https://github.com/loyd/clickhouse.rs)
+    -   [clickhouse-rs](https://github.com/suharev7/clickhouse-rs)
     -   [Klickhouse](https://github.com/Protryon/klickhouse)
 -   R
-    -   [clickhouse-r](https://github.com/hannesmuehleisen/clickhouse-r)
     -   [RClickhouse](https://github.com/IMSMWU/RClickhouse)
 -   Java
     -   [clickhouse-client-java](https://github.com/VirtusAI/clickhouse-client-java)
@@ -59,6 +66,6 @@ toc_title: "Клиентские библиотеки от сторонних р
 -   Elixir
     -   [clickhousex](https://github.com/appodeal/clickhousex/)
     -   [pillar](https://github.com/sofakingworld/pillar)
+    -   [req_ch](https://github.com/livebook-dev/req_ch)
 -   Nim
     -   [nim-clickhouse](https://github.com/leonardoce/nim-clickhouse)
-

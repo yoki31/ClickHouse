@@ -3,6 +3,7 @@
 #include <base/sort.h>
 #include <Common/HashTable/HashMap.h>
 #include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/IDataType.h>
 #include <IO/ReadBuffer.h>
 #include <IO/WriteBuffer.h>
 #include <IO/ReadHelpers.h>
@@ -11,6 +12,8 @@
 #include <IO/WriteBufferFromString.h>
 #include <IO/Operators.h>
 
+#include <boost/algorithm/string.hpp>
+#include <cstddef>
 
 namespace DB
 {
@@ -36,6 +39,16 @@ String NameAndTypePair::getNameInStorage() const
         return name;
 
     return name.substr(0, *subcolumn_delimiter_position);
+}
+
+bool NameAndTypePair::operator<(const NameAndTypePair & rhs) const
+{
+    return std::forward_as_tuple(name, type->getName()) < std::forward_as_tuple(rhs.name, rhs.type->getName());
+}
+
+bool NameAndTypePair::operator==(const NameAndTypePair & rhs) const
+{
+    return name == rhs.name && type->equals(*rhs.type);
 }
 
 String NameAndTypePair::getSubcolumnName() const
@@ -149,6 +162,15 @@ Names NamesAndTypesList::getNames() const
     return res;
 }
 
+NameSet NamesAndTypesList::getNameSet() const
+{
+    NameSet res;
+    res.reserve(size());
+    for (const NameAndTypePair & column : *this)
+        res.insert(column.name);
+    return res;
+}
+
 DataTypes NamesAndTypesList::getTypes() const
 {
     DataTypes res;
@@ -158,12 +180,24 @@ DataTypes NamesAndTypesList::getTypes() const
     return res;
 }
 
+void NamesAndTypesList::filterColumns(const NameSet & names)
+{
+    for (auto it = begin(); it != end();)
+    {
+        const auto & column = *it;
+        if (names.contains(column.name))
+            ++it;
+        else
+            it = erase(it);
+    }
+}
+
 NamesAndTypesList NamesAndTypesList::filter(const NameSet & names) const
 {
     NamesAndTypesList res;
     for (const NameAndTypePair & column : *this)
     {
-        if (names.count(column.name))
+        if (names.contains(column.name))
             res.push_back(column);
     }
     return res;
@@ -173,6 +207,18 @@ NamesAndTypesList NamesAndTypesList::filter(const Names & names) const
 {
     return filter(NameSet(names.begin(), names.end()));
 }
+
+NamesAndTypesList NamesAndTypesList::eraseNames(const NameSet & names) const
+{
+    NamesAndTypesList res;
+    for (const auto & column : *this)
+    {
+        if (!names.contains(column.name))
+            res.push_back(column);
+    }
+    return res;
+}
+
 
 NamesAndTypesList NamesAndTypesList::addTypes(const Names & names) const
 {
@@ -205,6 +251,16 @@ bool NamesAndTypesList::contains(const String & name) const
     return false;
 }
 
+bool NamesAndTypesList::containsCaseInsensitive(const String & name) const
+{
+    for (const NameAndTypePair & column : *this)
+    {
+        if (boost::iequals(column.name, name))
+            return true;
+    }
+    return false;
+}
+
 std::optional<NameAndTypePair> NamesAndTypesList::tryGetByName(const std::string & name) const
 {
     for (const NameAndTypePair & column : *this)
@@ -214,4 +270,32 @@ std::optional<NameAndTypePair> NamesAndTypesList::tryGetByName(const std::string
     }
     return {};
 }
+
+size_t NamesAndTypesList::getPosByName(const std::string &name) const noexcept
+{
+    size_t pos = 0;
+    for (const NameAndTypePair & column : *this)
+    {
+        if (column.name == name)
+            break;
+        ++pos;
+    }
+    return pos;
+}
+
+String NamesAndTypesList::toNamesAndTypesDescription() const
+{
+    WriteBufferFromOwnString buf;
+    bool first = true;
+    for (const auto & name_and_type : *this)
+    {
+        if (!std::exchange(first, false))
+            writeCString(", ", buf);
+        writeBackQuotedString(name_and_type.name, buf);
+        writeChar(' ', buf);
+        writeString(name_and_type.type->getName(), buf);
+    }
+    return buf.str();
+}
+
 }

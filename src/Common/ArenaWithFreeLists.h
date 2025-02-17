@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <Core/Defines.h>
 #if __has_include(<sanitizer/asan_interface.h>) && defined(ADDRESS_SANITIZER)
 #   include <sanitizer/asan_interface.h>
@@ -86,7 +87,10 @@ public:
     void free(char * ptr, const size_t size)
     {
         if (size > max_fixed_block_size)
-            return Allocator<false>::free(ptr, size);
+        {
+            Allocator<false>::free(ptr, size);
+            return;
+        }
 
         /// find list of required size
         const auto list_idx = findFreeListIndex(size);
@@ -107,11 +111,38 @@ public:
     }
 
     /// Size of the allocated pool in bytes
-    size_t size() const
-    {
-        return pool.size();
-    }
+    size_t allocatedBytes() const { return pool.allocatedBytes(); }
 };
 
+class SynchronizedArenaWithFreeLists : private ArenaWithFreeLists
+{
+public:
+    explicit SynchronizedArenaWithFreeLists(
+        const size_t initial_size = 4096, const size_t growth_factor = 2,
+        const size_t linear_growth_threshold = 128 * 1024 * 1024)
+        : ArenaWithFreeLists{initial_size, growth_factor, linear_growth_threshold}
+    {}
+
+    char * alloc(const size_t size)
+    {
+        std::lock_guard lock{mutex};
+        return ArenaWithFreeLists::alloc(size);
+    }
+
+    void free(char * ptr, const size_t size)
+    {
+        std::lock_guard lock{mutex};
+        ArenaWithFreeLists::free(ptr, size);
+    }
+
+    /// Size of the allocated pool in bytes
+    size_t allocatedBytes() const
+    {
+        std::lock_guard lock{mutex};
+        return ArenaWithFreeLists::allocatedBytes();
+    }
+private:
+    mutable std::mutex mutex;
+};
 
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config_core.h"
+#include "config.h"
 #if USE_MYSQL
 
 #include <mysqlxx/PoolWithFailover.h>
@@ -12,10 +12,11 @@
 
 #include <map>
 #include <vector>
-#include <Core/Settings.h>
 
 namespace DB
 {
+
+struct Settings;
 
 std::map<String, ColumnsDescription> fetchTablesColumnsList(
         mysqlxx::PoolWithFailover & pool,

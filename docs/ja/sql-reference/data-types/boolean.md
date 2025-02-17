@@ -1,12 +1,38 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 43
-toc_title: "\u30D6\u30FC\u30EB\u5024"
+slug: /ja/sql-reference/data-types/boolean
+sidebar_position: 22
+sidebar_label: Bool
 ---
 
-# ブール値 {#boolean-values}
+# Bool
 
-ブール値には別の型はありません。 UInt8型を使用し、値0または1に制限します。
+`bool`型は内部的にはUInt8として格納されます。可能な値は`true`（1）と`false`（0）です。
 
-[元の記事](https://clickhouse.com/docs/en/data_types/boolean/) <!--hide-->
+```sql
+select true as col, toTypeName(col);
+┌─col──┬─toTypeName(true)─┐
+│ true │ Bool             │
+└──────┴──────────────────┘
+
+select true == 1 as col, toTypeName(col);
+┌─col─┬─toTypeName(equals(true, 1))─┐
+│   1 │ UInt8                       │
+└─────┴─────────────────────────────┘
+```
+
+```sql
+CREATE TABLE test_bool
+(
+    `A` Int64,
+    `B` Bool
+)
+ENGINE = Memory;
+
+INSERT INTO test_bool VALUES (1, true),(2,0);
+
+SELECT * FROM test_bool;
+┌─A─┬─B─────┐
+│ 1 │ true  │
+│ 2 │ false │
+└───┴───────┘
+```

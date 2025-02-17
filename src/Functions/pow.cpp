@@ -11,10 +11,10 @@ using FunctionPow = FunctionMathBinaryFloat64<BinaryFunctionVectorized<PowName, 
 
 }
 
-void registerFunctionPow(FunctionFactory & factory)
+REGISTER_FUNCTION(Pow)
 {
-    factory.registerFunction<FunctionPow>(FunctionFactory::CaseInsensitive);
-    factory.registerAlias("power", "pow", FunctionFactory::CaseInsensitive);
+    factory.registerFunction<FunctionPow>({}, FunctionFactory::Case::Insensitive);
+    factory.registerAlias("power", "pow", FunctionFactory::Case::Insensitive);
 }
 
 }

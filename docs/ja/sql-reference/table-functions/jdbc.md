@@ -1,16 +1,20 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 43
-toc_title: jdbc
+slug: /ja/sql-reference/table-functions/jdbc
+sidebar_position: 100
+sidebar_label: jdbc
 ---
 
-# jdbc {#table-function-jdbc}
+# jdbc
 
-`jdbc(datasource, schema, table)` -JDBCドライバ経由で接続されたテーブルを返します。
+:::note
+clickhouse-jdbc-bridge はエクスペリメンタルなコードを含み、もはやサポートされていません。信頼性の問題やセキュリティの脆弱性を含む可能性があります。使用は自己責任で行ってください。
+ClickHouse は、クリックハウス内の組み込みテーブル関数の使用を推奨します。これにより、アドホックなクエリシナリオ（Postgres、MySQL、MongoDB など）のためのより良い代替手段を提供します。
+:::
 
-このテーブル関数には、別々の [clickhouse-jdbc-bridge](https://github.com/ClickHouse/clickhouse-jdbc-bridge) 実行するプログラム。
-Null許容型をサポートします(照会されるリモートテーブルのDDLに基づきます)。
+`jdbc(datasource, schema, table)` - JDBC ドライバーを介して接続されるテーブルを返します。
+
+このテーブル関数は、別途 [clickhouse-jdbc-bridge](https://github.com/ClickHouse/clickhouse-jdbc-bridge) プログラムの実行が必要です。
+Nullable 型のサポート（クエリされたリモートテーブルの DDL に基づいて)も提供されています。
 
 **例**
 
@@ -37,4 +41,3 @@ FROM jdbc('mysql-dev?datasource_column', 'show databases') a
 INNER JOIN jdbc('self?datasource_column', 'show databases') b ON a.Database = b.name
 ```
 
-[元の記事](https://clickhouse.com/docs/en/query_language/table_functions/jdbc/) <!--hide-->

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Tags: zookeeper, no-replicated-database, no-parallel
+# Tags: zookeeper, no-replicated-database, no-shared-merge-tree
 # Tag no-replicated-database: Old syntax is not allowed
+# no-shared-merge-tree -- old syntax
 
 CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
 . "$CURDIR"/../shell_config.sh
 
-ch="$CLICKHOUSE_CLIENT --stacktrace -q"
+ch="$CLICKHOUSE_CLIENT  --allow_deprecated_syntax_for_merge_tree=1 --stacktrace -q"
 
 $ch "DROP TABLE IF EXISTS clear_column1"
 $ch "DROP TABLE IF EXISTS clear_column2"

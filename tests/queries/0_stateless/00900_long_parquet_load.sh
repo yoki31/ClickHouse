@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tags: long, no-fasttest
+# Tags: long, no-fasttest, no-debug, no-asan, no-msan, no-tsan
 
 #
 # Load all possible .parquet files found in submodules.
@@ -40,10 +40,12 @@ DATA_DIR=$CUR_DIR/data_parquet
 #   Code: 349. DB::Ex---tion: Can not insert NULL data into non-nullable column "phoneNumbers": data for INSERT was parsed from stdin
 
 for NAME in $(find "$DATA_DIR"/*.parquet -print0 | xargs -0 -n 1 basename | LC_ALL=C sort); do
-    echo === Try load data from "$NAME"
-
     JSON=$DATA_DIR/$NAME.json
     COLUMNS_FILE=$DATA_DIR/$NAME.columns
+
+    { [ -z "$PARQUET_READER" ] || [ ! -s "$PARQUET_READER" ]; } && [ ! -s "$COLUMNS_FILE" ] && continue
+
+    echo "=== Try load data from $NAME"
 
     # If you want change or add .parquet file - rm data_parquet/*.json data_parquet/*.columns
     [ -n "$PARQUET_READER" ] && [ ! -s "$COLUMNS_FILE" ] && [ ! -s "$JSON" ] && "$PARQUET_READER" --json "$DATA_DIR"/"$NAME" > "$JSON"
@@ -55,15 +57,14 @@ for NAME in $(find "$DATA_DIR"/*.parquet -print0 | xargs -0 -n 1 basename | LC_A
     # COLUMNS=`$CUR_DIR/00900_parquet_create_table_columns.py $JSON` 2>&1 || continue
     COLUMNS=$(cat "$COLUMNS_FILE") || continue
 
-    ${CLICKHOUSE_CLIENT} --query="DROP TABLE IF EXISTS parquet_load"
-    $CLICKHOUSE_CLIENT --multiquery <<EOF
-SET allow_experimental_map_type = 1;
-CREATE TABLE parquet_load ($COLUMNS) ENGINE = Memory;
-EOF
+    ${CLICKHOUSE_CLIENT} -n --query="
+        DROP TABLE IF EXISTS parquet_load;
+        CREATE TABLE parquet_load ($COLUMNS) ENGINE = Memory;"
 
     # Some files contain unsupported data structures, exception is ok.
-    cat "$DATA_DIR"/"$NAME" | ${CLICKHOUSE_CLIENT} --query="INSERT INTO parquet_load FORMAT Parquet" 2>&1 | sed 's/Exception/Ex---tion/'
+    ${CLICKHOUSE_CLIENT} --query="INSERT INTO parquet_load FORMAT Parquet" < "$DATA_DIR"/"$NAME" 2>&1 | sed 's/Exception/Ex---tion/'
 
-    ${CLICKHOUSE_CLIENT} --query="SELECT * FROM parquet_load LIMIT 100"
-    ${CLICKHOUSE_CLIENT} --query="DROP TABLE parquet_load"
+    ${CLICKHOUSE_CLIENT} -n --query="
+        SELECT * FROM parquet_load ORDER BY tuple(*) LIMIT 100;
+        DROP TABLE parquet_load;"
 done

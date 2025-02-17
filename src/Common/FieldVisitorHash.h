@@ -23,16 +23,20 @@ public:
     void operator() (const Int128 & x) const;
     void operator() (const Int256 & x) const;
     void operator() (const UUID & x) const;
+    void operator() (const IPv4 & x) const;
+    void operator() (const IPv6 & x) const;
     void operator() (const Float64 & x) const;
     void operator() (const String & x) const;
     void operator() (const Array & x) const;
     void operator() (const Tuple & x) const;
     void operator() (const Map & x) const;
+    void operator() (const Object & x) const;
     void operator() (const DecimalField<Decimal32> & x) const;
     void operator() (const DecimalField<Decimal64> & x) const;
     void operator() (const DecimalField<Decimal128> & x) const;
     void operator() (const DecimalField<Decimal256> & x) const;
     void operator() (const AggregateFunctionStateData & x) const;
+    void operator() (const CustomType & x) const;
     void operator() (const bool & x) const;
 };
 

@@ -1,6 +1,7 @@
 ---
-toc_priority: 38
-toc_title: SHOW
+slug: /zh/sql-reference/statements/show
+sidebar_position: 38
+sidebar_label: SHOW
 ---
 
 # SHOW 查询 {#show-queries}
@@ -109,7 +110,7 @@ SHOW DICTIONARIES FROM db LIKE '%reg%' LIMIT 2
 ### 语法 {#show-grants-syntax}
 
 ``` sql
-SHOW GRANTS [FOR user]
+SHOW GRANTS [FOR user1 [, user2 ...]] [WITH IMPLICIT] [FINAL]
 ```
 
 如果未指定用户，输出当前用户的权限
@@ -165,5 +166,3 @@ SHOW CREATE QUOTA [name | CURRENT]
 ``` sql
 SHOW CREATE [SETTINGS] PROFILE name
 ```
-
-[原始文档](https://clickhouse.com/docs/en/query_language/show/) <!--hide-->

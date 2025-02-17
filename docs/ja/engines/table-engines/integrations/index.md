@@ -1,8 +1,9 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_folder_title: "\u7D71\u5408"
-toc_priority: 30
+slug: /ja/engines/table-engines/integrations/
+sidebar_position: 40
+sidebar_label: インテグレーション
 ---
 
+# インテグレーション用テーブルエンジン
 
+ClickHouseは、外部システムとのインテグレーションのために、さまざまな手段を提供しており、その中にはテーブルエンジンも含まれます。 他のすべてのテーブルエンジンと同様に、設定は `CREATE TABLE` または `ALTER TABLE` クエリを用いて行います。 ユーザーの観点から見ると、設定されたインテグレーションは通常のテーブルのように見えますが、そのクエリは外部システムにプロキシされます。この透過的なクエリは、Dictionaryやテーブル関数のような代替のインテグレーション方法に対する大きな利点の一つで、各使用時にカスタムクエリメソッドを使用する必要がありません。

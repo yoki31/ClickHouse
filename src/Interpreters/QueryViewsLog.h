@@ -4,15 +4,15 @@
 #include <memory>
 #include <sys/types.h>
 
-#include <Columns/IColumn.h>
-#include <Core/Block.h>
-#include <Core/SettingsEnums.h>
+#include <Columns/IColumn_fwd.h>
+#include <Core/NamesAndAliases.h>
+#include <Core/QueryLogElementType.h>
 #include <Core/Types.h>
 #include <Core/UUID.h>
-#include <Core/NamesAndTypes.h>
-#include <Core/NamesAndAliases.h>
 #include <Interpreters/SystemLog.h>
+#include <Storages/ColumnsDescription.h>
 #include <base/types.h>
+#include <Common/ProfileEvents.h>
 
 namespace ProfileEvents
 {
@@ -39,7 +39,7 @@ struct QueryViewsLogElement
     {
         String target_name;
         ViewType type = ViewType::DEFAULT;
-        std::unique_ptr<ThreadStatus> thread_status = nullptr;
+        ThreadStatus * thread_status = nullptr;
         std::atomic_uint64_t elapsed_ms = 0;
         std::chrono::time_point<std::chrono::system_clock> event_time;
         ViewStatus event_status = ViewStatus::QUERY_START;
@@ -76,7 +76,7 @@ struct QueryViewsLogElement
 
     static std::string name() { return "QueryLog"; }
 
-    static NamesAndTypesList getNamesAndTypes();
+    static ColumnsDescription getColumnsDescription();
     static NamesAndAliases getNamesAndAliases();
     void appendToBlock(MutableColumns & columns) const;
 };

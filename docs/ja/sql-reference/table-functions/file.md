@@ -1,33 +1,83 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 37
-toc_title: "\u30D5\u30A1\u30A4\u30EB"
+slug: /ja/sql-reference/table-functions/file
+sidebar_position: 60
+sidebar_label: file
 ---
 
-# ファイル {#file}
+# file
 
-ファイルからテーブルを作成します。 この表関数は次のようになります [url](url.md) と [hdfs](hdfs.md) ワンズ
+`file`は、ファイルに対してSELECT文とINSERT文を実行するためのテーブルエンジンであり、[s3](/docs/ja/sql-reference/table-functions/url.md)テーブル関数に似たテーブルライクなインターフェースを提供します。ローカルファイルを扱う際には`file()`を使用し、S3、GCS、MinIOなどのオブジェクトストレージのバケットを扱う際には`s3()`を使用します。
 
-``` sql
-file(path, format, structure)
+`file`関数は、ファイルからデータを読み込んだり、ファイルにデータを書き込むために`SELECT`および`INSERT`クエリで使用できます。
+
+**構文**
+
+```sql
+file([path_to_archive ::] path [,format] [,structure] [,compression])
 ```
 
-**入力パラメータ**
+**パラメータ**
 
--   `path` — The relative path to the file from [user_files_path](../../operations/server-configuration-parameters/settings.md#server_configuration_parameters-user_files_path). パスファイルをサポートglobに読み取り専用モード: `*`, `?`, `{abc,def}` と `{N..M}` どこに `N`, `M` — numbers, \``'abc', 'def'` — strings.
--   `format` — The [形式](../../interfaces/formats.md#formats) ファイルの。
--   `structure` — Structure of the table. Format `'column1_name column1_type, column2_name column2_type, ...'`.
+- `path` — [user_files_path](/docs/ja/operations/server-configuration-parameters/settings.md#user_files_path)からのファイルへの相対パスです。読み取り専用モードで以下の[グロブ](#globs-in-path)をサポートしています。`*`、`?`、`{abc,def}`（`'abc'`と`'def'`は文字列）、および`{N..M}`（`N`と`M`は数値）。
+- `path_to_archive` - zip/tar/7zアーカイブへの相対パス。同じグロブを`path`と共にサポート。
+- `format` — ファイルの[フォーマット](/docs/ja/interfaces/formats.md#formats)。
+- `structure` — テーブルの構造。形式： `'column1_name column1_type, column2_name column2_type, ...'`。
+- `compression` — `SELECT`クエリで使用する既存の圧縮タイプ、または`INSERT`クエリで使用する希望の圧縮タイプ。サポートされる圧縮タイプは`gz`、`br`、`xz`、`zst`、`lz4`、および`bz2`です。
 
-**戻り値**
+**返される値**
 
-テーブルの指定された構造を読み取りまたは書き込みデータを、指定されたファイルです。
+ファイル内のデータの読み書きに使用されるテーブル。
 
-**例**
+## ファイルへの書き込み例
 
-設定 `user_files_path` そして、ファイルの内容 `test.csv`:
+### TSVファイルに書き込む
 
-``` bash
+```sql
+INSERT INTO TABLE FUNCTION
+file('test.tsv', 'TSV', 'column1 UInt32, column2 UInt32, column3 UInt32')
+VALUES (1, 2, 3), (3, 2, 1), (1, 3, 2)
+```
+
+結果として、データは`test.tsv`ファイルに書き込まれます：
+
+```bash
+# cat /var/lib/clickhouse/user_files/test.tsv
+1	2	3
+3	2	1
+1	3	2
+```
+
+### 複数のTSVファイルへのパーティション化された書き込み
+
+`file()`型のテーブル関数にデータを挿入する際に`PARTITION BY`式を指定すると、各パーティションごとに個別のファイルが作成されます。データを別々のファイルに分割することで読み取り操作のパフォーマンスを向上させることができます。
+
+```sql
+INSERT INTO TABLE FUNCTION
+file('test_{_partition_id}.tsv', 'TSV', 'column1 UInt32, column2 UInt32, column3 UInt32')
+PARTITION BY column3
+VALUES (1, 2, 3), (3, 2, 1), (1, 3, 2)
+```
+
+結果として、データは3つのファイル、`test_1.tsv`、`test_2.tsv`、`test_3.tsv`に書き込まれます。
+
+```bash
+# cat /var/lib/clickhouse/user_files/test_1.tsv
+3	2	1
+
+# cat /var/lib/clickhouse/user_files/test_2.tsv
+1	3	2
+
+# cat /var/lib/clickhouse/user_files/test_3.tsv
+1	2	3
+```
+
+## ファイルからの読み取り例
+
+### CSVファイルからのSELECT
+
+まず、サーバー設定で`user_files_path`を設定し、`test.csv`ファイルを準備します：
+
+```bash
 $ grep user_files_path /etc/clickhouse-server/config.xml
     <user_files_path>/var/lib/clickhouse/user_files/</user_files_path>
 
@@ -37,85 +87,144 @@ $ cat /var/lib/clickhouse/user_files/test.csv
     78,43,45
 ```
 
-テーブルから`test.csv` そして、それから最初の二つの行の選択:
+次に、`test.csv`からデータをテーブルに読み込み、最初の2行を選択します：
 
-``` sql
-SELECT *
-FROM file('test.csv', 'CSV', 'column1 UInt32, column2 UInt32, column3 UInt32')
-LIMIT 2
+```sql
+SELECT * FROM
+file('test.csv', 'CSV', 'column1 UInt32, column2 UInt32, column3 UInt32')
+LIMIT 2;
 ```
 
-``` text
+```text
 ┌─column1─┬─column2─┬─column3─┐
 │       1 │       2 │       3 │
 │       3 │       2 │       1 │
 └─────────┴─────────┴─────────┘
 ```
 
-``` sql
--- getting the first 10 lines of a table that contains 3 columns of UInt32 type from a CSV file
-SELECT * FROM file('test.csv', 'CSV', 'column1 UInt32, column2 UInt32, column3 UInt32') LIMIT 10
+### ファイルからテーブルへのデータの挿入
+
+```sql
+INSERT INTO FUNCTION
+file('test.csv', 'CSV', 'column1 UInt32, column2 UInt32, column3 UInt32')
+VALUES (1, 2, 3), (3, 2, 1);
+```
+```sql
+SELECT * FROM
+file('test.csv', 'CSV', 'column1 UInt32, column2 UInt32, column3 UInt32');
 ```
 
-**パス内のグロブ**
+```text
+┌─column1─┬─column2─┬─column3─┐
+│       1 │       2 │       3 │
+│       3 │       2 │       1 │
+└─────────┴─────────┴─────────┘
+```
 
-複数のパスコンポーネ のための処理中のファイルが存在するマッチのパスのパターンのみならず接尾辞または接頭).
+`archive1.zip`または`archive2.zip`にある`table.csv`からのデータの読み込み：
 
--   `*` — Substitutes any number of any characters except `/` 空の文字列を含む。
--   `?` — Substitutes any single character.
--   `{some_string,another_string,yet_another_one}` — Substitutes any of strings `'some_string', 'another_string', 'yet_another_one'`.
--   `{N..M}` — Substitutes any number in range from N to M including both borders.
+```sql
+SELECT * FROM file('user_files/archives/archive{1..2}.zip :: table.csv');
+```
 
-構造との `{}` に類似しています [遠隔テーブル機能](../../sql-reference/table-functions/remote.md)).
+## パスのグロブ
+
+パスにはグロビングを使用できます。ファイルはパスパターン全体にマッチする必要があり、接頭辞または接尾辞のみではありません。パスが既存のディレクトリを指し、グロブを使用しない場合、そのパスには暗黙的に`*`が追加され、ディレクトリ内のすべてのファイルが選択されるという一例外があります。
+
+- `*` — 空文字列を含みますが`/`を除く任意の文字。
+- `?` — 任意の単一文字。
+- `{some_string,another_string,yet_another_one}` — 文字列 `'some_string'`, `'another_string'`, `'yet_another_one'` のいずれかを置換できます。文字列には`/`を含めることができます。
+- `{N..M}` — `N >=` および `<= M` の任意の数。
+- `**` - フォルダ内のすべてのファイルを再帰的に表します。
+
+`{}`を使用した構造は[remote](remote.md)や[hdfs](hdfs.md)テーブル関数に似ています。
 
 **例**
 
-1.  次の相対パスを持つ複数のファイルがあるとします:
+以下の相対パスを持つファイルがあるとします：
 
--   ‘some_dir/some_file_1’
--   ‘some_dir/some_file_2’
--   ‘some_dir/some_file_3’
--   ‘another_dir/some_file_1’
--   ‘another_dir/some_file_2’
--   ‘another_dir/some_file_3’
+- `some_dir/some_file_1`
+- `some_dir/some_file_2`
+- `some_dir/some_file_3`
+- `another_dir/some_file_1`
+- `another_dir/some_file_2`
+- `another_dir/some_file_3`
 
-1.  これらのファイル内の行の量を照会します:
+すべてのファイルの行数をクエリします：
 
-<!-- -->
-
-``` sql
-SELECT count(*)
-FROM file('{some,another}_dir/some_file_{1..3}', 'TSV', 'name String, value UInt32')
+```sql
+SELECT count(*) FROM file('{some,another}_dir/some_file_{1..3}', 'TSV', 'name String, value UInt32');
 ```
 
-1.  クエリの量の行のすべてのファイルのディレクトリ:
+同じ結果を達成する別のパス表現：
 
-<!-- -->
-
-``` sql
-SELECT count(*)
-FROM file('{some,another}_dir/*', 'TSV', 'name String, value UInt32')
+```sql
+SELECT count(*) FROM file('{some,another}_dir/*', 'TSV', 'name String, value UInt32');
 ```
 
-!!! warning "警告"
-    ファイ `?`.
+暗黙的な`*`を使用して`some_dir`内のすべての行数をクエリします：
+
+```sql
+SELECT count(*) FROM file('some_dir', 'TSV', 'name String, value UInt32');
+```
+
+:::note
+ファイルリストに先行ゼロを持つ数範囲が含まれている場合、各桁に対して中括弧を使用する構造を使用するか、`?`を使用します。
+:::
 
 **例**
 
-クエリからのデータファイル名 `file000`, `file001`, … , `file999`:
+`file000`, `file001`, ..., `file999`というファイルに含まれる合計行数をクエリします：
 
-``` sql
-SELECT count(*)
-FROM file('big_dir/file{0..9}{0..9}{0..9}', 'CSV', 'name String, value UInt32')
+```sql
+SELECT count(*) FROM file('big_dir/file{0..9}{0..9}{0..9}', 'CSV', 'name String, value UInt32');
 ```
 
-## 仮想列 {#virtual-columns}
+**例**
 
--   `_path` — Path to the file.
--   `_file` — Name of the file.
+ディレクトリ`big_dir/`内のすべてのファイルから再帰的に行数をクエリします：
 
-**も参照。**
+```sql
+SELECT count(*) FROM file('big_dir/**', 'CSV', 'name String, value UInt32');
+```
 
--   [仮想列](https://clickhouse.com/docs/en/operations/table_engines/#table_engines-virtual_columns)
+**例**
 
-[元の記事](https://clickhouse.com/docs/en/query_language/table_functions/file/) <!--hide-->
+ディレクトリ`big_dir/`内の任意のフォルダ内にあるファイル`file002`から再帰的にすべての行数をクエリします：
+
+```sql
+SELECT count(*) FROM file('big_dir/**/file002', 'CSV', 'name String, value UInt32');
+```
+
+## 仮想カラム {#virtual-columns}
+
+- `_path` — ファイルへのパス。型：`LowCardinality(String)`。
+- `_file` — ファイル名。型：`LowCardinality(String)`。
+- `_size` — バイト単位のファイルサイズ。型：`Nullable(UInt64)`。ファイルサイズが不明な場合、値は `NULL` になります。
+- `_time` — ファイルの最終更新時刻。型：`Nullable(DateTime)`。時間が不明な場合、値は`NULL`になります。
+
+## Hiveスタイルのパーティション化 {#hive-style-partitioning}
+
+`use_hive_partitioning`設定を1に設定すると、ClickHouseはパス内のHiveスタイルのパーティション化(`/name=value/`)を検出し、パーティションカラムをクエリ内で仮想カラムとして使用できるようになります。これらの仮想カラムはパーティション化されたパスのカラム名と同じですが、先頭に`_`が付きます。
+
+**例**
+
+Hiveスタイルのパーティション化で作成された仮想カラムを使用
+
+```sql
+SET use_hive_partitioning = 1;
+SELECT * from file('data/path/date=*/country=*/code=*/*.parquet') where _date > '2020-01-01' and _country = 'Netherlands' and _code = 42;
+```
+
+## 設定 {#settings}
+
+- [engine_file_empty_if_not_exists](/docs/ja/operations/settings/settings.md#engine-file-empty_if-not-exists) - 存在しないファイルから空のデータを選択することを可能にします。デフォルトでは無効です。
+- [engine_file_truncate_on_insert](/docs/ja/operations/settings/settings.md#engine-file-truncate-on-insert) - 挿入前にファイルを切り詰めることを許可します。デフォルトでは無効です。
+- [engine_file_allow_create_multiple_files](/docs/ja/operations/settings/settings.md#engine_file_allow_create_multiple_files) - フォーマットにサフィックスがある場合、各挿入で新しいファイルを作成することを許可します。デフォルトでは無効です。
+- [engine_file_skip_empty_files](/docs/ja/operations/settings/settings.md#engine_file_skip_empty_files) - 読み取り中に空のファイルをスキップすることを許可します。デフォルトでは無効です。
+- [storage_file_read_method](/docs/ja/operations/settings/settings.md#engine-file-empty_if-not-exists) - ストレージファイルからデータを読み取る方法の1つ。read, pread, mmap（clickhouse-localのみ）。デフォルト値：`clickhouse-server`では`pread`、`clickhouse-local`では`mmap`。
+
+**関連項目**
+
+- [Virtual columns](/docs/ja/engines/table-engines/index.md#table_engines-virtual_columns)
+- [処理後にファイルの名前を変更する](/docs/ja/operations/settings/settings.md#rename_files_after_processing)

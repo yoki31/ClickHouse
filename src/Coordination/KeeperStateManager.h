@@ -1,35 +1,18 @@
 #pragma once
 
-#include <Core/Types.h>
 #include <string>
 #include <Coordination/KeeperLogStore.h>
-#include <Coordination/CoordinationSettings.h>
+#include <Coordination/KeeperSnapshotManager.h>
+#include <Core/Types.h>
 #include <libnuraft/nuraft.hxx>
 #include <Poco/Util/AbstractConfiguration.h>
-#include <Coordination/KeeperSnapshotManager.h>
+#include "Coordination/KeeperStateMachine.h"
+#include "Coordination/RaftServerConfig.h"
+#include <Access/AuthenticationData.h>
 
 namespace DB
 {
-
 using KeeperServerConfigPtr = nuraft::ptr<nuraft::srv_config>;
-
-/// When our configuration changes the following action types
-/// can happen
-enum class ConfigUpdateActionType
-{
-    RemoveServer,
-    AddServer,
-    UpdatePriority,
-};
-
-/// Action to update configuration
-struct ConfigUpdateAction
-{
-    ConfigUpdateActionType action_type;
-    KeeperServerConfigPtr server;
-};
-
-using ConfigUpdateActions = std::vector<ConfigUpdateAction>;
 
 /// Responsible for managing our and cluster configuration
 class KeeperStateManager : public nuraft::state_mgr
@@ -38,20 +21,21 @@ public:
     KeeperStateManager(
         int server_id_,
         const std::string & config_prefix_,
-        const std::string & log_storage_path,
+        const std::string & server_state_file_name_,
         const Poco::Util::AbstractConfiguration & config,
-        const CoordinationSettingsPtr & coordination_settings);
+        KeeperContextPtr keeper_context_);
 
     /// Constructor for tests
     KeeperStateManager(
         int server_id_,
         const std::string & host,
         int port,
-        const std::string & logs_path);
+        KeeperContextPtr keeper_context_);
 
     void loadLogStore(uint64_t last_commited_index, uint64_t logs_to_keep);
 
-    void flushLogStore();
+    /// Flush logstore and call shutdown of background thread
+    void flushAndShutDownLogStore();
 
     /// Called on server start, in our case we don't use any separate logic for load
     nuraft::ptr<nuraft::cluster_config> load_config() override
@@ -65,13 +49,17 @@ public:
 
     void save_state(const nuraft::srv_state & state) override;
 
-    nuraft::ptr<nuraft::srv_state> read_state() override { return server_state; }
+    nuraft::ptr<nuraft::srv_state> read_state() override;
 
     nuraft::ptr<nuraft::log_store> load_log_store() override { return log_store; }
 
     int32_t server_id() override { return my_server_id; }
 
-    nuraft::ptr<nuraft::srv_config> get_srv_config() const { return configuration_wrapper.config; } /// NOLINT
+    nuraft::ptr<nuraft::srv_config> get_srv_config() const
+    {
+        std::lock_guard lk(configuration_wrapper_mutex);
+        return configuration_wrapper.config;
+    }
 
     void system_exit(const int exit_code) override; /// NOLINT
 
@@ -84,7 +72,7 @@ public:
     bool shouldStartAsFollower() const
     {
         std::lock_guard lock(configuration_wrapper_mutex);
-        return configuration_wrapper.servers_start_as_followers.count(my_server_id);
+        return configuration_wrapper.servers_start_as_followers.contains(my_server_id);
     }
 
     bool isSecure() const
@@ -103,10 +91,16 @@ public:
     /// Read all log entries in log store from the begging and return latest config (with largest log_index)
     ClusterConfigPtr getLatestConfigFromLogStore() const;
 
-    /// Get configuration diff between proposed XML and current state in RAFT
-    ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const;
+    // TODO (myrrc) This should be removed once "reconfig" is stabilized
+    ClusterUpdateActions getRaftConfigurationDiff(const Poco::Util::AbstractConfiguration & config, const CoordinationSettings & coordination_settings) const;
+
+    std::optional<AuthenticationData> getAuthenticationData() const;
 
 private:
+    const String & getOldServerStatePath();
+
+    DiskPtr getStateFileDisk() const;
+
     /// Wrapper struct for Keeper cluster config. We parse this
     /// info from XML files.
     struct KeeperConfigurationWrapper
@@ -115,6 +109,8 @@ private:
         int port;
         /// Our config
         KeeperServerConfigPtr config;
+        /// Password to access keeper
+        std::optional<AuthenticationData> auth_data;
         /// Servers id's to start as followers
         std::unordered_set<int> servers_start_as_followers;
         /// Cluster config
@@ -126,13 +122,20 @@ private:
     std::string config_prefix;
 
     mutable std::mutex configuration_wrapper_mutex;
-    KeeperConfigurationWrapper configuration_wrapper;
+    KeeperConfigurationWrapper configuration_wrapper TSA_GUARDED_BY(configuration_wrapper_mutex);
 
+    bool log_store_initialized = false;
     nuraft::ptr<KeeperLogStore> log_store;
-    nuraft::ptr<nuraft::srv_state> server_state;
 
+    const String server_state_file_name;
+
+    KeeperContextPtr keeper_context;
+
+    LoggerPtr logger;
+
+public:
     /// Parse configuration from xml config.
-    KeeperConfigurationWrapper parseServersConfiguration(const Poco::Util::AbstractConfiguration & config, bool allow_without_us) const;
+    KeeperConfigurationWrapper parseServersConfiguration(const Poco::Util::AbstractConfiguration & config, bool allow_without_us, bool enable_async_replication) const;
 };
 
 }

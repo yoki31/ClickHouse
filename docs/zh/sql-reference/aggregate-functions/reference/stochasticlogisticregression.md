@@ -1,5 +1,6 @@
 ---
-toc_priority: 222
+slug: /zh/sql-reference/aggregate-functions/reference/stochasticlogisticregression
+sidebar_position: 222
 ---
 
 # stochasticLogisticRegression {#agg_functions-stochasticlogisticregression}
@@ -22,7 +23,7 @@ stochasticLogisticRegression(1.0, 1.0, 10, 'SGD')
 
 <!-- -->
 
-    参考[stochasticLinearRegression](#stochasticlinearregression-usage-fitting)  `拟合` 章节文档。
+    参考[stochasticLinearRegression](/docs/zh/sql-reference/aggregate-functions/reference/stochasticlinearregression)  `拟合` 章节文档。
 
     预测标签的取值范围为\[-1, 1\]
 

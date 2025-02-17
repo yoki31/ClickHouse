@@ -1,183 +1,178 @@
 #!/usr/bin/env python3
-
+import argparse
 import json
 import logging
 import os
 import sys
-from github import Github
+from pathlib import Path
+from typing import List
 
-from env_helper import REPORTS_PATH, TEMP_PATH, GITHUB_REPOSITORY, GITHUB_SERVER_URL, GITHUB_RUN_ID
-from report import create_build_html_report
-from s3_helper import S3Helper
-from get_robot_token import get_best_robot_token
+from ci_config import CI
+from env_helper import (
+    CI_CONFIG_PATH,
+    GITHUB_REPOSITORY,
+    GITHUB_SERVER_URL,
+    IS_CI,
+    REPORT_PATH,
+    TEMP_PATH,
+)
 from pr_info import PRInfo
-from commit_status_helper import get_commit
-from ci_config import CI_CONFIG
-from rerun_helper import RerunHelper
+from report import (
+    ERROR,
+    FAILURE,
+    GITHUB_JOB_URL,
+    PENDING,
+    SUCCESS,
+    BuildResult,
+    JobReport,
+    create_build_html_report,
+    get_worst_status,
+)
+from stopwatch import Stopwatch
 
-class BuildResult():
-    def __init__(self, compiler, build_type, sanitizer, bundled, splitted, status, elapsed_seconds, with_coverage):
-        self.compiler = compiler
-        self.build_type = build_type
-        self.sanitizer = sanitizer
-        self.bundled = bundled
-        self.splitted = splitted
-        self.status = status
-        self.elapsed_seconds = elapsed_seconds
-        self.with_coverage = with_coverage
+# Old way to read the neads_data
+NEEDS_DATA_PATH = os.getenv("NEEDS_DATA_PATH", "")
+# Now it's set here. Two-steps migration for backward compatibility
+NEEDS_DATA = os.getenv("NEEDS_DATA", "")
 
-def group_by_artifacts(build_urls):
-    groups = {'deb': [], 'binary': [], 'tgz': [], 'rpm': [], 'performance': []}
-    for url in build_urls:
-        if url.endswith('performance.tgz'):
-            groups['performance'].append(url)
-        elif url.endswith('.deb') or url.endswith('.buildinfo') or url.endswith('.changes') or url.endswith('.tar.gz'):
-            groups['deb'].append(url)
-        elif url.endswith('.rpm'):
-            groups['rpm'].append(url)
-        elif url.endswith('.tgz'):
-            groups['tgz'].append(url)
-        else:
-            groups['binary'].append(url)
-    return groups
 
-def process_report(build_report):
-    build_config = build_report['build_config']
-    build_result = BuildResult(
-        compiler=build_config['compiler'],
-        build_type=build_config['build_type'],
-        sanitizer=build_config['sanitizer'],
-        bundled=build_config['bundled'],
-        splitted=build_config['splitted'],
-        status="success" if build_report['status'] else "failure",
-        elapsed_seconds=build_report['elapsed_seconds'],
-        with_coverage=False
-    )
-    build_results = []
-    build_urls = []
-    build_logs_urls = []
-    urls_groups = group_by_artifacts(build_report['build_urls'])
-    found_group = False
-    for _, group_urls in urls_groups.items():
-        if group_urls:
-            build_results.append(build_result)
-            build_urls.append(group_urls)
-            build_logs_urls.append(build_report['log_url'])
-            found_group = True
-
-    if not found_group:
-        build_results.append(build_result)
-        build_urls.append([""])
-        build_logs_urls.append(build_report['log_url'])
-
-    return build_results, build_urls, build_logs_urls
-
-def get_build_name_from_file_name(file_name):
-    return file_name.replace('build_urls_', '').replace('.json', '')
-
-if __name__ == "__main__":
+def main():
     logging.basicConfig(level=logging.INFO)
-    reports_path = REPORTS_PATH
-    temp_path = TEMP_PATH
-    logging.info("Reports path %s", reports_path)
+    stopwatch = Stopwatch()
+    temp_path = Path(TEMP_PATH)
+    reports_path = Path(REPORT_PATH)
+    temp_path.mkdir(parents=True, exist_ok=True)
 
-    if not os.path.exists(temp_path):
-        os.makedirs(temp_path)
+    logging.info(
+        "Reports found:\n %s",
+        "\n ".join(p.as_posix() for p in reports_path.rglob("*.json")),
+    )
 
-    build_check_name = sys.argv[1]
+    build_check_name = CI.JobNames.BUILD_CHECK
 
-    gh = Github(get_best_robot_token())
     pr_info = PRInfo()
-    rerun_helper = RerunHelper(gh, pr_info, build_check_name)
-    if rerun_helper.is_already_finished_by_status():
-        logging.info("Check is already finished according to github status, exiting")
-        sys.exit(0)
 
-    reports_order = CI_CONFIG["builds_report_config"][build_check_name]
-    logging.info("My reports list %s", reports_order)
+    args = parse_args()
 
-    build_reports_map = {}
-    for root, dirs, files in os.walk(reports_path):
-        for f in files:
-            if f.startswith("build_urls_") and f.endswith('.json'):
-                logging.info("Found build report json %s", f)
-                build_name = get_build_name_from_file_name(f)
-                if build_name in reports_order:
-                    with open(os.path.join(root, f), 'r') as file_handler:
-                        build_report = json.load(file_handler)
-                        build_reports_map[build_name] = build_report
-                else:
-                    logging.info("Skipping report %s for build %s, it's not in our reports list", f, build_name)
+    if (CI_CONFIG_PATH or IS_CI) and not args.reports:
+        # In CI only specific builds might be manually selected, or some wf does not build all builds.
+        #   Filtering @builds_for_check to verify only builds that are present in the current CI workflow
+        with open(CI_CONFIG_PATH, encoding="utf-8") as jfd:
+            ci_config = json.load(jfd)
+        all_ci_jobs = (
+            ci_config["jobs_data"]["jobs_to_skip"]
+            + ci_config["jobs_data"]["jobs_to_do"]
+        )
+        builds_for_check = [job for job in CI.BuildNames if job in all_ci_jobs]
+        print("NOTE: builds for check taken from ci configuration")
+    else:
+        builds_for_check = parse_args().reports
+        for job in builds_for_check:
+            assert job in CI.BuildNames, "Builds must be known build job names"
+        print("NOTE: builds for check taken from input arguments")
 
-    build_reports = [build_reports_map[build_name] for build_name in reports_order if build_name in build_reports_map]
+    print(f"NOTE: following build reports will be checked: [{builds_for_check}]")
 
-    build_results = []
-    build_artifacts = []
-    build_logs = []
+    required_builds = len(builds_for_check)
+    missing_builds = 0
 
-    for build_report in build_reports:
-        build_result, build_artifacts_url, build_logs_url = process_report(build_report)
-        logging.info("Got %s result for report", len(build_result))
-        build_results += build_result
-        build_artifacts += build_artifacts_url
-        build_logs += build_logs_url
+    # Collect reports from json artifacts
+    build_results = []  # type: List[BuildResult]
+    for build_name in builds_for_check:
+        build_result = BuildResult.load_any(
+            build_name, pr_info.number, pr_info.head_ref
+        )
+        if not build_result:
+            if build_name == CI.BuildNames.FUZZERS:
+                logging.info("Build [%s] is missing - skip", CI.BuildNames.FUZZERS)
+                continue
+            logging.warning("Build results for %s is missing", build_name)
+            build_result = BuildResult.missing_result("missing")
+            build_result.job_name = build_name
+            build_result.status = PENDING
+            logging.info(
+                "There is missing report for %s, created a dummy result %s",
+                build_name,
+                build_result,
+            )
+            missing_builds += 1
+            build_results.insert(0, build_result)
+        else:
+            assert (
+                pr_info.head_ref == build_result.head_ref or pr_info.number > 0
+            ), "BUG. if not a PR, report must be created on the same branch"
+            build_results.append(build_result)
 
-    logging.info("Totally got %s results", len(build_results))
-    if len(build_results) == 0:
-        logging.info("No builds, failing check")
+    # Calculate artifact groups like packages and binaries
+    total_groups = sum(len(br.grouped_urls) for br in build_results)
+    ok_groups = sum(
+        len(br.grouped_urls) for br in build_results if br.status == SUCCESS
+    )
+    logging.info("Totally got %s artifact groups", total_groups)
+    if total_groups == 0:
+        logging.error("No success builds, failing check without creating a status")
         sys.exit(1)
-
-    s3_helper = S3Helper('https://s3.amazonaws.com')
-
-    pr_info = PRInfo()
 
     branch_url = f"{GITHUB_SERVER_URL}/{GITHUB_REPOSITORY}/commits/master"
     branch_name = "master"
     if pr_info.number != 0:
-        branch_name = "PR #{}".format(pr_info.number)
+        branch_name = f"PR #{pr_info.number}"
         branch_url = f"{GITHUB_SERVER_URL}/{GITHUB_REPOSITORY}/pull/{pr_info.number}"
     commit_url = f"{GITHUB_SERVER_URL}/{GITHUB_REPOSITORY}/commit/{pr_info.sha}"
-    task_url = f"{GITHUB_SERVER_URL}/{GITHUB_REPOSITORY}/actions/runs/{GITHUB_RUN_ID or '0'}"
+    task_url = GITHUB_JOB_URL()
     report = create_build_html_report(
         build_check_name,
         build_results,
-        build_logs,
-        build_artifacts,
         task_url,
         branch_url,
         branch_name,
-        commit_url
+        commit_url,
     )
 
-    report_path = os.path.join(temp_path, 'report.html')
-    with open(report_path, 'w') as f:
-        f.write(report)
+    report_path = temp_path / "report.html"
+    report_path.write_text(report, encoding="utf-8")
 
-    logging.info("Going to upload prepared report")
-    context_name_for_path = build_check_name.lower().replace(' ', '_')
-    s3_path_prefix = str(pr_info.number) + "/" + pr_info.sha + "/" + context_name_for_path
+    # Prepare a commit status
+    summary_status = get_worst_status(br.status for br in build_results)
 
-    url = s3_helper.upload_build_file_to_s3(report_path, s3_path_prefix + "/report.html")
-    logging.info("Report url %s", url)
+    # Check if there are no builds at all, do not override bad status
+    if summary_status == SUCCESS:
+        if missing_builds:
+            summary_status = FAILURE
+        elif ok_groups == 0:
+            summary_status = ERROR
 
-    total_builds = len(build_results)
-    ok_builds = 0
-    summary_status = "success"
-    for build_result in build_results:
-        if build_result.status == "failure" and summary_status != "error":
-            summary_status = "failure"
-        if build_result.status == "error" or not build_result.status:
-            summary_status = "error"
+    description = ""
 
-        if build_result.status == "success":
-            ok_builds += 1
+    if missing_builds:
+        description = f"{missing_builds} of {required_builds} builds are missing."
 
-    if ok_builds == 0:
-        summary_status = "error"
+    description += f" {ok_groups}/{total_groups} artifact groups are OK"
 
-    description = "{}/{} builds are OK".format(ok_builds, total_builds)
+    JobReport(
+        description=description,
+        test_results=[],
+        status=summary_status,
+        start_time=stopwatch.start_time_str,
+        duration=stopwatch.duration_seconds,
+        additional_files=[report_path],
+    ).dump()
 
-    print("::notice ::Report url: {}".format(url))
+    # We should fail the report job to rerun it in the following attempts
+    if summary_status != SUCCESS:
+        sys.exit(1)
 
-    commit = get_commit(gh, pr_info.sha)
-    commit.create_status(context=build_check_name, description=description, state=summary_status, target_url=url)
+
+def parse_args():
+    parser = argparse.ArgumentParser("Generates overall build report")
+
+    parser.add_argument(
+        "--reports",
+        nargs="+",
+        help="List of build reports to check",
+    )
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    main()

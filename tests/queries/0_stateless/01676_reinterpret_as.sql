@@ -30,8 +30,8 @@ SELECT reinterpret(a, 'String'), reinterpretAsString(a), reinterpretAsUInt8('11'
 SELECT reinterpret(a, 'String'), reinterpretAsString(a), reinterpretAsUInt16('11') as a;
 SELECT 'Dates';
 SELECT reinterpret(0, 'Date'), reinterpret('', 'Date');
-SELECT reinterpret(0, 'DateTime(''Europe/Moscow'')'), reinterpret('', 'DateTime(''Europe/Moscow'')');
-SELECT reinterpret(0, 'DateTime64(3, ''Europe/Moscow'')'), reinterpret('', 'DateTime64(3, ''Europe/Moscow'')');
+SELECT reinterpret(0, 'DateTime(''Asia/Istanbul'')'), reinterpret('', 'DateTime(''Asia/Istanbul'')');
+SELECT reinterpret(0, 'DateTime64(3, ''Asia/Istanbul'')'), reinterpret('', 'DateTime64(3, ''Asia/Istanbul'')');
 SELECT 'Decimals';
 SELECT reinterpret(toDecimal32(5, 2), 'Decimal32(2)'), reinterpret('1', 'Decimal32(2)');
 SELECT reinterpret(toDecimal64(5, 2), 'Decimal64(2)'), reinterpret('1', 'Decimal64(2)');;
@@ -39,4 +39,4 @@ SELECT reinterpret(toDecimal128(5, 2), 'Decimal128(2)'), reinterpret('1', 'Decim
 SELECT reinterpret(toDecimal256(5, 2), 'Decimal256(2)'), reinterpret('1', 'Decimal256(2)');
 SELECT reinterpret(toDateTime64(0, 0), 'Decimal64(2)');
 SELECT 'ReinterpretErrors';
-SELECT reinterpret('123', 'FixedString(1)'); -- {serverError 43}
+SELECT reinterpret('123', 'FixedString(1)'); -- {serverError ILLEGAL_TYPE_OF_ARGUMENT}

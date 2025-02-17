@@ -16,6 +16,10 @@
 
 #include <boost/noncopyable.hpp>
 
+#include <optional>
+#include <vector>
+#include <memory>
+#include <string>
 
 namespace DB
 {
@@ -25,7 +29,7 @@ class ClientInfo;
 /// Packet that could be received from server.
 struct Packet
 {
-    UInt64 type;
+    UInt64 type = Protocol::Server::MAX; // default value has to be invalid
 
     Block block;
     std::unique_ptr<Exception> exception;
@@ -33,10 +37,12 @@ struct Packet
     Progress progress;
     ProfileInfo profile_info;
     std::vector<UUID> part_uuids;
-    PartitionReadRequest request;
-    PartitionReadResponse response;
 
-    Packet() : type(Protocol::Server::Hello) {}
+    /// The part of parallel replicas protocol
+    std::optional<InitialAllRangesAnnouncement> announcement;
+    std::optional<ParallelReadRequest> request;
+
+    std::string server_timezone;
 };
 
 
@@ -44,9 +50,9 @@ struct Packet
 struct ExternalTableData
 {
     /// Pipe of data form table;
-    std::unique_ptr<Pipe> pipe;
+    std::unique_ptr<QueryPipelineBuilder> pipe;
     std::string table_name;
-    std::function<std::unique_ptr<Pipe>()> creating_pipe_callback;
+    std::function<std::unique_ptr<QueryPipelineBuilder>()> creating_pipe_callback;
     /// Flag if need to stop reading.
     std::atomic_bool is_cancelled = false;
 };
@@ -60,7 +66,7 @@ class IServerConnection : boost::noncopyable
 public:
     virtual ~IServerConnection() = default;
 
-    enum class Type
+    enum class Type : uint8_t
     {
         SERVER,
         LOCAL
@@ -80,27 +86,36 @@ public:
     virtual const String & getServerTimezone(const ConnectionTimeouts & timeouts) = 0;
     virtual const String & getServerDisplayName(const ConnectionTimeouts & timeouts) = 0;
 
-    virtual const String & getDescription() const = 0;
+    virtual const String & getDescription(bool with_extra = false) const = 0;  /// NOLINT
+
+    virtual std::vector<std::pair<String, String>> getPasswordComplexityRules() const = 0;
 
     /// If last flag is true, you need to call sendExternalTablesData after.
     virtual void sendQuery(
         const ConnectionTimeouts & timeouts,
         const String & query,
+        const NameToNameMap & query_parameters,
         const String & query_id_,
         UInt64 stage,
         const Settings * settings,
         const ClientInfo * client_info,
-        bool with_pending_data) = 0;
+        bool with_pending_data,
+        const std::vector<String> & external_roles,
+        std::function<void(const Progress &)> process_progress_callback) = 0;
 
     virtual void sendCancel() = 0;
 
     /// Send block of data; if name is specified, server will write it to external (temporary) table of that name.
     virtual void sendData(const Block & block, const String & name, bool scalar) = 0;
 
+    /// Whether the client needs to read and send the data for the INSERT.
+    /// False if the server will read the data through other means (in particular if clickhouse-local added input reading step directly into the query pipeline).
+    virtual bool isSendDataNeeded() const { return true; }
+
     /// Send all contents of external (temporary) tables.
     virtual void sendExternalTablesData(ExternalTablesData & data) = 0;
 
-    virtual void sendMergeTreeReadTaskResponse(const PartitionReadResponse & response) = 0;
+    virtual void sendMergeTreeReadTaskResponse(const ParallelReadResponse & response) = 0;
 
     /// Check, if has data to read.
     virtual bool poll(size_t timeout_microseconds) = 0;
@@ -113,6 +128,7 @@ public:
 
     /// Receive packet from server.
     virtual Packet receivePacket() = 0;
+    virtual UInt64 receivePacketType() = 0;
 
     /// If not connected yet, or if connection is broken - then connect. If cannot connect - throw an exception.
     virtual void forceConnected(const ConnectionTimeouts & timeouts) = 0;
@@ -120,7 +136,7 @@ public:
     virtual bool isConnected() const = 0;
 
     /// Check if connection is still active with ping request.
-    virtual bool checkConnected() = 0;
+    virtual bool checkConnected(const ConnectionTimeouts & /*timeouts*/) = 0;
 
     /** Disconnect.
       * This may be used, if connection is left in unsynchronised state
@@ -130,6 +146,8 @@ public:
 
     /// Set throttler of network traffic. One throttler could be used for multiple connections to limit total traffic.
     virtual void setThrottler(const ThrottlerPtr & throttler_) = 0;
+
+    virtual void setFormatSettings(const FormatSettings &) {}
 };
 
 using ServerConnectionPtr = std::unique_ptr<IServerConnection>;

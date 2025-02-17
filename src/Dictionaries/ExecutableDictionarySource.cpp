@@ -4,10 +4,9 @@
 
 #include <boost/algorithm/string/split.hpp>
 
-#include <base/logger_useful.h>
+#include <Common/logger_useful.h>
 #include <Common/LocalDateTime.h>
 #include <Common/filesystemHelpers.h>
-#include <Common/ShellCommand.h>
 
 #include <Processors/Sources/ShellCommandSource.h>
 #include <Processors/Sources/SourceFromSingleChunk.h>
@@ -15,12 +14,10 @@
 
 #include <Interpreters/Context.h>
 #include <IO/WriteHelpers.h>
-#include <IO/ReadHelpers.h>
 
 #include <Dictionaries/DictionarySourceFactory.h>
 #include <Dictionaries/DictionarySourceHelpers.h>
 #include <Dictionaries/DictionaryStructure.h>
-#include <Dictionaries/registerDictionaries.h>
 
 
 namespace DB
@@ -28,9 +25,9 @@ namespace DB
 
 namespace ErrorCodes
 {
-    extern const int LOGICAL_ERROR;
     extern const int DICTIONARY_ACCESS_DENIED;
     extern const int UNSUPPORTED_METHOD;
+    extern const int SUPPORT_IS_DISABLED;
 }
 
 namespace
@@ -51,9 +48,15 @@ namespace
                 command,
                 user_scripts_path);
 
-        if (!std::filesystem::exists(std::filesystem::path(script_path)))
+        if (!FS::exists(script_path))
             throw Exception(ErrorCodes::UNSUPPORTED_METHOD,
                 "Executable file {} does not exist inside user scripts folder {}",
+                command,
+                user_scripts_path);
+
+        if (!FS::canExecute(script_path))
+            throw Exception(ErrorCodes::UNSUPPORTED_METHOD,
+                "Executable file {} is not executable inside user scripts folder {}",
                 command,
                 user_scripts_path);
 
@@ -68,7 +71,7 @@ ExecutableDictionarySource::ExecutableDictionarySource(
     Block & sample_block_,
     std::shared_ptr<ShellCommandSourceCoordinator> coordinator_,
     ContextPtr context_)
-    : log(&Poco::Logger::get("ExecutableDictionarySource"))
+    : log(getLogger("ExecutableDictionarySource"))
     , dict_struct(dict_struct_)
     , configuration(configuration_)
     , sample_block(sample_block_)
@@ -90,7 +93,7 @@ ExecutableDictionarySource::ExecutableDictionarySource(
 }
 
 ExecutableDictionarySource::ExecutableDictionarySource(const ExecutableDictionarySource & other)
-    : log(&Poco::Logger::get("ExecutableDictionarySource"))
+    : log(getLogger("ExecutableDictionarySource"))
     , update_time(other.update_time)
     , dict_struct(other.dict_struct)
     , configuration(other.configuration)
@@ -100,7 +103,7 @@ ExecutableDictionarySource::ExecutableDictionarySource(const ExecutableDictionar
 {
 }
 
-Pipe ExecutableDictionarySource::loadAll()
+QueryPipeline ExecutableDictionarySource::loadAll()
 {
     if (configuration.implicit_key)
         throw Exception(ErrorCodes::UNSUPPORTED_METHOD, "ExecutableDictionarySource with implicit_key does not support loadAll method");
@@ -111,10 +114,10 @@ Pipe ExecutableDictionarySource::loadAll()
     auto command = configuration.command;
     updateCommandIfNeeded(command, coordinator_configuration.execute_direct, context);
 
-    return coordinator->createPipe(command, configuration.command_arguments, sample_block, context);
+    return QueryPipeline(coordinator->createPipe(command, configuration.command_arguments, {}, sample_block, context));
 }
 
-Pipe ExecutableDictionarySource::loadUpdatedAll()
+QueryPipeline ExecutableDictionarySource::loadUpdatedAll()
 {
     if (configuration.implicit_key)
         throw Exception(ErrorCodes::UNSUPPORTED_METHOD, "ExecutableDictionarySource with implicit_key does not support loadUpdatedAll method");
@@ -145,10 +148,11 @@ Pipe ExecutableDictionarySource::loadUpdatedAll()
     update_time = new_update_time;
 
     LOG_TRACE(log, "loadUpdatedAll {}", command);
-    return coordinator->createPipe(command, command_arguments, sample_block, context);
+
+    return QueryPipeline(coordinator->createPipe(command, command_arguments, {}, sample_block, context));
 }
 
-Pipe ExecutableDictionarySource::loadIds(const std::vector<UInt64> & ids)
+QueryPipeline ExecutableDictionarySource::loadIds(const std::vector<UInt64> & ids)
 {
     LOG_TRACE(log, "loadIds {} size = {}", toString(), ids.size());
 
@@ -156,7 +160,7 @@ Pipe ExecutableDictionarySource::loadIds(const std::vector<UInt64> & ids)
     return getStreamForBlock(block);
 }
 
-Pipe ExecutableDictionarySource::loadKeys(const Columns & key_columns, const std::vector<size_t> & requested_rows)
+QueryPipeline ExecutableDictionarySource::loadKeys(const Columns & key_columns, const std::vector<size_t> & requested_rows)
 {
     LOG_TRACE(log, "loadKeys {} size = {}", toString(), requested_rows.size());
 
@@ -164,7 +168,7 @@ Pipe ExecutableDictionarySource::loadKeys(const Columns & key_columns, const std
     return getStreamForBlock(block);
 }
 
-Pipe ExecutableDictionarySource::getStreamForBlock(const Block & block)
+QueryPipeline ExecutableDictionarySource::getStreamForBlock(const Block & block)
 {
     const auto & coordinator_configuration = coordinator->getConfiguration();
     String command = configuration.command;
@@ -181,7 +185,7 @@ Pipe ExecutableDictionarySource::getStreamForBlock(const Block & block)
     if (configuration.implicit_key)
         pipe.addTransform(std::make_shared<TransformWithAdditionalColumns>(block, pipe.getHeader()));
 
-    return pipe;
+    return QueryPipeline(std::move(pipe));
 }
 
 bool ExecutableDictionarySource::isModified() const
@@ -220,13 +224,15 @@ void registerDictionarySourceExecutable(DictionarySourceFactory & factory)
                                  bool created_from_ddl) -> DictionarySourcePtr
     {
         if (dict_struct.has_expressions)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Dictionary source of type `executable` does not support attribute expressions");
+            throw Exception(ErrorCodes::SUPPORT_IS_DISABLED, "Dictionary source of type `executable` does not support attribute expressions");
 
         /// Executable dictionaries may execute arbitrary commands.
         /// It's OK for dictionaries created by administrator from xml-file, but
         /// maybe dangerous for dictionaries created from DDL-queries.
         if (created_from_ddl && global_context->getApplicationType() != Context::ApplicationType::LOCAL)
-            throw Exception(ErrorCodes::DICTIONARY_ACCESS_DENIED, "Dictionaries with executable dictionary source are not allowed to be created from DDL query");
+            throw Exception(ErrorCodes::DICTIONARY_ACCESS_DENIED,
+                            "Dictionaries with executable dictionary source are not allowed "
+                            "to be created from DDL query");
 
         auto context = copyContextAndApplySettingsFromDictionaryConfig(global_context, config, config_prefix);
 
@@ -259,6 +265,8 @@ void registerDictionarySourceExecutable(DictionarySourceFactory & factory)
             .command_termination_timeout_seconds = config.getUInt64(settings_config_prefix + ".command_termination_timeout", 10),
             .command_read_timeout_milliseconds = config.getUInt64(settings_config_prefix + ".command_read_timeout", 10000),
             .command_write_timeout_milliseconds = config.getUInt64(settings_config_prefix + ".command_write_timeout", 10000),
+            .stderr_reaction = parseExternalCommandStderrReaction(config.getString(settings_config_prefix + ".stderr_reaction", "none")),
+            .check_exit_code = config.getBool(settings_config_prefix + ".check_exit_code", true),
             .is_executable_pool = false,
             .send_chunk_header = config.getBool(settings_config_prefix + ".send_chunk_header", false),
             .execute_direct = config.getBool(settings_config_prefix + ".execute_direct", false)

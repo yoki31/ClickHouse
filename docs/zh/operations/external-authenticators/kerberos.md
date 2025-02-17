@@ -1,4 +1,8 @@
+---
+slug: /zh/operations/external-authenticators/kerberos
+---
 # Kerberos认证 {#external-authenticators-kerberos} 
+
 现有正确配置的 ClickHouse 用户可以通过 Kerberos 身份验证协议进行身份验证.
 
 目前, Kerberos 只能用作现有用户的外部身份验证器，这些用户在 `users.xml` 或本地访问控制路径中定义.
@@ -19,30 +23,30 @@
 
 示例 (进入 `config.xml`):
 ```xml
-<yandex>
+<clickhouse>
     <!- ... -->
     <kerberos />
-</yandex>
+</clickhouse>
 ```
 
 主体规范:
 ```xml
-<yandex>
+<clickhouse>
     <!- ... -->
     <kerberos>
         <principal>HTTP/clickhouse.example.com@EXAMPLE.COM</principal>
     </kerberos>
-</yandex>
+</clickhouse>
 ```
 
 按领域过滤:
 ```xml
-<yandex>
+<clickhouse>
     <!- ... -->
     <kerberos>
         <realm>EXAMPLE.COM</realm>
     </kerberos>
-</yandex>
+</clickhouse>
 ```
 
 !!! warning "注意"
@@ -70,7 +74,7 @@ Kerberos主体名称格式通常遵循以下模式:
 
 示例 (进入 `users.xml`):
 ```
-<yandex>
+<clickhouse>
     <!- ... -->
     <users>
         <!- ... -->
@@ -81,7 +85,7 @@ Kerberos主体名称格式通常遵循以下模式:
             </kerberos>
         </my_user>
     </users>
-</yandex>
+</clickhouse>
 ```
 
 !!! warning "警告"

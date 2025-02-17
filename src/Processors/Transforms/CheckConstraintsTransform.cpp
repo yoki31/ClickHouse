@@ -10,6 +10,8 @@
 #include <Common/FieldVisitorToString.h>
 #include <Common/assert_cast.h>
 #include <Common/quoteString.h>
+#include <Storages/VirtualColumnUtils.h>
+#include <Storages/ConstraintsDescription.h>
 
 
 namespace DB
@@ -31,6 +33,7 @@ CheckConstraintsTransform::CheckConstraintsTransform(
     , table_id(table_id_)
     , constraints_to_check(constraints_.filterConstraints(ConstraintsDescription::ConstraintType::CHECK))
     , expressions(constraints_.getExpressions(context_, header.getNamesAndTypesList()))
+    , context(std::move(context_))
 {
 }
 
@@ -39,6 +42,10 @@ void CheckConstraintsTransform::onConsume(Chunk chunk)
 {
     if (chunk.getNumRows() > 0)
     {
+        if (rows_written == 0)
+            for (const auto & expression : expressions)
+                VirtualColumnUtils::buildSetsForDAG(expression->getActionsDAG(), context);
+
         Block block_to_calculate = getInputPort().getHeader().cloneWithColumns(chunk.getColumns());
         for (size_t i = 0; i < expressions.size(); ++i)
         {
@@ -57,14 +64,14 @@ void CheckConstraintsTransform::onConsume(Chunk chunk)
 
             auto result_column = res_column.column->convertToFullColumnIfConst()->convertToFullColumnIfLowCardinality();
 
-            if (const auto * column_nullable = checkAndGetColumn<ColumnNullable>(*result_column))
+            if (const auto * column_nullable = checkAndGetColumn<ColumnNullable>(&*result_column))
             {
                 const auto & nested_column = column_nullable->getNestedColumnPtr();
 
                 /// Check if constraint value is nullable
                 const auto & null_map = column_nullable->getNullMapColumn();
                 const PaddedPODArray<UInt8> & null_map_data = null_map.getData();
-                bool null_map_contains_null = !memoryIsZero(null_map_data.raw_data(), null_map_data.size() * sizeof(UInt8));
+                bool null_map_contains_null = !memoryIsZero(null_map_data.raw_data(), 0, null_map_data.size() * sizeof(UInt8));
 
                 if (null_map_contains_null)
                     throw Exception(
@@ -73,7 +80,7 @@ void CheckConstraintsTransform::onConsume(Chunk chunk)
                         "Constraint expression returns nullable column that contains null value",
                         backQuote(constraint_ptr->name),
                         table_id.getNameForLogs(),
-                        serializeAST(*(constraint_ptr->expr), true));
+                        serializeAST(*(constraint_ptr->expr)));
 
                 result_column = nested_column;
             }
@@ -84,7 +91,7 @@ void CheckConstraintsTransform::onConsume(Chunk chunk)
             size_t size = res_column_uint8.size();
 
             /// Is violated.
-            if (!memoryIsByte(res_data, size, 1))
+            if (!memoryIsByte(res_data, 0, size, 1))
             {
                 size_t row_idx = 0;
                 for (; row_idx < size; ++row_idx)
@@ -116,7 +123,7 @@ void CheckConstraintsTransform::onConsume(Chunk chunk)
                     backQuote(constraint_ptr->name),
                     table_id.getNameForLogs(),
                     rows_written + row_idx + 1,
-                    serializeAST(*(constraint_ptr->expr), true),
+                    serializeAST(*(constraint_ptr->expr)),
                     column_values_msg);
             }
         }

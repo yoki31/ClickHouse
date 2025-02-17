@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Core/Block.h>
 #include <Core/NamesAndTypes.h>
 #include <Interpreters/Aliases.h>
 #include <Interpreters/Context_fwd.h>
@@ -16,14 +15,15 @@ struct ASTTablesInSelectQueryElement;
 class TableJoin;
 struct Settings;
 struct SelectQueryOptions;
-using Scalars = std::map<String, Block>;
 struct StorageInMemoryMetadata;
 using StorageMetadataPtr = std::shared_ptr<const StorageInMemoryMetadata>;
+struct StorageSnapshot;
+using StorageSnapshotPtr = std::shared_ptr<StorageSnapshot>;
 
 struct TreeRewriterResult
 {
     ConstStoragePtr storage;
-    StorageMetadataPtr metadata_snapshot;
+    StorageSnapshotPtr storage_snapshot;
     std::shared_ptr<TableJoin> analyzed_join;
     const ASTTablesInSelectQueryElement * ast_join = nullptr;
 
@@ -34,13 +34,19 @@ struct TreeRewriterResult
     /// Same as above but also record alias columns which are expanded. This is for RBAC access check.
     Names required_source_columns_before_expanding_alias_columns;
 
+    /// Set of columns that object columns are not extended. This is for distinguishing JSON and Tuple type.
+    NamesAndTypesList source_columns_ordinary;
+
+    NameSet missed_subcolumns;
+
     /// Set of alias columns that are expanded to their alias expressions. We still need the original columns to check access permission.
     NameSet expanded_aliases;
 
     Aliases aliases;
-    std::vector<const ASTFunction *> aggregates;
 
-    std::vector<const ASTFunction *> window_function_asts;
+    ASTs aggregates;
+    ASTs window_function_asts;
+    ASTs expressions_with_window_function;
 
     /// Which column is needed to be ARRAY-JOIN'ed to get the specified.
     /// For example, for `SELECT s.v ... ARRAY JOIN a AS s` will get "s.v" -> "a.v".
@@ -73,29 +79,24 @@ struct TreeRewriterResult
     /// Rewrite _shard_num to shardNum()
     bool has_virtual_shard_num = false;
 
-    /// Results of scalar sub queries
-    Scalars scalars;
-    Scalars local_scalars;
-
     explicit TreeRewriterResult(
         const NamesAndTypesList & source_columns_,
         ConstStoragePtr storage_ = {},
-        const StorageMetadataPtr & metadata_snapshot_ = {},
+        const StorageSnapshotPtr & storage_snapshot_ = {},
         bool add_special = true);
 
     void collectSourceColumns(bool add_special);
-    void collectUsedColumns(const ASTPtr & query, bool is_select);
+    bool collectUsedColumns(const ASTPtr & query, bool is_select, bool no_throw = false);
     Names requiredSourceColumns() const { return required_source_columns.getNames(); }
     const Names & requiredSourceColumnsForAccessCheck() const { return required_source_columns_before_expanding_alias_columns; }
     NameSet getArrayJoinSourceNameSet() const;
-    const Scalars & getScalars() const { return scalars; }
 };
 
 using TreeRewriterResultPtr = std::shared_ptr<const TreeRewriterResult>;
 
 /// Tree Rewriter in terms of CMU slides @sa https://15721.courses.cs.cmu.edu/spring2020/slides/19-optimizer1.pdf
 ///
-/// Optimises AST tree and collect information for further expression analysis in ExpressionAnalyzer.
+/// Optimizes AST tree and collect information for further expression analysis in ExpressionAnalyzer.
 /// Result AST has the following invariants:
 ///  * all aliases are substituted
 ///  * qualified names are translated
@@ -105,17 +106,21 @@ using TreeRewriterResultPtr = std::shared_ptr<const TreeRewriterResult>;
 class TreeRewriter : WithContext
 {
 public:
-    explicit TreeRewriter(ContextPtr context_) : WithContext(context_) {}
+    explicit TreeRewriter(ContextPtr context_, bool no_throw_ = false)
+        : WithContext(context_)
+        , no_throw(no_throw_)
+    {}
 
     /// Analyze and rewrite not select query
     TreeRewriterResultPtr analyze(
         ASTPtr & query,
         const NamesAndTypesList & source_columns_,
         ConstStoragePtr storage = {},
-        const StorageMetadataPtr & metadata_snapshot = {},
+        const StorageSnapshotPtr & storage_snapshot = {},
         bool allow_aggregations = false,
         bool allow_self_aliases = true,
-        bool execute_scalar_subqueries = true) const;
+        bool execute_scalar_subqueries = true,
+        bool is_create_parameterized_view = false) const;
 
     /// Analyze and rewrite select query
     TreeRewriterResultPtr analyzeSelect(
@@ -127,7 +132,10 @@ public:
         std::shared_ptr<TableJoin> table_join = {}) const;
 
 private:
-    static void normalize(ASTPtr & query, Aliases & aliases, const NameSet & source_columns_set, bool ignore_alias, const Settings & settings, bool allow_self_aliases);
+    static void normalize(ASTPtr & query, Aliases & aliases, const NameSet & source_columns_set, bool ignore_alias, const Settings & settings, bool allow_self_aliases, ContextPtr context_, bool is_create_parameterized_view = false);
+
+    /// Do not throw exception from analyze on unknown identifiers, but only return nullptr.
+    bool no_throw = false;
 };
 
 }

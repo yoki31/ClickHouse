@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DataTypes/IDataType.h>
+#include <optional>
 
 
 namespace DB
@@ -22,21 +23,21 @@ private:
     DataTypes elems;
     Strings names;
     bool have_explicit_names;
-    bool serialize_names = true;
+
 public:
     static constexpr bool is_parametric = true;
 
     explicit DataTypeTuple(const DataTypes & elems);
-    DataTypeTuple(const DataTypes & elems, const Strings & names, bool serialize_names_ = true);
-
-    static bool canBeCreatedWithNames(const Strings & names);
+    DataTypeTuple(const DataTypes & elems, const Strings & names);
 
     TypeIndex getTypeId() const override { return TypeIndex::Tuple; }
     std::string doGetName() const override;
+    std::string doGetPrettyName(size_t indent) const override;
     const char * getFamilyName() const override { return "Tuple"; }
 
     bool canBeInsideNullable() const override { return false; }
     bool supportsSparseSerialization() const override { return true; }
+    bool canBeInsideSparseColumns() const override { return false; }
 
     MutableColumnPtr createColumn() const override;
     MutableColumnPtr createColumn(const ISerialization & serialization) const override;
@@ -51,22 +52,27 @@ public:
     bool isComparable() const override;
     bool textCanContainOnlyValidUTF8() const override;
     bool haveMaximumSizeOfValue() const override;
+    bool hasDynamicSubcolumnsDeprecated() const override;
     size_t getMaximumSizeOfValueInMemory() const override;
     size_t getSizeOfValueInMemory() const override;
 
     SerializationPtr doGetDefaultSerialization() const override;
     SerializationPtr getSerialization(const SerializationInfo & info) const override;
-    MutableSerializationInfoPtr createSerializationInfo(const SerializationInfo::Settings & settings) const override;
+    MutableSerializationInfoPtr createSerializationInfo(const SerializationInfoSettings & settings) const override;
+    SerializationInfoPtr getSerializationInfo(const IColumn & column) const override;
 
+    DataTypePtr getNormalizedType() const override;
     const DataTypePtr & getElement(size_t i) const { return elems[i]; }
     const DataTypes & getElements() const { return elems; }
     const Strings & getElementNames() const { return names; }
 
     size_t getPositionByName(const String & name) const;
+    std::optional<size_t> tryGetPositionByName(const String & name) const;
     String getNameByPosition(size_t i) const;
 
     bool haveExplicitNames() const { return have_explicit_names; }
-    bool serializeNames() const { return serialize_names; }
+
+    void forEachChild(const ChildCallback & callback) const override;
 };
 
 }

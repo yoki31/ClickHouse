@@ -1,10 +1,11 @@
 ---
-toc_priority: 105
+slug: /ru/sql-reference/aggregate-functions/reference/argmin
+sidebar_position: 105
 ---
 
 # argMin {#agg-function-argmin}
 
-Вычисляет значение `arg` при минимальном значении `val`. Если есть несколько разных значений `arg` для минимальных значений `val`, возвращает первое попавшееся из таких значений.
+Вычисляет значение `arg` при минимальном значении `val`.
 
 **Синтаксис**
 
@@ -48,4 +49,3 @@ SELECT argMin(user, salary) FROM salary;
 │ worker               │
 └──────────────────────┘
 ```
-

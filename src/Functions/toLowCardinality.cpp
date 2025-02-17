@@ -35,23 +35,20 @@ public:
 
     ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & res_type, size_t /*input_rows_count*/) const override
     {
-        auto arg_num = arguments[0];
         const auto & arg = arguments[0];
 
         if (arg.type->lowCardinality())
             return arg.column;
-        else
-        {
-            auto column = res_type->createColumn();
-            typeid_cast<ColumnLowCardinality &>(*column).insertRangeFromFullColumn(*arg.column, 0, arg.column->size());
-            return column;
-        }
+
+        auto column = res_type->createColumn();
+        typeid_cast<ColumnLowCardinality &>(*column).insertRangeFromFullColumn(*arg.column, 0, arg.column->size());
+        return column;
     }
 };
 
 }
 
-void registerFunctionToLowCardinality(FunctionFactory & factory)
+REGISTER_FUNCTION(ToLowCardinality)
 {
     factory.registerFunction<FunctionToLowCardinality>();
 }

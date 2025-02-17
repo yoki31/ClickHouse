@@ -1,34 +1,33 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 61
-toc_title: "\u9593\u9694"
+slug: /ja/sql-reference/data-types/special-data-types/interval
+sidebar_position: 61
+sidebar_label: Interval
 ---
 
-# 間隔 {#data-type-interval}
+# Interval
 
-時間と日付間隔を表すデータ型のファミリ。 の結果の型 [INTERVAL](../../../sql-reference/operators/index.md#operator-interval) オペレーター
-
-!!! warning "警告"
-    `Interval` データ型の値はテーブルに格納できません。
+時間および日付の間隔を表すデータ型のファミリーです。[INTERVAL](../../../sql-reference/operators/index.md#operator-interval) 演算子の結果として得られる型です。
 
 構造:
 
--   符号なし整数値としての時間間隔。
--   間隔のタイプ。
+- 符号なし整数値としての時間間隔。
+- 間隔の種類。
 
-サポートさ:
+サポートされている間隔の種類:
 
--   `SECOND`
--   `MINUTE`
--   `HOUR`
--   `DAY`
--   `WEEK`
--   `MONTH`
--   `QUARTER`
--   `YEAR`
+- `NANOSECOND`
+- `MICROSECOND`
+- `MILLISECOND`
+- `SECOND`
+- `MINUTE`
+- `HOUR`
+- `DAY`
+- `WEEK`
+- `MONTH`
+- `QUARTER`
+- `YEAR`
 
-間隔タイプごとに、個別のデータタイプがあります。 例えば、 `DAY` 区間は `IntervalDay` データ型:
+各間隔の種類に対して、個別のデータ型が存在します。例えば、`DAY` 間隔は `IntervalDay` データ型に対応しています。
 
 ``` sql
 SELECT toTypeName(INTERVAL 4 DAY)
@@ -40,9 +39,9 @@ SELECT toTypeName(INTERVAL 4 DAY)
 └──────────────────────────────┘
 ```
 
-## 使用上の注意 {#data-type-interval-usage-remarks}
+## 使用上の注意
 
-以下を使用できます `Interval`-算術演算の値を [日付](../../../sql-reference/data-types/date.md) と [DateTime](../../../sql-reference/data-types/datetime.md)-値を入力します。 たとえば、現在の時刻に4日を追加できます:
+`Interval` 型の値は、[Date](../../../sql-reference/data-types/date.md) 型および [DateTime](../../../sql-reference/data-types/datetime.md) 型の値との算術演算で使用できます。例えば、現在の時刻に4日を加算することができます。
 
 ``` sql
 SELECT now() as current_date_time, current_date_time + INTERVAL 4 DAY
@@ -54,32 +53,32 @@ SELECT now() as current_date_time, current_date_time + INTERVAL 4 DAY
 └─────────────────────┴───────────────────────────────┘
 ```
 
-異なるタイプの間隔は結合できません。 次のような間隔は使用できません `4 DAY 1 HOUR`. 間隔は、間隔など、間隔の最小単位より小さい単位または等しい単位で指定します `1 day and an hour` 間隔は次のように表現できます `25 HOUR` または `90000 SECOND`.
-
-次の操作で算術演算を実行することはできません `Interval`-値を入力しますが、結果として異なるタイプの間隔を値に追加することができます。 `Date` または `DateTime` データ型。 例えば:
+また、複数の間隔を同時に使用することも可能です。
 
 ``` sql
-SELECT now() AS current_date_time, current_date_time + INTERVAL 4 DAY + INTERVAL 3 HOUR
+SELECT now() AS current_date_time, current_date_time + (INTERVAL 4 DAY + INTERVAL 3 HOUR)
 ```
 
 ``` text
-┌───current_date_time─┬─plus(plus(now(), toIntervalDay(4)), toIntervalHour(3))─┐
-│ 2019-10-23 11:16:28 │                                    2019-10-27 14:16:28 │
-└─────────────────────┴────────────────────────────────────────────────────────┘
+┌───current_date_time─┬─plus(current_date_time, plus(toIntervalDay(4), toIntervalHour(3)))─┐
+│ 2024-08-08 18:31:39 │                                                2024-08-12 21:31:39 │
+└─────────────────────┴────────────────────────────────────────────────────────────────────┘
 ```
 
-次のクエリでは、例外が発生します:
+さらに、異なる間隔との比較も可能です。
 
 ``` sql
-select now() AS current_date_time, current_date_time + (INTERVAL 4 DAY + INTERVAL 3 HOUR)
+SELECT toIntervalMicrosecond(3600000000) = toIntervalHour(1);
 ```
 
 ``` text
-Received exception from server (version 19.14.1):
-Code: 43. DB::Exception: Received from localhost:9000. DB::Exception: Wrong argument types for function plus: if one argument is Interval, then another must be Date or DateTime..
+┌─less(toIntervalMicrosecond(179999999), toIntervalMinute(3))─┐
+│                                                           1 │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## も参照。 {#see-also}
+## 参照
 
--   [INTERVAL](../../../sql-reference/operators/index.md#operator-interval) 演算子
--   [toInterval](../../../sql-reference/functions/type-conversion-functions.md#function-tointerval) 型変換関数
+- [INTERVAL](../../../sql-reference/operators/index.md#operator-interval) 演算子
+- [toInterval](../../../sql-reference/functions/type-conversion-functions.md#function-tointerval) 型変換関数
+

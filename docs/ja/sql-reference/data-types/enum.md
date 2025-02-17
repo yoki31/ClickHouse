@@ -1,26 +1,25 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 50
-toc_title: Enum
+slug: /ja/sql-reference/data-types/enum
+sidebar_position: 20
+sidebar_label: Enum
 ---
 
-# Enum {#enum}
+# Enum
 
-名前付き値で構成される列挙型。
+名前付き値の集合から成る列挙型です。
 
-名前の値として宣言された `'string' = integer` ペア。 ClickHouseは数値のみを格納しますが、名前による値の操作をサポートします。
+名前付き値は `'string' = integer` ペアや `'string'` 名として宣言できます。ClickHouse は数値のみを格納しますが、その名前を通じて値を操作することが可能です。
 
-ClickHouseサポート:
+ClickHouse は以下をサポートします:
 
--   8ビット `Enum`. それはで列挙される256までの価値を含むことができます `[-128, 127]` 範囲
--   16ビット `Enum`. それはで列挙される65536までの価値を含むことができます `[-32768, 32767]` 範囲
+- 8ビットの `Enum`。`[-128, 127]` 範囲で列挙された最大256の値を含むことができます。
+- 16ビットの `Enum`。`[-32768, 32767]` 範囲で列挙された最大65536の値を含むことができます。
 
-ClickHouseは自動的に次のタイプを選択します `Enum` データが挿入されるとき。 また、 `Enum8` または `Enum16` ストレージのサイズを確認するタイプ。
+ClickHouse はデータが挿入されたときに `Enum` の型を自動的に選択します。また、ストレージのサイズを確実にするために `Enum8` または `Enum16` 型を使用することもできます。
 
-## 使用例 {#usage-examples}
+## 使用例
 
-ここでは、 `Enum8('hello' = 1, 'world' = 2)` タイプ列:
+ここでは、`Enum8('hello' = 1, 'world' = 2)` 型のカラムを持つテーブルを作成します:
 
 ``` sql
 CREATE TABLE t_enum
@@ -30,7 +29,40 @@ CREATE TABLE t_enum
 ENGINE = TinyLog
 ```
 
-列 `x` 型定義にリストされている値のみを格納できます: `'hello'` または `'world'`. 他の値を保存しようとすると、ClickHouseは例外を発生させます。 このための8ビットサイズ `Enum` 自動的に選択されます。
+同様に、番号を省略することもできます。ClickHouse は連続する番号を自動的に割り当てます。デフォルトでは 1 から始まります。
+
+``` sql
+CREATE TABLE t_enum
+(
+    x Enum('hello', 'world')
+)
+ENGINE = TinyLog
+```
+
+最初の名前に対して許可される開始番号を指定することもできます。
+
+``` sql
+CREATE TABLE t_enum
+(
+    x Enum('hello' = 1, 'world')
+)
+ENGINE = TinyLog
+```
+
+``` sql
+CREATE TABLE t_enum
+(
+    x Enum8('hello' = -129, 'world')
+)
+ENGINE = TinyLog
+```
+
+``` text
+Exception on server:
+Code: 69. DB::Exception: Value -129 for element 'hello' exceeds range of Enum8.
+```
+
+カラム `x` には、型定義に記載されている `'hello'` または `'world'` のみを保存できます。その他の値を保存しようとすると、ClickHouse は例外を発生させます。この `Enum` のために 8ビットのサイズが自動的に選択されます。
 
 ``` sql
 INSERT INTO t_enum VALUES ('hello'), ('world'), ('hello')
@@ -49,7 +81,7 @@ Exception on client:
 Code: 49. DB::Exception: Unknown element 'a' for type Enum('hello' = 1, 'world' = 2)
 ```
 
-テーブルからデータを照会すると、ClickHouseは文字列値を `Enum`.
+テーブルからデータをクエリする場合、ClickHouse は `Enum` から文字列値を出力します。
 
 ``` sql
 SELECT * FROM t_enum
@@ -63,7 +95,7 @@ SELECT * FROM t_enum
 └───────┘
 ```
 
-行の等価な数値を見る必要がある場合は、次のようにキャストする必要があります `Enum` 整数型の値。
+行の数値相当を確認する必要がある場合、`Enum` 値を整数型にキャストする必要があります。
 
 ``` sql
 SELECT CAST(x, 'Int8') FROM t_enum
@@ -77,7 +109,7 @@ SELECT CAST(x, 'Int8') FROM t_enum
 └─────────────────┘
 ```
 
-クエリでEnum値を作成するには、次のものも使用する必要があります `CAST`.
+クエリ内で Enum 値を作成するには、`CAST` を使用する必要があります。
 
 ``` sql
 SELECT toTypeName(CAST('a', 'Enum(\'a\' = 1, \'b\' = 2)'))
@@ -89,13 +121,13 @@ SELECT toTypeName(CAST('a', 'Enum(\'a\' = 1, \'b\' = 2)'))
 └─────────────────────────────────────────────────────┘
 ```
 
-## 一般的なルールと使用法 {#general-rules-and-usage}
+## 一般的なルールと使用法
 
-各値には、範囲内の数値が割り当てられます `-128 ... 127` のために `Enum8` または範囲 `-32768 ... 32767` のために `Enum16`. すべての文字列と数字は異なる必要があります。 空の文字列を使用できます。 この型が(テーブル定義で)指定されている場合、数値は任意の順序にすることができます。 しかし、順序は重要ではありません。
+各値には、`Enum8` の場合には `-128 ... 127`、`Enum16` の場合には `-32768 ... 32767` の範囲で番号が割り当てられます。すべての文字列と数値は異なる必要があります。空文字列も許可されています。この型が指定されている場合（テーブル定義内）、数値の順番は任意で構いません。しかし、順序は重要ではありません。
 
-の文字列も数値もない。 `Enum` ことができます [NULL](../../sql-reference/syntax.md).
+`Enum` で文字列または数値の値は [NULL](../../sql-reference/syntax.md) にすることはできません。
 
-アン `Enum` に含めることができます [Null可能](nullable.md) タイプ。 だから、クエリを使用してテーブルを作成する場合
+`Enum` は [Nullable](../../sql-reference/data-types/nullable.md) 型に含めることができます。したがって、次のクエリを使用してテーブルを作成すると、
 
 ``` sql
 CREATE TABLE t_enum_nullable
@@ -105,28 +137,23 @@ CREATE TABLE t_enum_nullable
 ENGINE = TinyLog
 ```
 
-できるアプリ `'hello'` と `'world'` でも `NULL` 同様に。
+`'hello'` と `'world'` のみならず、`NULL` も保存できるようになります。
 
 ``` sql
 INSERT INTO t_enum_nullable Values('hello'),('world'),(NULL)
 ```
 
-RAMでは、 `Enum` 列は次のように格納されます `Int8` または `Int16` 対応する数値の。
+RAM では、`Enum` カラムは対応する数値の `Int8` または `Int16` と同じ方法で保存されます。
 
-テキスト形式で読み込む場合、ClickHouseは値を文字列として解析し、列挙型の値のセットから対応する文字列を検索します。 見つからない場合は、例外がスローされます。 テキスト形式で読み込むと、文字列が読み込まれ、対応する数値が検索されます。 見つからない場合は例外がスローされます。
-テキスト形式で書き込む場合、その値を対応する文字列として書き込みます。 列データにガベージ(有効なセット以外の数値)が含まれている場合は、例外がスローされます。 バイナリ形式で読み書きする場合、Int8およびInt16データ型と同じように動作します。
-暗黙的なデフォルト値は、数値が最も小さい値です。
+テキスト形式で読み込むとき、ClickHouse は値を文字列として解析し、Enum 値の集合から対応する文字列を検索します。それが見つからない場合は例外が発生します。テキスト形式で書き込む際には、値を対応する文字列として出力します。カラムデータにごみ（有効な集合にない数値）が含まれている場合、例外が発生します。バイナリ形式での読み書きの際は、Int8 および Int16 のデータ型と同様の方法で動作します。暗黙のデフォルト値は最も低い番号の値です。
 
-中 `ORDER BY`, `GROUP BY`, `IN`, `DISTINCT` というように、列挙型は対応する数値と同じように動作します。 たとえば、ORDER BYは数値で並べ替えます。 等価演算子と比較演算子は、列挙型では、基になる数値と同じように動作します。
+`ORDER BY`、`GROUP BY`、`IN`、`DISTINCT` などの際には、Enum は対応する数値と同じように動作します。例えば、ORDER BY は数値的にソートします。等価性および比較演算子は、Enum 上で基礎となる数値値と同じように機能します。
 
-列挙型の値を数値と比較することはできません。 列挙型は定数文字列と比較できます。 比較対象の文字列が列挙型の有効な値でない場合は、例外がスローされます。 IN演算子は、左側の列挙型と右側の文字列のセットでサポートされています。 文字列は、対応する列挙型の値です。
+Enum 値は数値と比較できません。Enum は定数文字列と比較することができます。比較した文字列が Enum の有効な値でない場合、例外が発生します。Enum を左辺に、文字列の集合を右辺に持つ `IN` 演算子がサポートされています。文字列は対応する Enum の値です。
 
-Most numeric and string operations are not defined for Enum values, e.g. adding a number to an Enum or concatenating a string to an Enum.
-しかし、Enumには自然なものがあります `toString` 文字列値を返す関数。
+ほとんどの数値および文字列操作は Enum 値には定義されていません。例えば、Enum に数値を加算したり、Enum に文字列を連結したりすることはできません。しかし、Enum にはその文字列値を返す自然な `toString` 関数があります。
 
-列挙型の値は、次の式を使用して数値型にも変換できます `toT` ここで、Tは数値型です。 Tが列挙型の基になる数値型に対応する場合、この変換はゼロコストになります。
-列挙型は、値のセットのみが変更されている場合、ALTERを使用してコストなしで変更できます。 ALTERを使用して列挙型のメンバーを追加および削除することは可能です（削除された値がテーブルで使用されていない場合にのみ削除が安全です）。 セーフガードとして、以前に定義された列挙型メンバーの数値を変更すると、例外がスローされます。
+Enum 値は、`toT` 関数を使用して数値型に変換できます。ここで T は数値型です。T が enum の基礎となる数値型と一致する場合、この変換にコストはかかりません。
+ALTER を使用して Enum 型を変更することはコストがかからずに行えますが、値の集合が変更される場合のみです。ALTER を使用して Enum のメンバーを追加および削除することが可能です（削除は削除する値がテーブルで一度も使用されていない場合のみ安全です）。安全策として、以前に定義された Enum メンバーの数値値を変更すると例外が発生します。
 
-ALTERを使用すると、Int8をInt16に変更するのと同じように、Enum8をEnum16に変更することも、その逆も可能です。
-
-[元の記事](https://clickhouse.com/docs/en/data_types/enum/) <!--hide-->
+ALTER を使用することで Enum8 を Enum16 に、または Enum16 を Enum8 に変更することができます。これは Int8 を Int16 に変更するのと同様です。

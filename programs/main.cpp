@@ -1,143 +1,126 @@
-#include <signal.h>
-#include <setjmp.h>
-#include <unistd.h>
-
-#ifdef __linux__
-#include <sys/mman.h>
-#endif
-
-#include <new>
-#include <iostream>
-#include <vector>
-#include <string>
-#include <tuple>
-#include <utility> /// pair
-
-#include "config_tools.h"
-
-#include <Common/StringUtils/StringUtils.h>
-#include <Common/getHashOfLoadedBinary.h>
-#include <Common/IO.h>
-
 #include <base/phdr_cache.h>
 #include <base/scope_guard.h>
+#include <Common/EnvironmentChecks.h>
+#include <Common/StringUtils.h>
+#include <Common/getHashOfLoadedBinary.h>
 
+#if defined(SANITIZE_COVERAGE)
+#    include <Common/Coverage.h>
+#endif
+
+#include "config.h"
+#include "config_tools.h"
+
+#include <unistd.h>
+
+#include <filesystem>
+#include <iostream>
+#include <new>
+#include <string>
+#include <string_view>
+#include <utility> /// pair
+#include <vector>
 
 /// Universal executable for various clickhouse applications
-#if ENABLE_CLICKHOUSE_SERVER
-int mainEntryClickHouseServer(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_CLIENT
-int mainEntryClickHouseClient(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_LOCAL
-int mainEntryClickHouseLocal(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_BENCHMARK
 int mainEntryClickHouseBenchmark(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_EXTRACT_FROM_CONFIG
-int mainEntryClickHouseExtractFromConfig(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_COMPRESSOR
+int mainEntryClickHouseCheckMarks(int argc, char ** argv);
+int mainEntryClickHouseChecksumForCompressedBlock(int, char **);
+int mainEntryClickHouseClient(int argc, char ** argv);
 int mainEntryClickHouseCompressor(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_FORMAT
+int mainEntryClickHouseDisks(int argc, char ** argv);
+int mainEntryClickHouseExtractFromConfig(int argc, char ** argv);
 int mainEntryClickHouseFormat(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_COPIER
-int mainEntryClickHouseClusterCopier(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_OBFUSCATOR
-int mainEntryClickHouseObfuscator(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_GIT_IMPORT
 int mainEntryClickHouseGitImport(int argc, char ** argv);
-#endif
+int mainEntryClickHouseLocal(int argc, char ** argv);
+int mainEntryClickHouseObfuscator(int argc, char ** argv);
+int mainEntryClickHouseSU(int argc, char ** argv);
+int mainEntryClickHouseServer(int argc, char ** argv);
+int mainEntryClickHouseStaticFilesDiskUploader(int argc, char ** argv);
+int mainEntryClickHouseZooKeeperDumpTree(int argc, char ** argv);
+int mainEntryClickHouseZooKeeperRemoveByList(int argc, char ** argv);
+
+int mainEntryClickHouseHashBinary(int, char **)
+{
+    /// Intentionally without newline. So you can run:
+    /// objcopy --add-section .clickhouse.hash=<(./clickhouse hash-binary) clickhouse
+    std::cout << getHashOfLoadedBinaryHex();
+    return 0;
+}
+
 #if ENABLE_CLICKHOUSE_KEEPER
 int mainEntryClickHouseKeeper(int argc, char ** argv);
 #endif
-#if ENABLE_CLICKHOUSE_KEEPER
+#if ENABLE_CLICKHOUSE_KEEPER_CONVERTER
 int mainEntryClickHouseKeeperConverter(int argc, char ** argv);
 #endif
-#if ENABLE_CLICKHOUSE_STATIC_FILES_DISK_UPLOADER
-int mainEntryClickHouseStaticFilesDiskUploader(int argc, char ** argv);
+#if ENABLE_CLICKHOUSE_KEEPER_CLIENT
+int mainEntryClickHouseKeeperClient(int argc, char ** argv);
 #endif
-#if ENABLE_CLICKHOUSE_INSTALL
+#if USE_RAPIDJSON && USE_NURAFT
+int mainEntryClickHouseKeeperBench(int argc, char ** argv);
+#endif
+#if USE_NURAFT
+int mainEntryClickHouseKeeperDataDumper(int argc, char ** argv);
+#endif
+
+// install
 int mainEntryClickHouseInstall(int argc, char ** argv);
 int mainEntryClickHouseStart(int argc, char ** argv);
 int mainEntryClickHouseStop(int argc, char ** argv);
 int mainEntryClickHouseStatus(int argc, char ** argv);
 int mainEntryClickHouseRestart(int argc, char ** argv);
-#endif
-
-int mainEntryClickHouseHashBinary(int, char **)
-{
-    /// Intentionally without newline. So you can run:
-    /// objcopy --add-section .note.ClickHouse.hash=<(./clickhouse hash-binary) clickhouse
-    std::cout << getHashOfLoadedBinaryHex();
-    return 0;
-}
-
-#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 
 namespace
 {
 
 using MainFunc = int (*)(int, char**);
 
-#if !defined(FUZZING_MODE)
-
-/// Add an item here to register new application
-std::pair<const char *, MainFunc> clickhouse_applications[] =
+/// Add an item here to register new application.
+/// This list has a "priority" - e.g. we need to disambiguate clickhouse --format being
+/// either clickouse-format or clickhouse-{local, client} --format.
+/// Currently we will prefer the latter option.
+std::pair<std::string_view, MainFunc> clickhouse_applications[] =
 {
-#if ENABLE_CLICKHOUSE_LOCAL
     {"local", mainEntryClickHouseLocal},
-#endif
-#if ENABLE_CLICKHOUSE_CLIENT
     {"client", mainEntryClickHouseClient},
-#endif
-#if ENABLE_CLICKHOUSE_BENCHMARK
     {"benchmark", mainEntryClickHouseBenchmark},
-#endif
-#if ENABLE_CLICKHOUSE_SERVER
     {"server", mainEntryClickHouseServer},
-#endif
-#if ENABLE_CLICKHOUSE_EXTRACT_FROM_CONFIG
     {"extract-from-config", mainEntryClickHouseExtractFromConfig},
-#endif
-#if ENABLE_CLICKHOUSE_COMPRESSOR
     {"compressor", mainEntryClickHouseCompressor},
-#endif
-#if ENABLE_CLICKHOUSE_FORMAT
     {"format", mainEntryClickHouseFormat},
-#endif
-#if ENABLE_CLICKHOUSE_COPIER
-    {"copier", mainEntryClickHouseClusterCopier},
-#endif
-#if ENABLE_CLICKHOUSE_OBFUSCATOR
     {"obfuscator", mainEntryClickHouseObfuscator},
-#endif
-#if ENABLE_CLICKHOUSE_GIT_IMPORT
     {"git-import", mainEntryClickHouseGitImport},
-#endif
+    {"static-files-disk-uploader", mainEntryClickHouseStaticFilesDiskUploader},
+    {"su", mainEntryClickHouseSU},
+    {"hash-binary", mainEntryClickHouseHashBinary},
+    {"disks", mainEntryClickHouseDisks},
+    {"check-marks", mainEntryClickHouseCheckMarks},
+    {"checksum-for-compressed-block", mainEntryClickHouseChecksumForCompressedBlock},
+    {"zookeeper-dump-tree", mainEntryClickHouseZooKeeperDumpTree},
+    {"zookeeper-remove-by-list", mainEntryClickHouseZooKeeperRemoveByList},
+
+    // keeper
 #if ENABLE_CLICKHOUSE_KEEPER
     {"keeper", mainEntryClickHouseKeeper},
 #endif
 #if ENABLE_CLICKHOUSE_KEEPER_CONVERTER
     {"keeper-converter", mainEntryClickHouseKeeperConverter},
 #endif
-#if ENABLE_CLICKHOUSE_INSTALL
+#if ENABLE_CLICKHOUSE_KEEPER_CLIENT
+    {"keeper-client", mainEntryClickHouseKeeperClient},
+#endif
+#if USE_RAPIDJSON && USE_NURAFT
+    {"keeper-bench", mainEntryClickHouseKeeperBench},
+#endif
+#if USE_NURAFT
+    {"keeper-data-dumper", mainEntryClickHouseKeeperDataDumper},
+#endif
+    // install
     {"install", mainEntryClickHouseInstall},
     {"start", mainEntryClickHouseStart},
     {"stop", mainEntryClickHouseStop},
     {"status", mainEntryClickHouseStatus},
     {"restart", mainEntryClickHouseRestart},
-#endif
-#if ENABLE_CLICKHOUSE_STATIC_FILES_DISK_UPLOADER
-    {"static-files-disk-uploader", mainEntryClickHouseStaticFilesDiskUploader},
-#endif
-    {"hash-binary", mainEntryClickHouseHashBinary},
 };
 
 int printHelp(int, char **)
@@ -148,15 +131,30 @@ int printHelp(int, char **)
     return -1;
 }
 
-bool isClickhouseApp(const std::string & app_suffix, std::vector<char *> & argv)
+/// Add an item here to register a new short name
+std::pair<std::string_view, std::string_view> clickhouse_short_names[] =
 {
+    {"chl", "local"},
+    {"chc", "client"},
+};
+
+}
+
+bool isClickhouseApp(std::string_view app_suffix, std::vector<char *> & argv)
+{
+    for (const auto & [alias, name] : clickhouse_short_names)
+        if (app_suffix == name
+            && !argv.empty() && (alias == argv[0] || endsWith(argv[0], "/" + std::string(alias))))
+            return true;
+
     /// Use app if the first arg 'app' is passed (the arg should be quietly removed)
     if (argv.size() >= 2)
     {
         auto first_arg = argv.begin() + 1;
 
         /// 'clickhouse --client ...' and 'clickhouse client ...' are Ok
-        if (*first_arg == "--" + app_suffix || *first_arg == app_suffix)
+        if (*first_arg == app_suffix
+            || (std::string_view(*first_arg).starts_with("--") && std::string_view(*first_arg).substr(2) == app_suffix))
         {
             argv.erase(first_arg);
             return true;
@@ -164,202 +162,102 @@ bool isClickhouseApp(const std::string & app_suffix, std::vector<char *> & argv)
     }
 
     /// Use app if clickhouse binary is run through symbolic link with name clickhouse-app
-    std::string app_name = "clickhouse-" + app_suffix;
+    std::string app_name = "clickhouse-" + std::string(app_suffix);
     return !argv.empty() && (app_name == argv[0] || endsWith(argv[0], "/" + app_name));
 }
-#endif
 
+/// Don't allow dlopen in the main ClickHouse binary, because it is harmful and insecure.
+/// We don't use it. But it can be used by some libraries for implementation of "plugins".
+/// We absolutely discourage the ancient technique of loading
+/// 3rd-party uncontrolled dangerous libraries into the process address space,
+/// because it is insane.
 
-enum class InstructionFail
+#if !defined(USE_MUSL)
+extern "C"
 {
-    NONE = 0,
-    SSE3 = 1,
-    SSSE3 = 2,
-    SSE4_1 = 3,
-    SSE4_2 = 4,
-    POPCNT = 5,
-    AVX = 6,
-    AVX2 = 7,
-    AVX512 = 8
-};
-
-auto instructionFailToString(InstructionFail fail)
-{
-    switch (fail)
+    void * dlopen(const char *, int)
     {
-#define ret(x) return std::make_tuple(STDERR_FILENO, x, ARRAY_SIZE(x) - 1)
-        case InstructionFail::NONE:
-            ret("NONE");
-        case InstructionFail::SSE3:
-            ret("SSE3");
-        case InstructionFail::SSSE3:
-            ret("SSSE3");
-        case InstructionFail::SSE4_1:
-            ret("SSE4.1");
-        case InstructionFail::SSE4_2:
-            ret("SSE4.2");
-        case InstructionFail::POPCNT:
-            ret("POPCNT");
-        case InstructionFail::AVX:
-            ret("AVX");
-        case InstructionFail::AVX2:
-            ret("AVX2");
-        case InstructionFail::AVX512:
-            ret("AVX512");
-    }
-    __builtin_unreachable();
-}
-
-
-sigjmp_buf jmpbuf;
-
-[[noreturn]] void sigIllCheckHandler(int, siginfo_t *, void *)
-{
-    siglongjmp(jmpbuf, 1);
-}
-
-/// Check if necessary SSE extensions are available by trying to execute some sse instructions.
-/// If instruction is unavailable, SIGILL will be sent by kernel.
-void checkRequiredInstructionsImpl(volatile InstructionFail & fail)
-{
-#if defined(__SSE3__)
-    fail = InstructionFail::SSE3;
-    __asm__ volatile ("addsubpd %%xmm0, %%xmm0" : : : "xmm0");
-#endif
-
-#if defined(__SSSE3__)
-    fail = InstructionFail::SSSE3;
-    __asm__ volatile ("pabsw %%xmm0, %%xmm0" : : : "xmm0");
-
-#endif
-
-#if defined(__SSE4_1__)
-    fail = InstructionFail::SSE4_1;
-    __asm__ volatile ("pmaxud %%xmm0, %%xmm0" : : : "xmm0");
-#endif
-
-#if defined(__SSE4_2__)
-    fail = InstructionFail::SSE4_2;
-    __asm__ volatile ("pcmpgtq %%xmm0, %%xmm0" : : : "xmm0");
-#endif
-
-    /// Defined by -msse4.2
-#if defined(__POPCNT__)
-    fail = InstructionFail::POPCNT;
-    {
-        uint64_t a = 0;
-        uint64_t b = 0;
-        __asm__ volatile ("popcnt %1, %0" : "=r"(a) :"r"(b) :);
-    }
-#endif
-
-#if defined(__AVX__)
-    fail = InstructionFail::AVX;
-    __asm__ volatile ("vaddpd %%ymm0, %%ymm0, %%ymm0" : : : "ymm0");
-#endif
-
-#if defined(__AVX2__)
-    fail = InstructionFail::AVX2;
-    __asm__ volatile ("vpabsw %%ymm0, %%ymm0" : : : "ymm0");
-#endif
-
-#if defined(__AVX512__)
-    fail = InstructionFail::AVX512;
-    __asm__ volatile ("vpabsw %%zmm0, %%zmm0" : : : "zmm0");
-#endif
-
-    fail = InstructionFail::NONE;
-}
-
-/// Macros to avoid using strlen(), since it may fail if SSE is not supported.
-#define writeError(data) do \
-    { \
-        static_assert(__builtin_constant_p(data)); \
-        if (!writeRetry(STDERR_FILENO, data, ARRAY_SIZE(data) - 1)) \
-            _Exit(1); \
-    } while (false)
-
-/// Check SSE and others instructions availability. Calls exit on fail.
-/// This function must be called as early as possible, even before main, because static initializers may use unavailable instructions.
-void checkRequiredInstructions()
-{
-    struct sigaction sa{};
-    struct sigaction sa_old{};
-    sa.sa_sigaction = sigIllCheckHandler;
-    sa.sa_flags = SA_SIGINFO;
-    auto signal = SIGILL;
-    if (sigemptyset(&sa.sa_mask) != 0
-        || sigaddset(&sa.sa_mask, signal) != 0
-        || sigaction(signal, &sa, &sa_old) != 0)
-    {
-        /// You may wonder about strlen.
-        /// Typical implementation of strlen is using SSE4.2 or AVX2.
-        /// But this is not the case because it's compiler builtin and is executed at compile time.
-
-        writeError("Can not set signal handler\n");
-        _Exit(1);
+        return nullptr;
     }
 
-    volatile InstructionFail fail = InstructionFail::NONE;
-
-    if (sigsetjmp(jmpbuf, 1))
+    void * dlmopen(long, const char *, int) // NOLINT
     {
-        writeError("Instruction check fail. The CPU does not support ");
-        if (!std::apply(writeRetry, instructionFailToString(fail)))
-            _Exit(1);
-        writeError(" instruction set.\n");
-        _Exit(1);
+        return nullptr;
     }
 
-    checkRequiredInstructionsImpl(fail);
-
-    if (sigaction(signal, &sa_old, nullptr))
+    int dlclose(void *)
     {
-        writeError("Can not set signal handler\n");
-        _Exit(1);
+        return 0;
+    }
+
+    const char * dlerror()
+    {
+        return "ClickHouse does not allow dynamic library loading";
     }
 }
-
-struct Checker
-{
-    Checker()
-    {
-        checkRequiredInstructions();
-    }
-} checker
-#ifndef __APPLE__
-    __attribute__((init_priority(101)))    /// Run before other static initializers.
 #endif
-;
 
+/// Prevent messages from JeMalloc in the release build.
+/// Some of these messages are non-actionable for the users, such as:
+/// <jemalloc>: Number of CPUs detected is not deterministic. Per-CPU arena disabled.
+#if USE_JEMALLOC && defined(NDEBUG) && !defined(SANITIZER)
+extern "C" void (*malloc_message)(void *, const char *s);
+__attribute__((constructor(0))) void init_je_malloc_message() { malloc_message = [](void *, const char *){}; }
+#elif USE_JEMALLOC
+#include <unordered_set>
+/// Ignore messages which can be safely ignored, e.g. EAGAIN on pthread_create
+extern "C" void (*malloc_message)(void *, const char * s);
+__attribute__((constructor(0))) void init_je_malloc_message()
+{
+    malloc_message = [](void *, const char * str)
+    {
+        using namespace std::literals;
+        static const std::unordered_set<std::string_view> ignore_messages{
+            "<jemalloc>: background thread creation failed (11)\n"sv};
+
+        std::string_view message_view{str};
+        if (ignore_messages.contains(message_view))
+            return;
+
+#    if defined(SYS_write)
+        syscall(SYS_write, 2 /*stderr*/, message_view.data(), message_view.size());
+#    else
+        write(STDERR_FILENO, message_view.data(), message_view.size());
+#    endif
+    };
 }
-
+#endif
 
 /// This allows to implement assert to forbid initialization of a class in static constructors.
 /// Usage:
 ///
 /// extern bool inside_main;
 /// class C { C() { assert(inside_main); } };
-#ifndef FUZZING_MODE
 bool inside_main = false;
-#else
-bool inside_main = true;
-#endif
 
-#if !defined(FUZZING_MODE)
 int main(int argc_, char ** argv_)
 {
     inside_main = true;
     SCOPE_EXIT({ inside_main = false; });
 
-    /// Reset new handler to default (that throws std::bad_alloc)
-    /// It is needed because LLVM library clobbers it.
-    std::set_new_handler(nullptr);
-
     /// PHDR cache is required for query profiler to work reliably
     /// It also speed up exception handling, but exceptions from dynamically loaded libraries (dlopen)
     ///  will work only after additional call of this function.
+    /// Note: we forbid dlopen in our code.
     updatePHDRCache();
+
+#if !defined(USE_MUSL)
+    checkHarmfulEnvironmentVariables(argv_);
+#endif
+
+    /// This is used for testing. For example,
+    /// clickhouse-local should be able to run a simple query without throw/catch.
+    if (getenv("CLICKHOUSE_TERMINATE_ON_ANY_EXCEPTION")) // NOLINT(concurrency-mt-unsafe)
+        DB::terminate_on_any_exception = true;
+
+    /// Reset new handler to default (that throws std::bad_alloc)
+    /// It is needed because LLVM library clobbers it.
+    std::set_new_handler(nullptr);
 
     std::vector<char *> argv(argv_, argv_ + argc_);
 
@@ -375,6 +273,29 @@ int main(int argc_, char ** argv_)
         }
     }
 
-    return main_func(static_cast<int>(argv.size()), argv.data());
-}
+    /// Interpret binary without argument or with arguments starts with dash
+    /// ('-') as clickhouse-local for better usability:
+    ///
+    ///     clickhouse help # dumps help
+    ///     clickhouse -q 'select 1' # use local
+    ///     clickhouse # spawn local
+    ///     clickhouse local # spawn local
+    ///     clickhouse "select ..." # spawn local
+    ///     clickhouse /tmp/repro --enable-analyzer
+    ///
+    std::error_code ec;
+    if (main_func == printHelp && !argv.empty()
+        && (argv.size() == 1 || argv[1][0] == '-' || std::string_view(argv[1]).contains(' ')
+            || std::filesystem::is_regular_file(std::filesystem::path{argv[1]}, ec)))
+    {
+        main_func = mainEntryClickHouseLocal;
+    }
+
+    int exit_code = main_func(static_cast<int>(argv.size()), argv.data());
+
+#if defined(SANITIZE_COVERAGE)
+    dumpCoverage();
 #endif
+
+    return exit_code;
+}

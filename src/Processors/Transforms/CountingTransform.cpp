@@ -1,7 +1,7 @@
-#include <iostream>
-
-#include <Interpreters/ProcessList.h>
 #include <Processors/Transforms/CountingTransform.h>
+
+#include <IO/Progress.h>
+#include <Interpreters/ProcessList.h>
 #include <Common/ProfileEvents.h>
 #include <Common/ThreadStatus.h>
 
@@ -18,10 +18,11 @@ namespace DB
 
 void CountingTransform::onConsume(Chunk chunk)
 {
+    if (quota)
+        quota->used(QuotaType::WRITTEN_BYTES, chunk.bytes());
+
     Progress local_progress{WriteProgress(chunk.getNumRows(), chunk.bytes())};
     progress.incrementPiecewiseAtomically(local_progress);
-
-    //std::cerr << "============ counting adding progress for " << static_cast<const void *>(thread_status) << ' ' << chunk.getNumRows() << " rows\n";
 
     if (thread_status)
     {

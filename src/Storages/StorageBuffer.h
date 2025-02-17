@@ -1,15 +1,15 @@
 #pragma once
 
+#include <Core/BackgroundSchedulePoolTaskHolder.h>
 #include <Core/BackgroundSchedulePool.h>
 #include <Core/NamesAndTypes.h>
 #include <Storages/IStorage.h>
-#include <base/shared_ptr_helper.h>
+#include <Common/ThreadPool.h>
 
 #include <Poco/Event.h>
 
 #include <atomic>
 #include <mutex>
-#include <thread>
 
 
 namespace Poco { class Logger; }
@@ -41,9 +41,8 @@ namespace DB
   * When you destroy a Buffer table, all remaining data is flushed to the subordinate table.
   * The data in the buffer is not replicated, not logged to disk, not indexed. With a rough restart of the server, the data is lost.
   */
-class StorageBuffer final : public shared_ptr_helper<StorageBuffer>, public IStorage, WithContext
+class StorageBuffer final : public IStorage, WithContext
 {
-friend struct shared_ptr_helper<StorageBuffer>;
 friend class BufferSource;
 friend class BufferSink;
 
@@ -55,39 +54,49 @@ public:
         size_t bytes = 0; /// The number of (uncompressed) bytes in the block.
     };
 
+    /** num_shards - the level of internal parallelism (the number of independent buffers)
+      * The buffer is flushed if all minimum thresholds or at least one of the maximum thresholds are exceeded.
+      */
+    StorageBuffer(
+        const StorageID & table_id_,
+        const ColumnsDescription & columns_,
+        const ConstraintsDescription & constraints_,
+        const String & comment,
+        ContextPtr context_,
+        size_t num_shards_,
+        const Thresholds & min_thresholds_,
+        const Thresholds & max_thresholds_,
+        const Thresholds & flush_thresholds_,
+        const StorageID & destination_id,
+        bool allow_materialized_);
+
     std::string getName() const override { return "Buffer"; }
 
     QueryProcessingStage::Enum
-    getQueryProcessingStage(ContextPtr, QueryProcessingStage::Enum, const StorageMetadataPtr &, SelectQueryInfo &) const override;
-
-    Pipe read(
-        const Names & column_names,
-        const StorageMetadataPtr & /*metadata_snapshot*/,
-        SelectQueryInfo & query_info,
-        ContextPtr context,
-        QueryProcessingStage::Enum processed_stage,
-        size_t max_block_size,
-        unsigned num_streams) override;
+    getQueryProcessingStage(ContextPtr, QueryProcessingStage::Enum, const StorageSnapshotPtr &, SelectQueryInfo &) const override;
 
     void read(
         QueryPlan & query_plan,
         const Names & column_names,
-        const StorageMetadataPtr & metadata_snapshot,
+        const StorageSnapshotPtr & storage_snapshot,
         SelectQueryInfo & query_info,
         ContextPtr context,
         QueryProcessingStage::Enum processed_stage,
         size_t max_block_size,
-        unsigned num_streams) override;
+        size_t num_streams) override;
+    bool isRemote() const override;
 
     bool supportsParallelInsert() const override { return true; }
 
     bool supportsSubcolumns() const override { return true; }
 
-    SinkToStoragePtr write(const ASTPtr & query, const StorageMetadataPtr & /*metadata_snapshot*/, ContextPtr context) override;
+    bool supportsDynamicSubcolumns() const override { return true; }
+
+    SinkToStoragePtr write(const ASTPtr & query, const StorageMetadataPtr & /*metadata_snapshot*/, ContextPtr context, bool /*async_insert*/) override;
 
     void startup() override;
     /// Flush all buffers into the subordinate table and stop background thread.
-    void flush() override;
+    void flushAndPrepareForShutdown() override;
     bool optimize(
         const ASTPtr & query,
         const StorageMetadataPtr & metadata_snapshot,
@@ -95,14 +104,12 @@ public:
         bool final,
         bool deduplicate,
         const Names & deduplicate_by_columns,
+        bool cleanup,
         ContextPtr context) override;
 
     bool supportsSampling() const override { return true; }
     bool supportsPrewhere() const override;
     bool supportsFinal() const override { return true; }
-    bool supportsIndexForIn() const override { return true; }
-
-    bool mayBenefitFromIndexForIn(const ASTPtr & left_in_operand, ContextPtr query_context, const StorageMetadataPtr & metadata_snapshot) const override;
 
     void checkAlterIsPossible(const AlterCommands & commands, ContextPtr context) const override;
 
@@ -122,6 +129,18 @@ private:
         time_t first_write_time = 0;
         Block data;
 
+        /// Schema version, checked to avoid mixing blocks with different sets of columns, from
+        /// before and after an ALTER. There are some remaining mild problems if an ALTER happens
+        /// in the middle of a long-running INSERT:
+        ///  * The data produced by the INSERT after the ALTER is not visible to SELECTs until flushed.
+        ///    That's because BufferSource skips buffers with old metadata_version instead of converting
+        ///    them to the latest schema, for simplicity.
+        ///  * If there are concurrent INSERTs, some of which started before the ALTER and some started
+        ///    after, then the buffer's metadata_version will oscillate back and forth between the two
+        ///    schemas, flushing the buffer each time. This is probably fine because long-running INSERTs
+        ///    usually don't produce lots of small blocks.
+        int32_t metadata_version = 0;
+
         std::unique_lock<std::mutex> lockForReading() const;
         std::unique_lock<std::mutex> lockForWriting() const;
         std::unique_lock<std::mutex> tryLock() const;
@@ -134,6 +153,7 @@ private:
 
     /// There are `num_shards` of independent buffers.
     const size_t num_shards;
+    std::unique_ptr<ThreadPool> flush_pool;
     std::vector<Buffer> buffers;
 
     const Thresholds min_thresholds;
@@ -151,7 +171,7 @@ private:
     Writes lifetime_writes;
     Writes total_writes;
 
-    Poco::Logger * log;
+    LoggerPtr log;
 
     void flushAllBuffers(bool check_thresholds = true);
     bool flushBuffer(Buffer & buffer, bool check_thresholds, bool locked = false);
@@ -164,25 +184,10 @@ private:
     void backgroundFlush();
     void reschedule();
 
+    StoragePtr getDestinationTable() const;
+
     BackgroundSchedulePool & bg_pool;
     BackgroundSchedulePoolTaskHolder flush_handle;
-
-protected:
-    /** num_shards - the level of internal parallelism (the number of independent buffers)
-      * The buffer is flushed if all minimum thresholds or at least one of the maximum thresholds are exceeded.
-      */
-    StorageBuffer(
-        const StorageID & table_id_,
-        const ColumnsDescription & columns_,
-        const ConstraintsDescription & constraints_,
-        const String & comment,
-        ContextPtr context_,
-        size_t num_shards_,
-        const Thresholds & min_thresholds_,
-        const Thresholds & max_thresholds_,
-        const Thresholds & flush_thresholds_,
-        const StorageID & destination_id,
-        bool allow_materialized_);
 };
 
 }

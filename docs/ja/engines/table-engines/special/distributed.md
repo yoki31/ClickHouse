@@ -1,57 +1,172 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 33
-toc_title: "\u5206\u6563"
+sidebar_label: "Distributed"
+sidebar_position: 10
+slug: /ja/engines/table-engines/special/distributed
 ---
 
-# 分散 {#distributed}
+# Distributed テーブルエンジン
 
-**分散エンジンを備えたテーブルは、データ自体を格納しません** しかし、複数のサーバーで分散クエリ処理を許可します。
-読み取りは自動的に並列化されます。 読み取り中に、リモートサーバー上のテーブルインデックスが存在する場合に使用されます。
+:::warning
+クラウドでDistributedテーブルエンジンを作成するには、[remoteとremoteSecure](../../../sql-reference/table-functions/remote)テーブル関数を使用できます。ClickHouse Cloudでは、`Distributed(...)`の構文は使用できません。
+:::
 
-分散エンジ:
+Distributedエンジンを使用したテーブルは独自のデータを保存せず、複数のサーバーでの分散型クエリ処理を可能にします。読み込みは自動的に並列化されます。読み込み時には、リモートサーバー上のテーブルインデックスが利用されます（存在する場合）。
 
--   サーバーの設定ファイル内のクラスタ名
-
--   リモートデータベースの名前
-
--   リモートテーブルの名前
-
--   （オプション)shardingキー
-
--   (必要に応じて)ポリシー名は、非同期送信の一時ファイルを格納するために使用されます
-
-    も参照。:
-
-    -   `insert_distributed_sync` 設定
-    -   [メルゲツリー](../mergetree-family/mergetree.md#table_engine-mergetree-multiple-volumes) 例については
-
-例:
+## テーブルの作成 {#distributed-creating-a-table}
 
 ``` sql
-Distributed(logs, default, hits[, sharding_key[, policy_name]])
+CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
+(
+    name1 [type1] [DEFAULT|MATERIALIZED|ALIAS expr1],
+    name2 [type2] [DEFAULT|MATERIALIZED|ALIAS expr2],
+    ...
+) ENGINE = Distributed(cluster, database, table[, sharding_key[, policy_name]])
+[SETTINGS name=value, ...]
 ```
 
-すべてのサーバからデータが読み取られます。 ‘logs’ デフォルトからのクラスター。ヒットテーブルに位置毎にサーバのクラスター
-データは読み取りだけでなく、リモートサーバーで部分的に処理されます（可能な限り）。
-たとえば、GROUP BYを使用したクエリの場合、リモートサーバーでデータが集計され、集計関数の中間状態が要求元サーバーに送信されます。 その後、データはさらに集計されます。
+### テーブルから {#distributed-from-a-table}
 
-データベース名の代わりに、文字列を返す定数式を使用できます。 たとえば、currentDatabase()です。
+`Distributed`テーブルが現在のサーバー上のテーブルを指している場合、そのテーブルのスキーマを採用できます:
 
-logs – The cluster name in the server's config file.
+``` sql
+CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster] AS [db2.]name2 ENGINE = Distributed(cluster, database, table[, sharding_key[, policy_name]]) [SETTINGS name=value, ...]
+```
 
-クラスターがセットのようなこ:
+### Distributedパラメータ
+
+#### cluster
+
+`cluster` - サーバーの設定ファイル内のクラスタ名
+
+#### database
+
+`database` - リモートデータベースの名前
+
+#### table
+
+`table` - リモートテーブルの名前
+
+#### sharding_key
+
+`sharding_key` - （省略可能）シャーディングキー
+
+`sharding_key`を指定することが必要な場合:
+
+- Distributed テーブルへの`INSERT`（テーブルエンジンがデータをどのように分割するかを決定するために`sharding_key`が必要）。ただし、`insert_distributed_one_random_shard`設定が有効になっている場合、`INSERT`にはシャーディングキーは必要ありません。
+- `optimize_skip_unused_shards`を使用するために、クエリすべきシャードを決定するために`sharding_key`が必要です
+
+#### policy_name
+
+`policy_name` - （省略可能）ポリシー名、一時ファイルをバックグラウンド送信用に保存するために使用されます
+
+**関連リンク**
+
+ - [distributed_foreground_insert](../../../operations/settings/settings.md#distributed_foreground_insert) 設定
+ - [MergeTree](../../../engines/table-engines/mergetree-family/mergetree.md#table_engine-mergetree-multiple-volumes) の例
+
+### Distributed設定
+
+#### fsync_after_insert
+
+`fsync_after_insert` - バックグラウンドでのDistributedへの挿入後にファイルデータに対して`fsync`を実行します。**イニシエーターノード**のディスクに挿入されたデータ全体がOSによりフラッシュされることを保証します。
+
+#### fsync_directories
+
+`fsync_directories` - ディレクトリに対して`fsync`を実行します。Distributedテーブルに関連するバックグラウンド挿入操作後（挿入後、シャードへのデータ送信後など）にディレクトリメタデータがOSにより更新されることを保証します。
+
+#### skip_unavailable_shards
+
+`skip_unavailable_shards` - trueの場合、ClickHouseは使用不可のシャードを黙ってスキップします。シャードは次のいずれかの理由で使用不可とマークされます: 1) 接続失敗によりシャードに到達できません。2) シャードがDNS経由で解決不可能です。3) シャードにテーブルが存在しません。デフォルトはfalseです。
+
+#### bytes_to_throw_insert
+
+`bytes_to_throw_insert` - バックグラウンドINSERTのために保留される圧縮バイト数がこの数を超えると例外がスローされます。0 - 例外をスローしません。デフォルトは0です。
+
+#### bytes_to_delay_insert
+
+`bytes_to_delay_insert` - バックグラウンドINSERTのために保留される圧縮バイト数がこの数を超えるとクエリが遅延します。0 - 遅延しません。デフォルトは0です。
+
+#### max_delay_to_insert
+
+`max_delay_to_insert` - バックグラウンド送信のために多くの保留バイトがある場合、Distributedテーブルにデータを挿入する最大遅延時間（秒単位）。デフォルトは60です。
+
+#### background_insert_batch
+
+`background_insert_batch` - [distributed_background_insert_batch](../../../operations/settings/settings.md#distributed_background_insert_batch) と同じ
+
+#### background_insert_split_batch_on_failure
+
+`background_insert_split_batch_on_failure` - [distributed_background_insert_split_batch_on_failure](../../../operations/settings/settings.md#distributed_background_insert_split_batch_on_failure) と同じ
+
+#### background_insert_sleep_time_ms
+
+`background_insert_sleep_time_ms` - [distributed_background_insert_sleep_time_ms](../../../operations/settings/settings.md#distributed_background_insert_sleep_time_ms) と同じ
+
+#### background_insert_max_sleep_time_ms
+
+`background_insert_max_sleep_time_ms` - [distributed_background_insert_max_sleep_time_ms](../../../operations/settings/settings.md#distributed_background_insert_max_sleep_time_ms) と同じ
+
+#### flush_on_detach
+
+`flush_on_detach` - DETACH/DROP/サーバーシャットダウン時にリモートノードにデータをフラッシュします。デフォルトはtrueです。
+
+:::note
+**耐久性の設定** (`fsync_...`):
+
+- バックグラウンドINSERT（つまり、`distributed_foreground_insert=false`）にのみ影響を与え、データが最初にイニシエーターノードのディスクに保存され、後でバックグラウンドでシャードに送信されます。
+- 挿入操作のパフォーマンスを大幅に低下させる可能性がある
+- Distributedテーブルフォルダ内に保存されたデータを、挿入を受け入れた**ノード**で書き出すことに影響を与えます。基盤となるMergeTreeテーブルへのデータ書き込みの保証が必要な場合 – `system.merge_tree_settings`内の耐久性の設定（`...fsync...`）を参照してください。
+
+**挿入制限の設定** (`..._insert`) については、次も参照してください:
+
+- [distributed_foreground_insert](../../../operations/settings/settings.md#distributed_foreground_insert) 設定
+- [prefer_localhost_replica](../../../operations/settings/settings.md#prefer-localhost-replica) 設定
+- `bytes_to_throw_insert`は`bytes_to_delay_insert`よりも前に処理されるため、`bytes_to_delay_insert`未満の値に設定しないようにしてください。
+:::
+
+**例**
+
+``` sql
+CREATE TABLE hits_all AS hits
+ENGINE = Distributed(logs, default, hits[, sharding_key[, policy_name]])
+SETTINGS
+    fsync_after_insert=0,
+    fsync_directories=0;
+```
+
+データは`logs`クラスタ内にあるすべてのサーバーからリモートにある`default.hits`テーブルから読み取られます。データは読むだけでなく可能な限りリモートサーバーで部分的に処理されます。たとえば、`GROUP BY`を使ったクエリでは、データがリモートサーバーで集約され、集計関数の中間状態がリクエスト側のサーバーに送信されます。その後データはさらに集約されます。
+
+データベース名の代わりに、文字列を返す定数式を使用できます。例えば：`currentDatabase()`。
+
+## クラスター {#distributed-clusters}
+
+クラスターは[サーバー構成ファイル](../../../operations/configuration-files.md) で設定されます:
 
 ``` xml
 <remote_servers>
     <logs>
+        <!-- 分散クエリ用のサーバー間クラスタ秘匿
+             デフォルト: 秘匿なし（認証は行われません）
+
+             設定されている場合、分散クエリはシャード上で検証されるため少なくとも:
+             - シャードにこのクラスターが存在する必要があります
+             - このクラスターに同じ秘匿が必要です。
+
+             また（そしてこれはより重要ですが）、initial_userがクエリの現在のユーザーとして使用されます。
+        -->
+        <!-- <secret></secret> -->
+        
+        <!-- オプション: このクラスタに対する分散DDLクエリ（ON CLUSTER句）が許可されるかどうか。デフォルト: true（許可される）。 -->
+        <!-- <allow_distributed_ddl_queries>true</allow_distributed_ddl_queries> -->
+        
         <shard>
-            <!-- Optional. Shard weight when writing data. Default: 1. -->
+            <!-- オプション: データ書き込み時のシャードの重み。デフォルト: 1。 -->
             <weight>1</weight>
-            <!-- Optional. Whether to write data to just one of the replicas. Default: false (write data to all replicas). -->
+            <!-- オプション: データを各レプリカのみに書き込むかどうか。デフォルト: false(全レプリカにデータを書き込む)。 -->
             <internal_replication>false</internal_replication>
             <replica>
+                <!-- オプション: 負荷分散（load_balancing設定も参照）中のレプリカの優先順位。デフォルト: 1（小さいほど優先度が高い）。 -->
+                <priority>1</priority>
                 <host>example01-01-1</host>
                 <port>9000</port>
             </replica>
@@ -77,76 +192,80 @@ logs – The cluster name in the server's config file.
 </remote_servers>
 ```
 
-ここで、クラスターは名前で定義されます ‘logs’ これは二つの破片で構成され、それぞれに二つの複製が含まれています。
-シャードは、データの異なる部分を含むサーバーを指します(すべてのデータを読み取るには、すべてのシャードにアクセスする必要があります)。
-レプリカはサーバーを複製しています（すべてのデータを読み取るために、レプリカのいずれかのデータにアクセスできます）。
+ここでは、`logs`という名前のクラスターが定義されており、2つのシャードで構成され、それぞれが2つのレプリカを持っています。シャードはデータの異なる部分を含むサーバーを指します（すべてのデータを読むにはすべてのシャードにアクセスする必要があります）。レプリカはサーバーを複製しています（すべてのデータを読むには、任意のレプリカのデータにアクセスすることができます）。
 
-クラスターの名前などを含めないでくださいませんでした。
+クラスター名にはドットを含めることはできません。
 
-パラメータ `host`, `port`、および必要に応じて `user`, `password`, `secure`, `compression` サーバーごとに指定されます:
-- `host` – The address of the remote server. You can use either the domain or the IPv4 or IPv6 address. If you specify the domain, the server makes a DNS request when it starts, and the result is stored as long as the server is running. If the DNS request fails, the server doesn't start. If you change the DNS record, restart the server.
-- `port` – The TCP port for messenger activity (‘tcp_port’ 設定では、通常9000に設定されています）。 Http_portと混同しないでください。
-- `user` – Name of the user for connecting to a remote server. Default value: default. This user must have access to connect to the specified server. Access is configured in the users.xml file. For more information, see the section [アクセス権](../../../operations/access-rights.md).
-- `password` – The password for connecting to a remote server (not masked). Default value: empty string.
-- `secure` -接続にsslを使用します。 `port` = 9440. サーバーがリッスンする `<tcp_port_secure>9440</tcp_port_secure>` 正しい証明書を持っています。
-- `compression` -データ圧縮を使用します。 デフォルト値:true。
+各サーバーには、`host`、`port`、およびオプションで`user`、`password`、`secure`、`compression`のパラメーターを指定します:
 
-When specifying replicas, one of the available replicas will be selected for each of the shards when reading. You can configure the algorithm for load balancing (the preference for which replica to access) – see the [load_balancing](../../../operations/settings/settings.md#settings-load_balancing) 設定。
-サーバーとの接続が確立されていない場合は、短いタイムアウトで接続しようとします。 接続に失敗した場合は、すべてのレプリカに対して次のレプリカが選択されます。 すべてのレプリカで接続試行が失敗した場合、その試行は同じ方法で何度か繰り返されます。
-リモートサーバーは接続を受け入れるかもしれませんが、動作しないか、または不十分に動作する可能性があります。
+- `host` – リモートサーバーのアドレス。ドメインかIPv4またはIPv6のアドレスを使用できます。ドメインを指定した場合、サーバーは起動時にDNSリクエストを行い、その結果をサーバーが稼働している間は保持します。DNSリクエストが失敗した場合、サーバーは起動しません。DNSレコードを変更した場合は、サーバーを再起動してください。
+- `port` – メッセンジャー活動用のTCPポート（設定の`tcp_port`、通常は9000に設定）。`http_port`と混同しないでください。
+- `user` – リモートサーバーに接続するためのユーザー名。デフォルト値は`default`ユーザー。このユーザーは指定されたサーバーに接続するためのアクセス権を持っている必要があります。アクセスは`users.xml`ファイルで設定されます。詳細は[アクセス権](../../../guides/sre/user-management/index.md)セクションを参照してください。
+- `password` – リモートサーバーへの接続のためのパスワード（マスクされていない）。デフォルト値: 空文字列。
+- `secure` - セキュアなSSL/TLS接続を使用するかどうか。通常、ポートを指定する必要もあります（デフォルトのセキュアポートは`9440`）。サーバーは`<tcp_port_secure>9440</tcp_port_secure>`をリッスンし、正しい証明書で構成される必要があります。
+- `compression` - データ圧縮を使用するかどうか。デフォルト値: `true`。
 
-いずれかのシャードのみを指定することができます(この場合、クエリ処理は分散ではなくリモートと呼ばれる必要があります)。 各シャードでは、いずれかから任意の数のレプリカを指定できます。 シャードごとに異なる数のレプリカを指定できます。
+レプリカを指定する場合、読み込み時には使用可能なレプリカの中から各シャードに対して1つのレプリカが選択されます。負荷分散（どのレプリカにアクセスするかの優先順位）のアルゴリズムを設定できます – [load_balancing](../../../operations/settings/settings.md#load_balancing)設定を参照してください。サーバーとの接続が確立されなかった場合、短いタイムアウトで接続の試行が行われます。接続が失敗した場合、次のレプリカが選択され、それをすべてのレプリカに対して繰り返します。すべてのレプリカで接続試行が失敗した場合、同じ方法で複数回試行します。これは回復性に寄与しますが、完全なフォールトトレランスを提供するわけではありません：リモートサーバーは接続を受け入れるが、機能しないか、または正常に機能しません。
 
-設定では、必要な数のクラスターを指定できます。
+1つのシャードのみを指定することも（この場合、クエリ処理はリモートと呼ばれるべきで、分散ではない）や任意数のシャードまで指定することができます。各シャードには1つから任意数のレプリカを指定できます。各シャードに異なる数のレプリカを指定することもできます。
 
-クラスターを表示するには、 ‘system.clusters’ テーブル。
+任意の数のクラスターを構成に指定することができます。
 
-の分散型エンジン能にすることで、社会とクラスターのように現地サーバーです。 サーバー設定ファイルにその設定を書き込む必要があります(すべてのクラスターのサーバーでさらに優れています)。
+あなたのクラスターを表示するには、`system.clusters`テーブルを使用してください。
 
-The Distributed engine requires writing clusters to the config file. Clusters from the config file are updated on the fly, without restarting the server. If you need to send a query to an unknown set of shards and replicas each time, you don't need to create a Distributed table – use the ‘remote’ 代わりにテーブル関数。 セクションを参照 [テーブル関数](../../../sql-reference/table-functions/index.md).
+`Distributed`エンジンはクラスターをローカルサーバーのように操作することを可能にします。ただし、クラスターの構成はサーバー構成ファイルで動的に指定することはできません。通常、クラスター内のすべてのサーバーは同じクラスター構成を持っているが（必須ではない）、構成ファイルからクラスターはサーバーを再起動せずに動的に更新されます。
 
-クラスターにデータを書き込む方法は二つあります:
+未知のシャードやレプリカのセットに毎回クエリを送信する必要がある場合、`Distributed`テーブルを作成する必要はありません - `remote`テーブル関数を使用します。セクション[テーブル関数](../../../sql-reference/table-functions/index.md)を参照してください。
 
-まず、どのサーバーにどのデータを書き込むかを定義し、各シャードで直接書き込みを実行できます。 つまり、分散テーブルのテーブルに挿入を実行します “looks at”. これは、対象領域の要件のために自明ではない可能性のあるシャーディングスキームを使用できるので、最も柔軟なソリューションです。 データは完全に独立して異なるシャードに書き込むことができるので、これも最適な解決策です。
+## データの書き込み {#distributed-writing-data}
 
-次に、分散テーブルでINSERTを実行できます。 この場合、テーブルは挿入されたデータをサーバー自体に分散します。 分散テーブルに書き込むには、シャーディングキーセット(最後のパラメーター)が必要です。 さらに、シャードがひとつしかない場合、この場合は何も意味しないため、シャーディングキーを指定せずに書き込み操作が機能します。
+クラスターにデータを記録する方法には二つあります:
 
-各シャードには、設定ファイルで定義された重みを設定できます。 デフォルトでは、重みは重みと等しくなります。 データは、シャードの重みに比例する量でシャードに分散されます。 たとえば、シャードが二つあり、最初のシャードが9の重みを持ち、次のシャードが10の重みを持つ場合、最初のシャードは行の9/19部分に送信され、次のシャー
+まず、どのサーバーにどのデータを書き込むかを定義し、各シャードに直接書き込みを行うことができます。言い換えれば、Distributedテーブルが指すクラスター内のリモートテーブルに直接`INSERT`ステートメントを実行します。これは最も柔軟な解決策であり、非自明なシャーディングスキームでも使用可能です。また、この解決策は最も最適であり、データは完全に独立して異なるシャードに書き込むことができます。
 
-各シャードは、 ‘internal_replication’ 設定ファイルで定義されたパラメータ。
+第二に、`Distributed`テーブルに`INSERT`ステートメントを実行することができます。この場合、テーブルは挿入されたデータをサーバーに自分で分配します。`Distributed`テーブルに書き込むためには、`sharding_key`パラメータが設定されている必要があります（シャードが一つしかない場合は除く）。
 
-このパラメータが ‘true’ 書き込み操作は、最初の正常なレプリカを選択し、それにデータを書き込みます。 分散テーブルの場合は、この代替を使用します “looks at” 複製されたテーブル。 言い換えれば、データが書き込まれるテーブルがそれ自体を複製する場合。
+各シャードには構成ファイルで`<weight>`を定義できます。デフォルトでは重さは`1`です。データはシャードの重さに比例して分配されます。すべてのシャードの重みを足し、その後各シャードの重みを合計で割り、それぞれのシャードの割合を決めます。例えば、二つのシャードがあり、最初のシャードの重みが1で、二番目のシャードの重みが2の場合、最初のシャードには挿入行の三分の一（1 / 3）が送信され、二番目のシャードには三分の二（2 / 3）が送信されます。
 
-に設定されている場合 ‘false’ データはすべてのレプリカに書き込まれます。 本質的に、これは分散テーブルがデータ自体を複製することを意味します。 これは、レプリケートされたテーブルを使用するよりも悪いことです。
+各シャードには構成ファイルで`internal_replication`パラメータが定義できます。このパラメータが`true`に設定されている場合、書き込み操作は最初の健全なレプリカを選択し、データを書き込みます。`Distributed`テーブルを基にしているテーブルがレプリケートされたテーブル（例:`Replicated*MergeTree`テーブルエンジン）である場合に使用します。テーブルレプリカの一つが書き込みを受け取り、自動的に他のレプリカにレプリケートされます。
 
-データの行が送信されるシャードを選択するために、シャーディング式が分析され、残りの部分がシャードの総重量で除算されます。 この行は、残りの半分の間隔に対応するシャードに送信されます。 ‘prev_weight’ に ‘prev_weights + weight’,ここで ‘prev_weights’ は、最小の数を持つ破片の総重量です。 ‘weight’ この破片の重量です。 たとえば、シャードが二つあり、最初のシャードの重みが9で、次のシャードの重みが10である場合、行は範囲\[0,9)の残りのシャードの最初のシャードに送信され、
+`internal_replication`が`false`に設定されている場合（デフォルト）、データはすべてのレプリカに書き込まれます。この場合、`Distributed`テーブル自身がデータをレプリケートします。これはレプリケートされたテーブルを使用することよりも劣ります。なぜなら、レプリカの整合性が確認されず、時間と共にわずかに異なるデータを含むことになるからです。
 
-シャーディング式には、整数を返す定数およびテーブル列の任意の式を使用できます。 たとえば、次の式を使用できます ‘rand()’ データのランダム分布の場合、または ‘UserID’ ユーザーのIDを分割することからの残りの部分による分配のために（単一のユーザーのデータは単一のシャード上に存在し、ユーザーによる実行と結合を簡素化する）。 いずれかの列が十分に均等に分散されていない場合は、ハッシュ関数intHash64(UserID)でラップできます。
+データの行を送信するシャードを選択するために、シャーディング式が分析され、その余りはシャードの総重みで割ります。行は、`prev_weights`から`prev_weights + weight`までの余りの半開区間に対応するシャードに送られます。ここで、`prev_weights`は最小数のシャードの総重みで、`weight`はこのシャードの重みです。例えば、二つのシャードがあり、最初のシャードの重みが9で、二番目のシャードの重みが10の場合、行は余りが範囲\[0, 9)のとき最初のシャードに送信され、\[9, 19)のとき二番目のシャードに送信されます。
 
-簡単なリマインダからの限定シshardingんを常に適しています。 これは、データの中規模および大規模なボリューム（サーバーの数十）ではなく、データの非常に大規模なボリューム（サーバーの数百以上）のために動作します。 後者の場合、分散テーブルのエントリを使用するのではなく、サブジェクト領域で必要なシャーディングスキームを使用します。
+シャーディング式は、整数を返す定数およびテーブル列から構成される任意の式であり得ます。例えば、データのランダムな分配には`rand()`を、ユーザーのIDでの分配には`UserID`を使うことができます（この場合、単一のユーザーのデータが単一のシャードに存在するので、`IN`や`JOIN`をユーザーで実行するのが簡単です）。いずれかの列が十分に均等に分散されていない場合、ハッシュ関数でラップすることもできます（例: `intHash64(UserID)`）。
 
-SELECT queries are sent to all the shards and work regardless of how data is distributed across the shards (they can be distributed completely randomly). When you add a new shard, you don't have to transfer the old data to it. You can write new data with a heavier weight – the data will be distributed slightly unevenly, but queries will work correctly and efficiently.
+単純な除算の余りはシャーディングにとって制限された解決策であり、常に適切であるわけではありません。中規模および大規模のデータ（数十台のサーバー）には機能しますが、非常に大きなデータ量（数百台以上のサーバー）には機能しません。後者の場合、`Distributed`テーブル内のエントリを使用するのではなく、対象領域が求めるシャーディングスキームを使用します。
 
-次の場合は、シャーディングスキームについて心配する必要があります:
+次の場合にはシャーディングスキームを検討すべきです:
 
--   特定のキーによるデータの結合(INまたはJOIN)を必要とするクエリが使用されます。 このキーによってデータがシャードされる場合は、GLOBAL INまたはGLOBAL JOINの代わりにlocal INまたはJOINを使用できます。
--   多数のサーバーが、多数の小さなクエリ（個々のクライアント-ウェブサイト、広告主、またはパートナーのクエリ）で使用されます（数百以上）。 小さなクエリがクラスタ全体に影響を与えないようにするには、単一のシャード上の単一のクライアントのデータを検索することが理にかなってい また レベルのシャーディングを設定できます：クラスタ全体を次のように分割します “layers” ここで、レイヤーは複数のシャードで構成されます。 単一のクライアントのデータは単一のレイヤー上にありますが、必要に応じてシャードをレイヤーに追加することができ、データはランダムに分散されます。 分散テーブルはレイヤごとに作成され、グローバルクエリ用に単一の共有分散テーブルが作成されます。
+- 特定のキーでのデータの結合（`IN`または`JOIN`）を要求するクエリが使用される場合。このキーでデータがシャーディングされている場合、`GLOBAL IN`または`GLOBAL JOIN`を使用することなく、ローカル`IN`または`JOIN`を使用することができ、はるかに効率的です。
+- 大量のサーバーが使用され（数百台以上）、少量のクエリが存在する場合（例えば個々のクライアントのデータのクエリ）。小さなクエリがクラスター全体に影響を与えないようにするため、一つのクライアントのデータを一つのシャードに配置することに意味があります。または、階層シャーディングを設定します。クラスター全体を「レイヤー」に分割し、レイヤーは複数のシャードで構成され、単一のクライアントのデータが一つのレイヤーに配置されますが、必要に応じてシャードをレイヤーに追加し、データはランダムに分配されます。各レイヤーのために`Distributed`テーブルを作成し、グローバルクエリ用の単一の共有Distributed テーブルを作成します。
 
-データは非同期に書き込まれます。 テーブルに挿入すると、データブロックはローカルファイルシステムに書き込まれます。 データはできるだけ早くバックグラウンドでリモートサーバーに送信されます。 データを送信するための期間は、 [distributed_directory_monitor_sleep_time_ms](../../../operations/settings/settings.md#distributed_directory_monitor_sleep_time_ms) と [distributed_directory_monitor_max_sleep_time_ms](../../../operations/settings/settings.md#distributed_directory_monitor_max_sleep_time_ms) 設定。 その `Distributed` エンジンは、挿入されたデータを含む各ファイルを別々に送信しますが、 [distributed_directory_monitor_batch_inserts](../../../operations/settings/settings.md#distributed_directory_monitor_batch_inserts) 設定。 この設定の改善にクラスターの性能をより一層の活用地域のサーバやネットワーク資源です。 を確認しておきましょうか否かのデータが正常に送信されるチェックリストファイル(データまたは間に-をはさんだ)はテーブルディレクトリ: `/var/lib/clickhouse/data/database/table/`.
+データはバックグラウンドで書き込まれます。テーブルに挿入されると、データブロックはローカルファイルシステムにただ書き込まれます。データは可能な限りすぐにリモートサーバーにバックグラウンドで送信されます。データを送信する周期性は、[distributed_background_insert_sleep_time_ms](../../../operations/settings/settings.md#distributed_background_insert_sleep_time_ms) および [distributed_background_insert_max_sleep_time_ms](../../../operations/settings/settings.md#distributed_background_insert_max_sleep_time_ms) 設定によって管理されます。`Distributed`エンジンは、挿入されたデータを分離して各ファイルを送信しますが、[distributed_background_insert_batch](../../../operations/settings/settings.md#distributed_background_insert_batch)設定を有効にしてファイルをバッチで送信することができます。この設定により、ローカルサーバーやネットワークリソースの利用を最適化し、クラスタのパフォーマンスを向上させます。データが正常に送信されたかどうかを確認するには、テーブルディレクトリにあるファイル（送信待ちのデータ）をチェックする必要があります：`/var/lib/clickhouse/data/database/table/`。バックグラウンドタスクを実行するスレッドの数は、[background_distributed_schedule_pool_size](../../../operations/settings/settings.md#background_distributed_schedule_pool_size)設定で設定できます。
 
-分散テーブルへの挿入後にサーバーが存在しなくなった場合、またはデバイスの障害後などに大まかな再起動が行われた場合は、挿入されたデータが失われ テーブルディレクトリで破損したデータ部分が検出されると、その部分は ‘broken’ 使用されなくなりました。
+サーバーが消失したり、`Distributed`テーブルへの`INSERT`の後でラフな再起動をした場合（例えばハードウェアの損傷による）、挿入されたデータは失われる可能性があります。テーブルディレクトリで損傷したデータ部分が検出された場合、そのデータは`broken`サブディレクトリに転送され、もう使用されません。
 
-Max_parallel_replicasオプションを有効にすると、単一のシャード内のすべてのレプリカでクエリ処理が並列化されます。 詳細については [max_parallel_replicas](../../../operations/settings/settings.md#settings-max_parallel_replicas).
+## データの読み取り {#distributed-reading-data}
 
-## 仮想列 {#virtual-columns}
+`Distributed`テーブルにクエリを投げると、`SELECT`クエリがすべてのシャードに送信され、データがシャード間で完全にランダムに分散している場合も機能します。新しいシャードを追加する際には、古いデータをそこに移動する必要はありません。代わりに、より高い重みで新しいデータを書き込むことができます。データがわずかに不均等に分布されますが、クエリは正しく効率的に動作します。
 
--   `_shard_num` — Contains the `shard_num` （から `system.clusters`). タイプ: [UInt32](../../../sql-reference/data-types/int-uint.md).
+`max_parallel_replicas`オプションが有効になっている場合、クエリ処理は同一シャード内のすべてのレプリカにまたがって並行化されます。詳細は[こちら](../../../operations/settings/settings.md#max_parallel_replicas)のセクションを参照してください。
 
-!!! note "注"
-    以来 [`remote`](../../../sql-reference/table-functions/remote.md)/`cluster` 表関数は内部的に同じ分散エンジンの一時インスタンスを作成します, `_shard_num` あまりにもそこに利用可能です。
+Distributed `in`クエリおよび`global in`クエリの処理方法について学ぶには、[こちら](../../../sql-reference/operators/in.md#select-distributed-subqueries)のドキュメントを参照してください。
 
-**も参照。**
+## 仮想カラム {#virtual-columns}
 
--   [仮想列](index.md#table_engines-virtual_columns)
+#### _shard_num
 
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/distributed/) <!--hide-->
+`_shard_num` — テーブル`system.clusters`の`shard_num`値が格納される。タイプ: [UInt32](../../../sql-reference/data-types/int-uint.md)。
+
+:::note
+[remote](../../../sql-reference/table-functions/remote.md)および[cluster](../../../sql-reference/table-functions/cluster.md)テーブル関数は内部的に一時的にDistributedテーブルを作成するため、`_shard_num`はそこでも利用可能です。
+:::
+
+**関連リンク**
+
+- [仮想カラム](../../../engines/table-engines/index.md#table_engines-virtual_columns) の説明
+- [background_distributed_schedule_pool_size](../../../operations/settings/settings.md#background_distributed_schedule_pool_size) 設定
+- [shardNum()](../../../sql-reference/functions/other-functions.md#shardnum)および[shardCount()](../../../sql-reference/functions/other-functions.md#shardcount)関数

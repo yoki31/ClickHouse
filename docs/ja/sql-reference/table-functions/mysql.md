@@ -1,86 +1,143 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 42
-toc_title: mysql
+slug: /ja/sql-reference/table-functions/mysql
+sidebar_position: 137
+sidebar_label: mysql
 ---
 
-# mysql {#mysql}
+# mysql
 
-許可 `SELECT` リモートMySQLサーバーに格納されているデータに対して実行されるクエリ。
+リモートのMySQLサーバーに保存されているデータに対して`SELECT`および`INSERT`クエリを実行できるようにします。
+
+**構文**
 
 ``` sql
-mysql('host:port', 'database', 'table', 'user', 'password'[, replace_query, 'on_duplicate_clause']);
+mysql({host:port, database, table, user, password[, replace_query, on_duplicate_clause] | named_collection[, option=value [,..]]})
 ```
 
-**パラメータ**
+**パラメーター**
 
--   `host:port` — MySQL server address.
+- `host:port` — MySQLサーバーのアドレス。
+- `database` — リモートデータベース名。
+- `table` — リモートテーブル名。
+- `user` — MySQLユーザー。
+- `password` — ユーザーパスワード。
+- `replace_query` — `INSERT INTO`クエリを`REPLACE INTO`に変換するフラグ。可能な値:
+    - `0` - クエリは`INSERT INTO`として実行されます。
+    - `1` - クエリは`REPLACE INTO`として実行されます。
+- `on_duplicate_clause` — `ON DUPLICATE KEY on_duplicate_clause`が`INSERT`クエリに追加されます。`replace_query = 0`の場合にのみ指定できます（`replace_query = 1`と`on_duplicate_clause`を同時に渡すと、ClickHouseは例外を生成します）。
+    例: `INSERT INTO t (c1,c2) VALUES ('a', 2) ON DUPLICATE KEY UPDATE c2 = c2 + 1;`
+    ここでの`on_duplicate_clause`は`UPDATE c2 = c2 + 1`です。`ON DUPLICATE KEY`句で使用できる`on_duplicate_clause`については、MySQLのドキュメントを参照してください。
 
--   `database` — Remote database name.
+引数は、[named collections](/docs/ja/operations/named-collections.md)を使用して渡すこともできます。この場合、`host`と`port`は別々に指定する必要があります。このアプローチは、本番環境で推奨されます。
 
--   `table` — Remote table name.
+現在、`=, !=, >, >=, <, <=`のようなシンプルな`WHERE`句はMySQLサーバー上で実行されます。
 
--   `user` — MySQL user.
+残りの条件と`LIMIT`のサンプリング制約は、MySQLへのクエリが終了した後にClickHouseでのみ実行されます。
 
--   `password` — User password.
+複数のレプリカをサポートしており、`|`でリストする必要があります。例：
 
--   `replace_query` — Flag that converts `INSERT INTO` へのクエリ `REPLACE INTO`. もし `replace_query=1`、クエリが置き換えられます。
+```sql
+SELECT name FROM mysql(`mysql{1|2|3}:3306`, 'mysql_database', 'mysql_table', 'user', 'password');
+```
 
--   `on_duplicate_clause` — The `ON DUPLICATE KEY on_duplicate_clause` に追加される式 `INSERT` クエリ。
+または
 
-        Example: `INSERT INTO t (c1,c2) VALUES ('a', 2) ON DUPLICATE KEY UPDATE c2 = c2 + 1`, where `on_duplicate_clause` is `UPDATE c2 = c2 + 1`. See the MySQL documentation to find which `on_duplicate_clause` you can use with the `ON DUPLICATE KEY` clause.
+```sql
+SELECT name FROM mysql(`mysql1:3306|mysql2:3306|mysql3:3306`, 'mysql_database', 'mysql_table', 'user', 'password');
+```
 
-        To specify `on_duplicate_clause` you need to pass `0` to the `replace_query` parameter. If you simultaneously pass `replace_query = 1` and `on_duplicate_clause`, ClickHouse generates an exception.
+**返される値**
 
-シンプル `WHERE` 次のような句 `=, !=, >, >=, <, <=` 現在、MySQLサーバー上で実行されています。
+元のMySQLテーブルと同じカラムを持つテーブルオブジェクト。
 
-残りの条件と `LIMIT` サンプリング制約は、MySQLへのクエリが終了した後にのみClickHouseで実行されます。
+:::note
+テーブル関数`mysql(...)`をカラム名のリストを持つテーブル名と区別するためには、`INSERT`クエリでキーワード`FUNCTION`または`TABLE FUNCTION`を使用する必要があります。以下の例を参照してください。
+:::
 
-**戻り値**
+**例**
 
-元のMySQLテーブルと同じ列を持つテーブルオブジェクト。
-
-## 使用例 {#usage-example}
-
-MySQLのテーブル:
+MySQLでのテーブル:
 
 ``` text
 mysql> CREATE TABLE `test`.`test` (
     ->   `int_id` INT NOT NULL AUTO_INCREMENT,
-    ->   `int_nullable` INT NULL DEFAULT NULL,
     ->   `float` FLOAT NOT NULL,
-    ->   `float_nullable` FLOAT NULL DEFAULT NULL,
     ->   PRIMARY KEY (`int_id`));
-Query OK, 0 rows affected (0,09 sec)
 
-mysql> insert into test (`int_id`, `float`) VALUES (1,2);
-Query OK, 1 row affected (0,00 sec)
+mysql> INSERT INTO test (`int_id`, `float`) VALUES (1,2);
 
-mysql> select * from test;
-+------+----------+-----+----------+
-| int_id | int_nullable | float | float_nullable |
-+------+----------+-----+----------+
-|      1 |         NULL |     2 |           NULL |
-+------+----------+-----+----------+
-1 row in set (0,00 sec)
+mysql> SELECT * FROM test;
++--------+-------+
+| int_id | float |
++--------+-------+
+|      1 |     2 |
++--------+-------+
 ```
 
-ClickHouseからのデータの選択:
+ClickHouseからのデータ選択:
 
 ``` sql
-SELECT * FROM mysql('localhost:3306', 'test', 'test', 'bayonet', '123')
+SELECT * FROM mysql('localhost:3306', 'test', 'test', 'bayonet', '123');
+```
+
+または[named collections](/docs/ja/operations/named-collections.md)を使用して:
+
+```sql
+CREATE NAMED COLLECTION creds AS
+        host = 'localhost',
+        port = 3306,
+        database = 'test',
+        user = 'bayonet',
+        password = '123';
+SELECT * FROM mysql(creds, table='test');
 ```
 
 ``` text
-┌─int_id─┬─int_nullable─┬─float─┬─float_nullable─┐
-│      1 │         ᴺᵁᴸᴸ │     2 │           ᴺᵁᴸᴸ │
-└────────┴──────────────┴───────┴────────────────┘
+┌─int_id─┬─float─┐
+│      1 │     2 │
+└────────┴───────┘
 ```
 
-## も参照。 {#see-also}
+置換と挿入:
 
--   [その ‘MySQL’ 表エンジン](../../engines/table-engines/integrations/mysql.md)
--   [外部辞書のソースとしてMySQLを使用する](../../sql-reference/dictionaries/external-dictionaries/external-dicts-dict-sources.md#dicts-external_dicts_dict_sources-mysql)
+```sql
+INSERT INTO FUNCTION mysql('localhost:3306', 'test', 'test', 'bayonet', '123', 1) (int_id, float) VALUES (1, 3);
+INSERT INTO TABLE FUNCTION mysql('localhost:3306', 'test', 'test', 'bayonet', '123', 0, 'UPDATE int_id = int_id + 1') (int_id, float) VALUES (1, 4);
+SELECT * FROM mysql('localhost:3306', 'test', 'test', 'bayonet', '123');
+```
 
-[元の記事](https://clickhouse.com/docs/en/query_language/table_functions/mysql/) <!--hide-->
+``` text
+┌─int_id─┬─float─┐
+│      1 │     3 │
+│      2 │     4 │
+└────────┴───────┘
+```
+
+MySQLテーブルからClickHouseテーブルへのデータコピー:
+
+```sql
+CREATE TABLE mysql_copy
+(
+   `id` UInt64,
+   `datetime` DateTime('UTC'),
+   `description` String,
+)
+ENGINE = MergeTree
+ORDER BY (id,datetime);
+
+INSERT INTO mysql_copy
+SELECT * FROM mysql('host:port', 'database', 'table', 'user', 'password');
+```
+
+または、現在の最大IDに基づいてMySQLからのインクリメンタルバッチのみをコピーする場合:
+
+```sql
+INSERT INTO mysql_copy
+SELECT * FROM mysql('host:port', 'database', 'table', 'user', 'password')
+WHERE id > (SELECT max(id) from mysql_copy);
+```
+
+**関連項目**
+
+- [MySQLテーブルエンジン](../../engines/table-engines/integrations/mysql.md)
+- [MySQLをDictionaryソースとして使用する](../../sql-reference/dictionaries/index.md#dictionary-sources#dicts-external_dicts_dict_sources-mysql)

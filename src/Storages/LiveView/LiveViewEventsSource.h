@@ -16,7 +16,7 @@ limitations under the License. */
 #include <DataTypes/DataTypeString.h>
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnsNumber.h>
-#include <Processors/Sources/SourceWithProgress.h>
+#include <Processors/ISource.h>
 #include <Storages/LiveView/StorageLiveView.h>
 
 
@@ -27,7 +27,7 @@ namespace DB
  *  Keeps stream alive by outputting blocks with no rows
  *  based on period specified by the heartbeat interval.
  */
-class LiveViewEventsSource : public SourceWithProgress
+class LiveViewEventsSource : public ISource
 {
 
 using NonBlockingResult = std::pair<Block, bool>;
@@ -41,7 +41,7 @@ public:
         std::shared_ptr<bool> active_ptr_,
         const bool has_limit_, const UInt64 limit_,
         const UInt64 heartbeat_interval_sec_)
-        : SourceWithProgress({ColumnWithTypeAndName(ColumnUInt64::create(), std::make_shared<DataTypeUInt64>(), "version")}),
+        : ISource({ColumnWithTypeAndName(ColumnUInt64::create(), std::make_shared<DataTypeUInt64>(), "version")}),
           storage(std::move(storage_)), blocks_ptr(std::move(blocks_ptr_)),
           blocks_metadata_ptr(std::move(blocks_metadata_ptr_)),
           active_ptr(active_ptr_), has_limit(has_limit_),
@@ -54,7 +54,7 @@ public:
 
     String getName() const override { return "LiveViewEventsSource"; }
 
-    void onCancel() override
+    void onCancel() noexcept override
     {
         if (storage->shutdown_called)
             return;
@@ -185,12 +185,10 @@ protected:
                         {
                             break;
                         }
-                        else
-                        {
-                            // repeat the event block as a heartbeat
-                            last_event_timestamp_usec = static_cast<UInt64>(timestamp.epochMicroseconds());
-                            return { getPort().getHeader(), true };
-                        }
+
+                        // repeat the event block as a heartbeat
+                        last_event_timestamp_usec = static_cast<UInt64>(timestamp.epochMicroseconds());
+                        return {getPort().getHeader(), true};
                     }
                 }
             }

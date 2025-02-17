@@ -1,6 +1,6 @@
 #include <Functions/FunctionFactory.h>
-#include "queryString.h"
 #include <Functions/FunctionStringToString.h>
+#include <Functions/URL/queryString.h>
 
 namespace DB
 {
@@ -8,7 +8,7 @@ namespace DB
 struct NameCutQueryString { static constexpr auto name = "cutQueryString"; };
 using FunctionCutQueryString = FunctionStringToString<CutSubstringImpl<ExtractQueryString<false>>, NameCutQueryString>;
 
-void registerFunctionCutQueryString(FunctionFactory & factory)
+REGISTER_FUNCTION(CutQueryString)
 {
     factory.registerFunction<FunctionCutQueryString>();
 }

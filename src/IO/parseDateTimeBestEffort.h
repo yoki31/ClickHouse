@@ -27,7 +27,6 @@ class ReadBuffer;
   *
   * DD/MM/YY
   * DD/MM/YYYY - when '/' separator is used, these are the only possible forms
-  * Note that American style is not supported.
   *
   * hh:mm:ss - when ':' separator is used, it is always time
   * hh:mm - it can be specified without seconds
@@ -61,7 +60,15 @@ bool tryParseDateTimeBestEffort(time_t & res, ReadBuffer & in, const DateLUTImpl
 void parseDateTimeBestEffortUS(time_t & res, ReadBuffer & in, const DateLUTImpl & local_time_zone, const DateLUTImpl & utc_time_zone);
 bool tryParseDateTimeBestEffortUS(time_t & res, ReadBuffer & in, const DateLUTImpl & local_time_zone, const DateLUTImpl & utc_time_zone);
 void parseDateTime64BestEffort(DateTime64 & res, UInt32 scale, ReadBuffer & in, const DateLUTImpl & local_time_zone, const DateLUTImpl & utc_time_zone);
-void parseDateTime64BestEffortUS(DateTime64 & res, UInt32 scale, ReadBuffer & in, const DateLUTImpl & local_time_zone, const DateLUTImpl & utc_time_zone);
 bool tryParseDateTime64BestEffort(DateTime64 & res, UInt32 scale, ReadBuffer & in, const DateLUTImpl & local_time_zone, const DateLUTImpl & utc_time_zone);
+void parseDateTime64BestEffortUS(DateTime64 & res, UInt32 scale, ReadBuffer & in, const DateLUTImpl & local_time_zone, const DateLUTImpl & utc_time_zone);
+bool tryParseDateTime64BestEffortUS(DateTime64 & res, UInt32 scale, ReadBuffer & in, const DateLUTImpl & local_time_zone, const DateLUTImpl & utc_time_zone);
+
+/// More strict version of best effort parsing. Requires day, month and year to be present, checks for allowed
+/// delimiters between date components, makes additional correctness checks. Used in schema inference if date times.
+bool tryParseDateTimeBestEffortStrict(time_t & res, ReadBuffer & in, const DateLUTImpl & local_time_zone, const DateLUTImpl & utc_time_zone, const char * allowed_date_delimiters);
+bool tryParseDateTimeBestEffortUSStrict(time_t & res, ReadBuffer & in, const DateLUTImpl & local_time_zone, const DateLUTImpl & utc_time_zone, const char * allowed_date_delimiters);
+bool tryParseDateTime64BestEffortStrict(DateTime64 & res, UInt32 scale, ReadBuffer & in, const DateLUTImpl & local_time_zone, const DateLUTImpl & utc_time_zone, const char * allowed_date_delimiters);
+bool tryParseDateTime64BestEffortUSStrict(DateTime64 & res, UInt32 scale, ReadBuffer & in, const DateLUTImpl & local_time_zone, const DateLUTImpl & utc_time_zone, const char * allowed_date_delimiters);
 
 }

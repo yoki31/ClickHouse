@@ -5,15 +5,16 @@ namespace DB
 {
 namespace
 {
-    struct CoshName
-    {
-        static constexpr auto name = "cosh";
-    };
-    using FunctionCosh = FunctionMathUnary<UnaryFunctionVectorized<CoshName, cosh>>;
+
+struct CoshName
+{
+    static constexpr auto name = "cosh";
+};
+using FunctionCosh = FunctionMathUnary<UnaryFunctionVectorized<CoshName, cosh>>;
 
 }
 
-void registerFunctionCosh(FunctionFactory & factory)
+REGISTER_FUNCTION(Cosh)
 {
     factory.registerFunction<FunctionCosh>();
 }

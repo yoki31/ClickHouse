@@ -1,6 +1,7 @@
 #pragma once
 #include <QueryPipeline/SizeLimits.h>
 #include <QueryPipeline/ExecutionSpeedLimits.h>
+#include <list>
 
 namespace DB
 {
@@ -12,7 +13,7 @@ namespace DB
   *  It is checks max_{rows,bytes}_to_read in progress handler and use info from ProcessListElement::progress_in for this.
   *  Currently this check is performed only in leaf streams.
   */
-enum class LimitsMode
+enum class LimitsMode : uint8_t
 {
     LIMITS_CURRENT,
     LIMITS_TOTAL,
@@ -29,5 +30,13 @@ struct StreamLocalLimits
 
     OverflowMode timeout_overflow_mode = OverflowMode::THROW;
 };
+
+struct StorageLimits
+{
+    StreamLocalLimits local_limits;
+    SizeLimits leaf_limits;
+};
+
+using StorageLimitsList = std::list<StorageLimits>;
 
 }

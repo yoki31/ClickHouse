@@ -75,9 +75,14 @@
 template <typename Derived>
 class COW : public boost::intrusive_ref_counter<Derived>
 {
+    friend Derived;
+
 private:
     Derived * derived() { return static_cast<Derived *>(this); }
     const Derived * derived() const { return static_cast<const Derived *>(this); }
+
+    COW() = default;
+    COW(const COW&) = default;
 
 protected:
     template <typename T>
@@ -169,8 +174,7 @@ protected:
     {
         if (this->use_count() > 1)
             return derived()->clone();
-        else
-            return assumeMutable();
+        return assumeMutable();
     }
 
 public:
@@ -219,7 +223,7 @@ protected:
         /// Get internal immutable ptr. Does not change internal use counter.
         immutable_ptr<T> detach() && { return std::move(value); }
 
-        operator bool() const { return value != nullptr; } /// NOLINT
+        explicit operator bool() const { return value != nullptr; }
         bool operator! () const { return value == nullptr; }
 
         bool operator== (const chameleon_ptr & rhs) const { return value == rhs.value; }
@@ -272,9 +276,14 @@ public:
 template <typename Base, typename Derived>
 class COWHelper : public Base
 {
+    friend Derived;
+
 private:
     Derived * derived() { return static_cast<Derived *>(this); }
     const Derived * derived() const { return static_cast<const Derived *>(this); }
+
+    COWHelper() = default;
+    COWHelper(const COWHelper &) = default;
 
 public:
     using Ptr = typename Base::template immutable_ptr<Derived>;

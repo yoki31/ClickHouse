@@ -20,10 +20,10 @@ namespace ErrorCodes
 /** ColumnConst contains another column with single element,
   *  but looks like a column with arbitrary amount of same elements.
   */
-class ColumnConst final : public COWHelper<IColumn, ColumnConst>
+class ColumnConst final : public COWHelper<IColumnHelper<ColumnConst>, ColumnConst>
 {
 private:
-    friend class COWHelper<IColumn, ColumnConst>;
+    friend class COWHelper<IColumnHelper<ColumnConst>, ColumnConst>;
 
     WrappedPtr data;
     size_t s;
@@ -32,6 +32,8 @@ private:
     ColumnConst(const ColumnConst & src) = default;
 
 public:
+    bool isConst() const override { return true; }
+
     ColumnPtr convertToFullColumn() const;
 
     ColumnPtr convertToFullColumnIfConst() const override
@@ -76,14 +78,14 @@ public:
         data->get(0, res);
     }
 
+    std::pair<String, DataTypePtr> getValueNameAndType(size_t) const override
+    {
+        return data->getValueNameAndType(0);
+    }
+
     StringRef getDataAt(size_t) const override
     {
         return data->getDataAt(0);
-    }
-
-    StringRef getDataAtWithTerminatingZero(size_t) const override
-    {
-        return data->getDataAtWithTerminatingZero(0);
     }
 
     UInt64 get64(size_t) const override
@@ -126,7 +128,11 @@ public:
         return data->isNullAt(0);
     }
 
+#if !defined(DEBUG_OR_SANITIZER_BUILD)
     void insertRangeFrom(const IColumn &, size_t /*start*/, size_t length) override
+#else
+    void doInsertRangeFrom(const IColumn &, size_t /*start*/, size_t length) override
+#endif
     {
         s += length;
     }
@@ -136,15 +142,34 @@ public:
         ++s;
     }
 
+    bool tryInsert(const Field & field) override
+    {
+        auto tmp = data->cloneEmpty();
+        if (!tmp->tryInsert(field))
+            return false;
+        ++s;
+        return true;
+    }
+
     void insertData(const char *, size_t) override
     {
         ++s;
     }
 
+#if !defined(DEBUG_OR_SANITIZER_BUILD)
     void insertFrom(const IColumn &, size_t) override
+#else
+    void doInsertFrom(const IColumn &, size_t) override
+#endif
     {
         ++s;
     }
+
+#if !defined(DEBUG_OR_SANITIZER_BUILD)
+    void insertManyFrom(const IColumn & /*src*/, size_t /* position */, size_t length) override { s += length; }
+#else
+    void doInsertManyFrom(const IColumn & /*src*/, size_t /* position */, size_t length) override { s += length; }
+#endif
 
     void insertDefault() override
     {
@@ -159,6 +184,11 @@ public:
     StringRef serializeValueIntoArena(size_t, Arena & arena, char const *& begin) const override
     {
         return data->serializeValueIntoArena(0, arena, begin);
+    }
+
+    char * serializeValueIntoMemory(size_t, char * memory) const override
+    {
+        return data->serializeValueIntoMemory(0, memory);
     }
 
     const char * deserializeAndInsertFromArena(const char * pos) override
@@ -179,7 +209,7 @@ public:
         data->updateHashWithValue(0, hash);
     }
 
-    void updateWeakHash32(WeakHash32 & hash) const override;
+    WeakHash32 getWeakHash32() const override;
 
     void updateHashFast(SipHash & hash) const override
     {
@@ -212,7 +242,11 @@ public:
         return data->allocatedBytes() + sizeof(s);
     }
 
+#if !defined(DEBUG_OR_SANITIZER_BUILD)
     int compareAt(size_t, size_t, const IColumn & rhs, int nan_direction_hint) const override
+#else
+    int doCompareAt(size_t, size_t, const IColumn & rhs, int nan_direction_hint) const override
+#endif
     {
         return data->compareAt(0, 0, *assert_cast<const ColumnConst &>(rhs).data, nan_direction_hint);
     }
@@ -227,7 +261,7 @@ public:
 
     void gather(ColumnGathererStream &) override
     {
-        throw Exception("Cannot gather into constant column " + getName(), ErrorCodes::NOT_IMPLEMENTED);
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Cannot gather into constant column {}", getName());
     }
 
     void getExtremes(Field & min, Field & max) const override
@@ -235,9 +269,26 @@ public:
         data->getExtremes(min, max);
     }
 
-    void forEachSubcolumn(ColumnCallback callback) override
+    void forEachSubcolumn(ColumnCallback callback) const override
     {
         callback(data);
+    }
+
+    void forEachSubcolumnRecursively(RecursiveColumnCallback callback) const override
+    {
+        callback(*data);
+        data->forEachSubcolumnRecursively(callback);
+    }
+
+    void forEachMutableSubcolumn(MutableColumnCallback callback) override
+    {
+        callback(data);
+    }
+
+    void forEachMutableSubcolumnRecursively(RecursiveMutableColumnCallback callback) override
+    {
+        callback(*data);
+        data->forEachMutableSubcolumnRecursively(callback);
     }
 
     bool structureEquals(const IColumn & rhs) const override
@@ -252,20 +303,20 @@ public:
         return data->isDefaultAt(0) ? 1.0 : 0.0;
     }
 
+    UInt64 getNumberOfDefaultRows() const override
+    {
+        return data->isDefaultAt(0) ? s : 0;
+    }
+
     void getIndicesOfNonDefaultRows(Offsets & indices, size_t from, size_t limit) const override
     {
         if (!data->isDefaultAt(0))
         {
             size_t to = limit && from + limit < size() ? from + limit : size();
-            indices.reserve(indices.size() + to - from);
+            indices.reserve_exact(indices.size() + to - from);
             for (size_t i = from; i < to; ++i)
                 indices.push_back(i);
         }
-    }
-
-    SerializationInfoPtr getSerializationInfo() const override
-    {
-        return data->getSerializationInfo();
     }
 
     bool isNullable() const override { return isColumnNullable(*data); }
@@ -274,7 +325,7 @@ public:
     bool isFixedAndContiguous() const override { return data->isFixedAndContiguous(); }
     bool valuesHaveFixedSize() const override { return data->valuesHaveFixedSize(); }
     size_t sizeOfValueIfFixed() const override { return data->sizeOfValueIfFixed(); }
-    StringRef getRawData() const override { return data->getRawData(); }
+    std::string_view getRawData() const override { return data->getRawData(); }
 
     /// Not part of the common interface.
 
@@ -286,9 +337,16 @@ public:
 
     /// The constant value. It is valid even if the size of the column is 0.
     template <typename T>
-    T getValue() const { return getField().safeGet<T>(); }
+    T getValue() const { return static_cast<T>(getField().safeGet<T>()); }
 
     bool isCollationSupported() const override { return data->isCollationSupported(); }
+
+    bool hasDynamicStructure() const override { return data->hasDynamicStructure(); }
 };
+
+ColumnConst::Ptr createColumnConst(const ColumnPtr & column, Field value);
+ColumnConst::Ptr createColumnConst(const ColumnPtr & column, size_t const_value_index);
+ColumnConst::Ptr createColumnConstWithDefaultValue(const ColumnPtr  &column);
+
 
 }

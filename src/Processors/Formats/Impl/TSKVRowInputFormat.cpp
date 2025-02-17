@@ -4,7 +4,6 @@
 #include <Formats/EscapingRuleUtils.h>
 #include <DataTypes/Serializations/SerializationNullable.h>
 #include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypeNullable.h>
 
 
 namespace DB
@@ -16,6 +15,7 @@ namespace ErrorCodes
     extern const int CANNOT_PARSE_ESCAPE_SEQUENCE;
     extern const int CANNOT_READ_ALL_DATA;
     extern const int CANNOT_PARSE_INPUT_ASSERTION_FAILED;
+    extern const int TYPE_MISMATCH;
 }
 
 
@@ -80,20 +80,17 @@ static bool readName(ReadBuffer & buf, StringRef & ref, String & tmp)
             return have_value;
         }
         /// The name has an escape sequence.
-        else
-        {
-            tmp.append(buf.position(), next_pos - buf.position());
-            buf.position() += next_pos + 1 - buf.position();
-            if (buf.eof())
-                throw Exception("Cannot parse escape sequence", ErrorCodes::CANNOT_PARSE_ESCAPE_SEQUENCE);
 
-            tmp.push_back(parseEscapeSequence(*buf.position()));
-            ++buf.position();
-            continue;
-        }
+        tmp.append(buf.position(), next_pos - buf.position());
+        buf.position() += next_pos + 1 - buf.position();
+        if (buf.eof())
+            throw Exception(ErrorCodes::CANNOT_PARSE_ESCAPE_SEQUENCE, "Cannot parse escape sequence");
+
+        tmp.push_back(parseEscapeSequence(*buf.position()));
+        ++buf.position();
     }
 
-    throw ParsingException("Unexpected end of stream while reading key name from TSKV format", ErrorCodes::CANNOT_READ_ALL_DATA);
+    throw Exception(ErrorCodes::CANNOT_READ_ALL_DATA, "Unexpected end of stream while reading key name from TSKV format");
 }
 
 
@@ -131,24 +128,24 @@ bool TSKVRowInputFormat::readRow(MutableColumns & columns, RowReadExtension & ex
                 if (!it)
                 {
                     if (!format_settings.skip_unknown_fields)
-                        throw Exception("Unknown field found while parsing TSKV format: " + name_ref.toString(), ErrorCodes::INCORRECT_DATA);
+                        throw Exception(ErrorCodes::INCORRECT_DATA, "Unknown field found while parsing TSKV format: {}", name_ref.toString());
 
                     /// If the key is not found, skip the value.
                     NullOutput sink;
-                    readEscapedStringInto(sink, *in);
+                    readEscapedStringInto<NullOutput,false>(sink, *in);
                 }
                 else
                 {
                     index = it->getMapped();
 
                     if (seen_columns[index])
-                        throw Exception("Duplicate field found while parsing TSKV format: " + name_ref.toString(), ErrorCodes::INCORRECT_DATA);
+                        throw Exception(ErrorCodes::INCORRECT_DATA, "Duplicate field found while parsing TSKV format: {}", name_ref.toString());
 
                     seen_columns[index] = read_columns[index] = true;
                     const auto & type = getPort().getHeader().getByPosition(index).type;
                     const auto & serialization = serializations[index];
-                    if (format_settings.null_as_default && !type->isNullable() && !type->isLowCardinalityNullable())
-                        read_columns[index] = SerializationNullable::deserializeTextEscapedImpl(*columns[index], *in, format_settings, serialization);
+                    if (format_settings.null_as_default && !isNullableOrLowCardinalityNullable(type))
+                        read_columns[index] = SerializationNullable::deserializeNullAsDefaultOrNestedTextEscaped(*columns[index], *in, format_settings, serialization);
                     else
                         serialization->deserializeTextEscaped(*columns[index], *in, format_settings);
                 }
@@ -157,44 +154,55 @@ bool TSKVRowInputFormat::readRow(MutableColumns & columns, RowReadExtension & ex
             {
                 /// The only thing that can go without value is `tskv` fragment that is ignored.
                 if (!(name_ref.size == 4 && 0 == memcmp(name_ref.data, "tskv", 4)))
-                    throw Exception("Found field without value while parsing TSKV format: " + name_ref.toString(), ErrorCodes::INCORRECT_DATA);
+                    throw Exception(ErrorCodes::INCORRECT_DATA, "Found field without value while parsing TSKV format: {}", name_ref.toString());
             }
 
             if (in->eof())
             {
-                throw ParsingException("Unexpected end of stream after field in TSKV format: " + name_ref.toString(), ErrorCodes::CANNOT_READ_ALL_DATA);
+                throw Exception(ErrorCodes::CANNOT_READ_ALL_DATA, "Unexpected end of stream after field in TSKV format: {}", name_ref.toString());
             }
-            else if (*in->position() == '\t')
+            if (*in->position() == '\t')
             {
                 ++in->position();
                 continue;
             }
-            else if (*in->position() == '\n')
+            if (*in->position() == '\n')
             {
                 ++in->position();
                 break;
             }
-            else
-            {
-                /// Possibly a garbage was written into column, remove it
-                if (index >= 0)
-                {
-                    columns[index]->popBack(1);
-                    seen_columns[index] = read_columns[index] = false;
-                }
 
-                throw Exception("Found garbage after field in TSKV format: " + name_ref.toString(), ErrorCodes::CANNOT_PARSE_INPUT_ASSERTION_FAILED);
+            /// Possibly a garbage was written into column, remove it
+            if (index >= 0)
+            {
+                columns[index]->popBack(1);
+                seen_columns[index] = read_columns[index] = false;
             }
+
+            throw Exception(
+                ErrorCodes::CANNOT_PARSE_INPUT_ASSERTION_FAILED, "Found garbage after field in TSKV format: {}", name_ref.toString());
         }
     }
 
     /// Fill in the not met columns with default values.
     for (size_t i = 0; i < num_columns; ++i)
         if (!seen_columns[i])
-            header.getByPosition(i).type->insertDefaultInto(*columns[i]);
+        {
+            const auto & type = header.getByPosition(i).type;
+            if (format_settings.force_null_for_omitted_fields && !isNullableOrLowCardinalityNullable(type))
+                throw Exception(
+                    ErrorCodes::TYPE_MISMATCH,
+                    "Cannot insert NULL value into a column `{}` of type '{}'",
+                    header.getByPosition(i).name,
+                    type->getName());
+            type->insertDefaultInto(*columns[i]);
+        }
 
     /// return info about defaults set
-    ext.read_columns = read_columns;
+    if (format_settings.defaults_for_omitted_fields)
+        ext.read_columns = read_columns;
+    else
+        ext.read_columns.assign(num_columns, true);
 
     return true;
 }
@@ -214,16 +222,24 @@ void TSKVRowInputFormat::resetParser()
     name_buf.clear();
 }
 
+size_t TSKVRowInputFormat::countRows(size_t max_block_size)
+{
+    size_t num_rows = 0;
+    while (!in->eof() && num_rows < max_block_size)
+    {
+        skipToUnescapedNextLineOrEOF(*in);
+        ++num_rows;
+    }
+
+    return num_rows;
+}
+
 TSKVSchemaReader::TSKVSchemaReader(ReadBuffer & in_, const FormatSettings & format_settings_)
-    : IRowWithNamesSchemaReader(
-        in_,
-        format_settings_.max_rows_to_read_for_schema_inference,
-        getDefaultDataTypeForEscapingRule(FormatSettings::EscapingRule::Escaped))
-    , format_settings(format_settings_)
+    : IRowWithNamesSchemaReader(in_, format_settings_, getDefaultDataTypeForEscapingRule(FormatSettings::EscapingRule::Escaped))
 {
 }
 
-std::unordered_map<String, DataTypePtr> TSKVSchemaReader::readRowAndGetNamesAndDataTypes()
+NamesAndTypesList TSKVSchemaReader::readRowAndGetNamesAndDataTypes(bool & eof)
 {
     if (first_row)
     {
@@ -232,7 +248,10 @@ std::unordered_map<String, DataTypePtr> TSKVSchemaReader::readRowAndGetNamesAndD
     }
 
     if (in.eof())
+    {
+        eof = true;
         return {};
+    }
 
     if (*in.position() == '\n')
     {
@@ -240,23 +259,24 @@ std::unordered_map<String, DataTypePtr> TSKVSchemaReader::readRowAndGetNamesAndD
         return {};
     }
 
-    std::unordered_map<String, DataTypePtr> names_and_types;
+    NamesAndTypesList names_and_types;
     StringRef name_ref;
-    String name_tmp;
+    String name_buf;
     String value;
     do
     {
-        bool has_value = readName(in, name_ref, name_tmp);
+        bool has_value = readName(in, name_ref, name_buf);
+        String name = String(name_ref);
         if (has_value)
         {
             readEscapedString(value, in);
-            names_and_types[String(name_ref)] = determineDataTypeByEscapingRule(value, format_settings, FormatSettings::EscapingRule::Escaped);
+            names_and_types.emplace_back(std::move(name), tryInferDataTypeByEscapingRule(value, format_settings, FormatSettings::EscapingRule::Escaped));
         }
         else
         {
             /// The only thing that can go without value is `tskv` fragment that is ignored.
             if (!(name_ref.size == 4 && 0 == memcmp(name_ref.data, "tskv", 4)))
-                throw Exception("Found field without value while parsing TSKV format: " + name_ref.toString(), ErrorCodes::INCORRECT_DATA);
+                throw Exception(ErrorCodes::INCORRECT_DATA, "Found field without value while parsing TSKV format: {}", name_ref.toString());
         }
 
     }
@@ -277,12 +297,18 @@ void registerInputFormatTSKV(FormatFactory & factory)
     {
         return std::make_shared<TSKVRowInputFormat>(buf, sample, std::move(params), settings);
     });
+
+    factory.markFormatSupportsSubsetOfColumns("TSKV");
 }
 void registerTSKVSchemaReader(FormatFactory & factory)
 {
-    factory.registerSchemaReader("TSKV", [](ReadBuffer & buf, const FormatSettings & settings, ContextPtr)
+    factory.registerSchemaReader("TSKV", [](ReadBuffer & buf, const FormatSettings & settings)
     {
         return std::make_shared<TSKVSchemaReader>(buf, settings);
+    });
+    factory.registerAdditionalInfoForSchemaCacheGetter("TSKV", [](const FormatSettings & settings)
+    {
+        return getAdditionalFormatInfoByEscapingRule(settings, FormatSettings::EscapingRule::Escaped);
     });
 }
 

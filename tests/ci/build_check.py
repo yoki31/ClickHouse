@@ -1,112 +1,103 @@
 #!/usr/bin/env python3
-#
-import subprocess
+
+import argparse
 import logging
-import json
-import os
+import subprocess
 import sys
 import time
-from typing import List, Optional, Tuple
+from pathlib import Path
+from typing import Tuple
 
-from env_helper import REPO_COPY, TEMP_PATH, CACHES_PATH, IMAGES_PATH
-from s3_helper import S3Helper
+import docker_images_helper
+from ci_config import CI
+from ci_utils import Shell
+from env_helper import REPO_COPY, S3_BUILDS_BUCKET
+from git_helper import Git, checkout_submodules, unshallow
 from pr_info import PRInfo
+from report import FAILURE, SUCCESS, JobReport, StatusType
+from s3_helper import S3Helper
+from stopwatch import Stopwatch
+from tee_popen import TeePopen
 from version_helper import (
     ClickHouseVersion,
     get_version_from_repo,
     update_version_local,
 )
-from ccache_utils import get_ccache_if_not_exists, upload_ccache
-from ci_config import CI_CONFIG, BuildConfig
-from docker_pull_helper import get_image_with_version
-from tee_popen import TeePopen
+
+IMAGE_NAME = "clickhouse/binary-builder"
+BUILD_LOG_NAME = "build_log.log"
 
 
-def get_build_config(build_check_name: str, build_name: str) -> BuildConfig:
-    if build_check_name == "ClickHouse build check (actions)":
-        build_config_name = "build_config"
-    else:
-        raise Exception(f"Unknown build check name {build_check_name}")
-
-    return CI_CONFIG[build_config_name][build_name]
-
-
-def _can_export_binaries(build_config: BuildConfig) -> bool:
-    if build_config["package_type"] != "deb":
+def _can_export_binaries(build_config: CI.BuildConfig) -> bool:
+    if build_config.package_type != "deb":
         return False
-    if build_config["bundled"] != "bundled":
-        return False
-    if build_config["splitted"] == "splitted":
-        return False
-    if build_config["sanitizer"] != "":
+    if build_config.sanitizer != "":
         return True
-    if build_config["build_type"] != "":
+    if build_config.debug_build:
         return True
     return False
 
 
 def get_packager_cmd(
-    build_config: BuildConfig,
-    packager_path: str,
-    output_path: str,
+    build_config: CI.BuildConfig,
+    packager_path: Path,
+    output_path: Path,
     build_version: str,
     image_version: str,
-    ccache_path: str,
-    pr_info: PRInfo,
+    official: bool,
 ) -> str:
-    package_type = build_config["package_type"]
-    comp = build_config["compiler"]
+    package_type = build_config.package_type
+    comp = build_config.compiler
+    cmake_flags = "-DENABLE_CLICKHOUSE_SELF_EXTRACTING=1"
     cmd = (
-        f"cd {packager_path} && ./packager --output-dir={output_path} "
-        f"--package-type={package_type} --compiler={comp}"
+        f"cd {packager_path} && CMAKE_FLAGS='{cmake_flags}' ./packager "
+        f"--output-dir={output_path} --package-type={package_type} --compiler={comp}"
     )
 
-    if build_config["build_type"]:
-        cmd += " --build-type={}".format(build_config["build_type"])
-    if build_config["sanitizer"]:
-        cmd += " --sanitizer={}".format(build_config["sanitizer"])
-    if build_config["splitted"] == "splitted":
-        cmd += " --split-binary"
-    if build_config["tidy"] == "enable":
+    if build_config.debug_build:
+        cmd += " --debug-build"
+    if build_config.sanitizer:
+        cmd += f" --sanitizer={build_config.sanitizer}"
+    if build_config.coverage:
+        cmd += " --coverage"
+    if build_config.tidy:
         cmd += " --clang-tidy"
 
-    cmd += " --cache=ccache"
-    cmd += " --ccache_dir={}".format(ccache_path)
+    cmd += " --cache=sccache"
+    cmd += " --s3-rw-access"
+    cmd += f" --s3-bucket={S3_BUILDS_BUCKET}"
 
-    if "alien_pkgs" in build_config and build_config["alien_pkgs"]:
-        if pr_info.number == 0 or "release" in pr_info.labels:
-            cmd += " --alien-pkgs rpm tgz"
+    if build_config.additional_pkgs:
+        cmd += " --additional-pkgs"
 
-    cmd += " --docker-image-version={}".format(image_version)
-    cmd += " --version={}".format(build_version)
+    cmd += f" --docker-image-version={image_version}"
+    cmd += " --with-profiler"
+    cmd += " --with-buzzhouse"
+    cmd += f" --version={build_version}"
 
     if _can_export_binaries(build_config):
         cmd += " --with-binaries=tests"
 
+    if official:
+        cmd += " --official"
+
     return cmd
 
 
-def get_image_name(build_config: BuildConfig) -> str:
-    if build_config["package_type"] != "deb":
-        return "clickhouse/binary-builder"
-    else:
-        return "clickhouse/deb-builder"
-
-
 def build_clickhouse(
-    packager_cmd: str, logs_path: str, build_output_path: str
-) -> Tuple[str, bool]:
-    build_log_path = os.path.join(logs_path, "build_log.log")
+    packager_cmd: str, logs_path: Path, build_output_path: Path
+) -> Tuple[Path, StatusType]:
+    build_log_path = logs_path / BUILD_LOG_NAME
     success = False
     with TeePopen(packager_cmd, build_log_path) as process:
         retcode = process.wait()
-        if os.path.exists(build_output_path):
-            build_results = os.listdir(build_output_path)
+        if build_output_path.exists():
+            results_exists = any(build_output_path.iterdir())
         else:
-            build_results = []
+            results_exists = False
 
         if retcode == 0:
-            if len(build_results) > 0:
+            if results_exists:
                 success = True
                 logging.info("Built successfully")
             else:
@@ -115,238 +106,160 @@ def build_clickhouse(
                 )
         else:
             logging.info("Build failed")
-    return build_log_path, success
+    return build_log_path, SUCCESS if success else FAILURE
 
 
-def get_build_results_if_exists(
-    s3_helper: S3Helper, s3_prefix: str
-) -> Optional[List[str]]:
-    try:
-        content = s3_helper.list_prefix(s3_prefix)
-        return content
-    except Exception as ex:
-        logging.info("Got exception %s listing %s", ex, s3_prefix)
-        return None
-
-
-def create_json_artifact(
-    temp_path: str,
-    build_name: str,
-    log_url: str,
-    build_urls: List[str],
-    build_config: BuildConfig,
-    elapsed: int,
-    success: bool,
-):
-    subprocess.check_call(
-        f"echo 'BUILD_NAME=build_urls_{build_name}' >> $GITHUB_ENV", shell=True
+def is_release_pr(pr_info: PRInfo) -> bool:
+    return (
+        CI.Labels.RELEASE in pr_info.labels or CI.Labels.RELEASE_LTS in pr_info.labels
     )
 
-    result = {
-        "log_url": log_url,
-        "build_urls": build_urls,
-        "build_config": build_config,
-        "elapsed_seconds": elapsed,
-        "status": success,
-    }
 
-    json_name = "build_urls_" + build_name + ".json"
-
-    print(
-        "Dump json report",
-        result,
-        "to",
-        json_name,
-        "with env",
-        "build_urls_{build_name}",
-    )
-
-    with open(os.path.join(temp_path, json_name), "w") as build_links:
-        json.dump(result, build_links)
-
-
-def get_release_or_pr(
-    pr_info: PRInfo, build_config: BuildConfig, version: ClickHouseVersion
-) -> str:
-    if "release" in pr_info.labels or "release-lts" in pr_info.labels:
+def get_release_or_pr(pr_info: PRInfo, version: ClickHouseVersion) -> Tuple[str, str]:
+    "Return prefixes for S3 artifacts paths"
+    # FIXME performance
+    # performance builds are havily relies on a fixed path for artifacts, that's why
+    # we need to preserve 0 for anything but PR number
+    # It should be fixed in performance-comparison image eventually
+    # For performance tests we always set PRs prefix
+    performance_pr = "PRs/0"
+    if is_release_pr(pr_info):
         # for release pull requests we use branch names prefixes, not pr numbers
-        return pr_info.head_ref
-    elif pr_info.number == 0 and build_config["package_type"] != "performance":
-        # for pushes to master - major version, but not for performance builds
-        # they havily relies on a fixed path for build package and nobody going
-        # to deploy them somewhere, so it's ok.
-        return f"{version.major}.{version.minor}"
+        return pr_info.head_ref, performance_pr
+    if pr_info.number == 0:
+        # for pushes to master - major version
+        return f"{version.major}.{version.minor}", performance_pr
     # PR number for anything else
-    return str(pr_info.number)
+    pr_number = f"PRs/{pr_info.number}"
+    return pr_number, pr_number
 
 
-def upload_master_static_binaries(
-    pr_info: PRInfo,
-    build_config: BuildConfig,
-    s3_helper: S3Helper,
-    build_output_path: str,
-):
-    """Upload binary artifacts to a static S3 links"""
-    static_binary_name = build_config.get("static_binary_name", False)
-    if pr_info.number != 0:
-        return
-    elif not static_binary_name:
-        return
-    elif pr_info.base_ref != "master":
-        return
-
-    s3_path = "/".join((pr_info.base_ref, static_binary_name, "clickhouse"))
-    binary = os.path.join(build_output_path, "clickhouse")
-    url = s3_helper.upload_build_file_to_s3(binary, s3_path)
-    print(f"::notice ::Binary static URL: {url}")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser("Clickhouse builder script")
+    parser.add_argument(
+        "build_name",
+        help="build name",
+    )
+    return parser.parse_args()
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
 
-    build_check_name = sys.argv[1]
-    build_name = sys.argv[2]
+    args = parse_args()
 
-    build_config = get_build_config(build_check_name, build_name)
+    stopwatch = Stopwatch()
+    build_name = args.build_name
 
-    if not os.path.exists(TEMP_PATH):
-        os.makedirs(TEMP_PATH)
+    build_config = CI.JOB_CONFIGS[build_name].build_config
+    assert build_config
+
+    repo_path = Path(REPO_COPY)
+    temp_path = repo_path / "ci" / "tmp"
+    temp_path.mkdir(parents=True, exist_ok=True)
 
     pr_info = PRInfo()
 
-    logging.info("Repo copy path %s", REPO_COPY)
+    if Shell.get_output("git rev-parse --is-shallow-repository") == "true":
+        print("Unshallow repo")
+        unshallow()
 
-    s3_helper = S3Helper("https://s3.amazonaws.com")
+    print("Fetch submodules")
+    # TODO: test sparse checkout: update-submodules.sh?
+    checkout_submodules()
 
-    version = get_version_from_repo()
-    release_or_pr = get_release_or_pr(pr_info, build_config, version)
+    logging.info("Repo copy path %s", repo_path)
 
-    s3_path_prefix = "/".join((release_or_pr, pr_info.sha, build_name))
-
-    # If this is rerun, then we try to find already created artifacts and just
-    # put them as github actions artifcat (result)
-    build_results = get_build_results_if_exists(s3_helper, s3_path_prefix)
-    if build_results is not None and len(build_results) > 0:
-        logging.info("Some build results found %s", build_results)
-        build_urls = []
-        log_url = ""
-        for url in build_results:
-            if "build_log.log" in url:
-                log_url = "https://s3.amazonaws.com/clickhouse-builds/" + url.replace(
-                    "+", "%2B"
-                ).replace(" ", "%20")
-            else:
-                build_urls.append(
-                    "https://s3.amazonaws.com/clickhouse-builds/"
-                    + url.replace("+", "%2B").replace(" ", "%20")
-                )
-        success = len(build_urls) > 0
-        create_json_artifact(
-            TEMP_PATH,
-            build_name,
-            log_url,
-            build_urls,
-            build_config,
-            0,
-            success,
-        )
-        # Fail build job if not successeded
-        if not success:
-            sys.exit(1)
-        else:
-            sys.exit(0)
-
-    image_name = get_image_name(build_config)
-    docker_image = get_image_with_version(IMAGES_PATH, image_name)
-    image_version = docker_image.version
-
+    version = get_version_from_repo(git=Git(True))
     logging.info("Got version from repo %s", version.string)
 
-    version_type = "testing"
-    if "release" in pr_info.labels or "release-lts" in pr_info.labels:
-        version_type = "stable"
+    official_flag = pr_info.number == 0
 
-    update_version_local(REPO_COPY, version, version_type)
+    version_type = "testing"
+    if is_release_pr(pr_info):
+        version_type = "stable"
+        official_flag = True
+
+    update_version_local(version, version_type)
 
     logging.info("Updated local files with version")
 
     logging.info("Build short name %s", build_name)
 
-    build_output_path = os.path.join(TEMP_PATH, build_name)
-    if not os.path.exists(build_output_path):
-        os.makedirs(build_output_path)
+    build_output_path = temp_path / "build"
+    build_output_path.mkdir(parents=True, exist_ok=True)
 
-    ccache_path = os.path.join(CACHES_PATH, build_name + "_ccache")
-
-    logging.info("Will try to fetch cache for our build")
-    get_ccache_if_not_exists(ccache_path, s3_helper, pr_info.number, TEMP_PATH)
-
-    if not os.path.exists(ccache_path):
-        logging.info("cache was not fetched, will create empty dir")
-        os.makedirs(ccache_path)
-
-    if build_config["package_type"] == "performance" and pr_info.number != 0:
-        # because perf tests store some information about git commits
-        subprocess.check_call(
-            f"cd {REPO_COPY} && git fetch origin master:master", shell=True
-        )
+    docker_image = docker_images_helper.pull_image(
+        docker_images_helper.get_docker_image(IMAGE_NAME)
+    )
 
     packager_cmd = get_packager_cmd(
         build_config,
-        os.path.join(REPO_COPY, "docker/packager"),
+        repo_path / "docker" / "packager",
         build_output_path,
         version.string,
-        image_version,
-        ccache_path,
-        pr_info,
+        docker_image.version,
+        official_flag,
     )
+
     logging.info("Going to run packager with %s", packager_cmd)
 
-    build_clickhouse_log = os.path.join(TEMP_PATH, "build_log")
-    if not os.path.exists(build_clickhouse_log):
-        os.makedirs(build_clickhouse_log)
+    logs_path = temp_path / "build_log"
+    logs_path.mkdir(parents=True, exist_ok=True)
 
     start = time.time()
-    log_path, success = build_clickhouse(
-        packager_cmd, build_clickhouse_log, build_output_path
+    log_path, build_status = build_clickhouse(
+        packager_cmd, logs_path, build_output_path
     )
     elapsed = int(time.time() - start)
     subprocess.check_call(
         f"sudo chown -R ubuntu:ubuntu {build_output_path}", shell=True
     )
-    subprocess.check_call(f"sudo chown -R ubuntu:ubuntu {ccache_path}", shell=True)
-    logging.info("Build finished with %s, log path %s", success, log_path)
-
-    logging.info("Will upload cache")
-    upload_ccache(ccache_path, s3_helper, pr_info.number, TEMP_PATH)
-
-    if os.path.exists(log_path):
-        log_url = s3_helper.upload_build_file_to_s3(
-            log_path, s3_path_prefix + "/" + os.path.basename(log_path)
-        )
-        logging.info("Log url %s", log_url)
+    logging.info("Build finished as %s, log path %s", build_status, log_path)
+    if build_status != SUCCESS:
+        # We check if docker works, because if it's down, it's infrastructure
+        try:
+            subprocess.check_call("docker info", shell=True)
+            logging.warning("Collecting 'dmesg -T' content")
+            with TeePopen("sudo dmesg -T", build_output_path / "dmesg.log") as process:
+                process.wait()
+        except subprocess.CalledProcessError:
+            logging.error(
+                "The dockerd looks down, won't upload anything and generate report"
+            )
+            sys.exit(1)
     else:
-        logging.info("Build log doesn't exist")
+        static_bin_name = CI.get_build_config(build_name).static_binary_name
+        if pr_info.is_master and static_bin_name:
+            s3 = S3Helper()
+            # Full binary with debug info:
+            s3_path_full = "/".join(
+                (pr_info.base_ref, static_bin_name, "clickhouse-full")
+            )
+            binary_full = Path(build_output_path) / "clickhouse"
+            url_full = s3.upload_build_file_to_s3(binary_full, s3_path_full)
+            print(f"::notice ::Binary static URL (with debug info): {url_full}")
+            # Stripped binary without debug info:
+            s3_path_compact = "/".join(
+                (pr_info.base_ref, static_bin_name, "clickhouse")
+            )
+            binary_compact = Path(build_output_path) / "clickhouse-stripped"
+            url_compact = s3.upload_build_file_to_s3(binary_compact, s3_path_compact)
+            print(f"::notice ::Binary static URL (compact): {url_compact}")
 
-    build_urls = s3_helper.upload_build_folder_to_s3(
-        build_output_path,
-        s3_path_prefix,
-        keep_dirs_in_s3_path=False,
-        upload_symlinks=False,
-    )
-    logging.info("Got build URLs %s", build_urls)
+    JobReport(
+        description=version.describe,
+        test_results=[],
+        status=build_status,
+        start_time=stopwatch.start_time_str,
+        duration=elapsed,
+        additional_files=[log_path],
+        build_dir_for_upload=build_output_path,
+        version=version.describe,
+    ).dump()
 
-    print("::notice ::Build URLs: {}".format("\n".join(build_urls)))
-
-    print("::notice ::Log URL: {}".format(log_url))
-
-    create_json_artifact(
-        TEMP_PATH, build_name, log_url, build_urls, build_config, elapsed, success
-    )
-
-    upload_master_static_binaries(pr_info, build_config, s3_helper, build_output_path)
-    # Fail build job if not successeded
-    if not success:
+    # Fail the build job if it didn't succeed
+    if build_status != SUCCESS:
         sys.exit(1)
 
 

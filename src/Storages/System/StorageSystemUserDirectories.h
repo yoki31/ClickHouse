@@ -1,6 +1,5 @@
 #pragma once
 
-#include <base/shared_ptr_helper.h>
 #include <Storages/System/IStorageSystemOneBlock.h>
 
 
@@ -9,16 +8,15 @@ namespace DB
 class Context;
 
 /// Implements `users_directories` system table, which allows you to get information about user directories.
-class StorageSystemUserDirectories final : public shared_ptr_helper<StorageSystemUserDirectories>, public IStorageSystemOneBlock<StorageSystemUserDirectories>
+class StorageSystemUserDirectories final : public IStorageSystemOneBlock
 {
 public:
     std::string getName() const override { return "SystemUserDirectories"; }
-    static NamesAndTypesList getNamesAndTypes();
+    static ColumnsDescription getColumnsDescription();
 
 protected:
-    friend struct shared_ptr_helper<StorageSystemUserDirectories>;
     using IStorageSystemOneBlock::IStorageSystemOneBlock;
-    void fillData(MutableColumns & res_columns, ContextPtr context, const SelectQueryInfo &) const override;
+    void fillData(MutableColumns & res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const override;
 };
 
 }

@@ -3,12 +3,12 @@
 #include <mutex>
 #include <condition_variable>
 
-#include <Common/filesystemHelpers.h>
-#include <Core/Block.h>
+#include <Core/Block_fwd.h>
 #include <Core/SortDescription.h>
+#include <Disks/TemporaryFileOnDisk.h>
 #include <QueryPipeline/Pipe.h>
 #include <QueryPipeline/SizeLimits.h>
-
+#include <Common/filesystemHelpers.h>
 
 namespace DB
 {
@@ -24,7 +24,7 @@ using VolumePtr = std::shared_ptr<IVolume>;
 
 struct SortedBlocksWriter
 {
-    using TmpFilePtr = std::unique_ptr<TemporaryFile>;
+    using TmpFilePtr = TemporaryFileOnDiskHolder;
     using SortedFiles = std::vector<TmpFilePtr>;
 
     struct Blocks

@@ -1,8 +1,8 @@
 #include <Access/Common/AllowedClientHosts.h>
 #include <Common/Exception.h>
-#include <base/logger_useful.h>
+#include <Common/likePatternToRegexp.h>
+#include <Common/logger_useful.h>
 #include <base/scope_guard.h>
-#include <Functions/likePatternToRegexp.h>
 #include <Poco/Net/SocketAddress.h>
 #include <Poco/RegularExpression.h>
 #include <boost/algorithm/string/predicate.hpp>
@@ -55,13 +55,13 @@ namespace
     {
         IPAddress addr_v6 = toIPv6(address);
 
-        auto host_addresses = DNSResolver::instance().resolveHostAll(host);
+        auto host_addresses = DNSResolver::instance().resolveHostAllInOriginOrder(host);
 
         for (const auto & addr : host_addresses)
         {
             if (addr.family() == IPAddress::Family::IPv4 && addr_v6 == toIPv6(addr))
                 return true;
-            else if (addr.family() == IPAddress::Family::IPv6 && addr_v6 == addr)
+            if (addr.family() == IPAddress::Family::IPv6 && addr_v6 == addr)
                 return true;
         }
 
@@ -110,17 +110,23 @@ namespace
     }
 
     /// Returns the host name by its address.
-    String getHostByAddress(const IPAddress & address)
+    std::unordered_set<String> getHostsByAddress(const IPAddress & address)
     {
-        String host = DNSResolver::instance().reverseResolve(address);
+        auto hosts = DNSResolver::instance().reverseResolve(address);
 
-        /// Check that PTR record is resolved back to client address
-        if (!isAddressOfHost(address, host))
-            throw Exception("Host " + String(host) + " isn't resolved back to " + address.toString(), ErrorCodes::DNS_ERROR);
+        if (hosts.empty())
+            throw Exception(ErrorCodes::DNS_ERROR, "{} could not be resolved", address.toString());
 
-        return host;
+
+        for (const auto & host : hosts)
+        {
+            /// Check that PTR record is resolved back to client address
+            if (!isAddressOfHost(address, host))
+                throw Exception(ErrorCodes::DNS_ERROR, "Host {} isn't resolved back to {}", host, address.toString());
+        }
+
+        return hosts;
     }
-
 
     void parseLikePatternIfIPSubnet(const String & pattern, IPSubnet & subnet, IPAddress::Family address_family)
     {
@@ -230,7 +236,7 @@ void AllowedClientHosts::IPSubnet::set(const IPAddress & prefix_, const IPAddres
 
 void AllowedClientHosts::IPSubnet::set(const IPAddress & prefix_, size_t num_prefix_bits)
 {
-    set(prefix_, IPAddress(num_prefix_bits, prefix_.family()));
+    set(prefix_, IPAddress(static_cast<unsigned>(num_prefix_bits), prefix_.family()));
 }
 
 void AllowedClientHosts::IPSubnet::set(const IPAddress & address)
@@ -261,10 +267,9 @@ String AllowedClientHosts::IPSubnet::toString() const
     unsigned int prefix_length = mask.prefixLength();
     if (isMaskAllBitsOne())
         return prefix.toString();
-    else if (IPAddress{prefix_length, mask.family()} == mask)
+    if (IPAddress{prefix_length, mask.family()} == mask)
         return fs::path(prefix.toString()) / std::to_string(prefix_length);
-    else
-        return fs::path(prefix.toString()) / mask.toString();
+    return fs::path(prefix.toString()) / mask.toString();
 }
 
 bool AllowedClientHosts::IPSubnet::isMaskAllBitsOne() const
@@ -302,7 +307,7 @@ void AllowedClientHosts::removeAddress(const IPAddress & address)
     if (address.isLoopback())
         local_host = false;
     else
-        boost::range::remove_erase(addresses, address);
+        std::erase(addresses, address);
 }
 
 void AllowedClientHosts::addSubnet(const IPSubnet & subnet)
@@ -322,7 +327,7 @@ void AllowedClientHosts::removeSubnet(const IPSubnet & subnet)
     else if (subnet.isMaskAllBitsOne())
         removeAddress(subnet.getPrefix());
     else
-        boost::range::remove_erase(subnets, subnet);
+        std::erase(subnets, subnet);
 }
 
 void AllowedClientHosts::addName(const String & name)
@@ -338,7 +343,7 @@ void AllowedClientHosts::removeName(const String & name)
     if (boost::iequals(name, "localhost"))
         local_host = false;
     else
-        boost::range::remove_erase(names, name);
+        std::erase(names, name);
 }
 
 void AllowedClientHosts::addNameRegexp(const String & name_regexp)
@@ -358,7 +363,7 @@ void AllowedClientHosts::removeNameRegexp(const String & name_regexp)
     else if (name_regexp == ".*")
         any_host = false;
     else
-        boost::range::remove_erase(name_regexps, name_regexp);
+        std::erase(name_regexps, name_regexp);
 }
 
 void AllowedClientHosts::addLikePattern(const String & pattern)
@@ -378,7 +383,7 @@ void AllowedClientHosts::removeLikePattern(const String & pattern)
     else if ((pattern == "%") || (pattern == "0.0.0.0/0") || (pattern == "::/0"))
         any_host = false;
     else
-        boost::range::remove_erase(like_patterns, pattern);
+        std::erase(like_patterns, pattern);
 }
 
 void AllowedClientHosts::addLocalHost()
@@ -508,7 +513,7 @@ bool AllowedClientHosts::contains(const IPAddress & client_address) const
                 throw;
             /// Try to ignore DNS errors: if host cannot be resolved, skip it and try next.
             LOG_WARNING(
-                &Poco::Logger::get("AddressPatterns"),
+                getLogger("AddressPatterns"),
                 "Failed to check if the allowed client hosts contain address {}. {}, code = {}",
                 client_address.toString(), e.displayText(), e.code());
             return false;
@@ -520,20 +525,29 @@ bool AllowedClientHosts::contains(const IPAddress & client_address) const
             return true;
 
     /// Check `name_regexps`.
-    std::optional<String> resolved_host;
+    std::optional<std::unordered_set<String>> resolved_hosts;
     auto check_name_regexp = [&](const String & name_regexp_)
     {
         try
         {
             if (boost::iequals(name_regexp_, "localhost"))
                 return is_client_local();
-            if (!resolved_host)
-                resolved_host = getHostByAddress(client_v6);
-            if (resolved_host->empty())
-                return false;
-            Poco::RegularExpression re(name_regexp_);
-            Poco::RegularExpression::Match match;
-            return re.match(*resolved_host, match) != 0;
+            if (!resolved_hosts)
+            {
+                resolved_hosts = getHostsByAddress(client_address);
+            }
+
+            for (const auto & host : resolved_hosts.value())
+            {
+                Poco::RegularExpression re(name_regexp_);
+                Poco::RegularExpression::Match match;
+                if (re.match(host, match) != 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
         catch (const Exception & e)
         {
@@ -541,7 +555,7 @@ bool AllowedClientHosts::contains(const IPAddress & client_address) const
                 throw;
             /// Try to ignore DNS errors: if host cannot be resolved, skip it and try next.
             LOG_WARNING(
-                &Poco::Logger::get("AddressPatterns"),
+                getLogger("AddressPatterns"),
                 "Failed to check if the allowed client hosts contain address {}. {}, code = {}",
                 client_address.toString(), e.displayText(), e.code());
             return false;
@@ -560,12 +574,11 @@ bool AllowedClientHosts::contains(const IPAddress & client_address) const
         parseLikePattern(pattern, subnet, name, name_regexp);
         if (subnet)
             return check_subnet(*subnet);
-        else if (name)
+        if (name)
             return check_name(*name);
-        else if (name_regexp)
+        if (name_regexp)
             return check_name_regexp(*name_regexp);
-        else
-            return false;
+        return false;
     };
 
     for (const String & like_pattern : like_patterns)

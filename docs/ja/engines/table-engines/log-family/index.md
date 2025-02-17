@@ -1,47 +1,45 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_folder_title: "\u30ED\u30B0\u30D5\u30A1\u30DF\u30EA"
-toc_priority: 29
-toc_title: "\u306F\u3058\u3081\u306B"
+slug: /ja/engines/table-engines/log-family/
+sidebar_position: 20
+sidebar_label: Logファミリー
 ---
 
-# ログエンジン家族 {#log-engine-family}
+# Log エンジンファミリー
 
-これらのエンジンは、多くの小さなテーブル（最大1万行）をすばやく書き込み、後で全体として読み込む必要があるシナリオ用に開発されました。
+これらのエンジンは、多くの小さなテーブル（約100万行まで）をすばやく書き込み、後で全体として読む必要があるシナリオのために開発されました。
 
-家族のエンジン:
+ファミリーのエンジン:
 
--   [ストリップログ](stripelog.md)
--   [ログ](log.md)
--   [TinyLog](tinylog.md)
+- [StripeLog](/docs/ja/engines/table-engines/log-family/stripelog.md)
+- [Log](/docs/ja/engines/table-engines/log-family/log.md)
+- [TinyLog](/docs/ja/engines/table-engines/log-family/tinylog.md)
 
-## 共通プロパティ {#common-properties}
+`Log`ファミリーのテーブルエンジンは、[HDFS](/docs/ja/engines/table-engines/mergetree-family/mergetree.md/#table_engine-mergetree-hdfs)や[S3](/docs/ja/engines/table-engines/mergetree-family/mergetree.md/#table_engine-mergetree-s3)の分散ファイルシステムにデータを保存できます。
 
-エンジン:
+## 共通のプロパティ {#common-properties}
 
--   ディスクにデータを格納します。
+エンジンの特徴:
 
--   書き込み時にファイルの末尾にデータを追加します。
+- データをディスクに保存します。
 
--   同時データアクセスのサポートロック。
+- データをファイルの末尾に追加して書き込みます。
 
-    中 `INSERT` クエリのテーブルがロックされ、その他の質問を読み込みおよび書き込みデータの両方のテーブルを作成する データ書き込みクエリがない場合は、任意の数のデータ読み込みクエリを同時に実行できます。
+- 同時データアクセス用のロックをサポートします。
 
--   サポートしない [突然変異](../../../sql-reference/statements/alter.md#alter-mutations) 作戦だ
+    `INSERT`クエリの間、テーブルはロックされ、他の読み書きクエリはテーブルがアンロックされるのを待ちます。データ書き込みのクエリがない場合、任意の数のデータ読み取りクエリを並行して実行できます。
 
--   索引をサポートしません。
+- [ミューテーション](/docs/ja/sql-reference/statements/alter/index.md#alter-mutations)をサポートしません。
 
-    つまり `SELECT` データ範囲のクエリは効率的ではありません。
+- インデックスをサポートしません。
 
--   書くわけではありませんデータを原子的に.
+    これにより、データ範囲の`SELECT`クエリは効率的ではありません。
 
-    取得できるテーブルデータが破損した場合も破れ、書き込み操作は、例えば、異常サーバをシャットダウンしました。
+- データをアトミックに書き込みません。
 
-## 違い {#differences}
+    たとえば、サーバーの異常終了などで書き込み操作が中断されると、データが破損したテーブルが得られる可能性があります。
 
-その `TinyLog` エンジンは家族の最も簡単、最も悪い機能性および最も低い効率を提供する。 その `TinyLog` エンジンをサポートしていない並列データの読み取りによる複数のスレッド）。 でデータを読み込む代わりに、各エンジンの家族を支援する並列読みでの使用がほとんど同じになりました記述子としての `Log` エンジンは、各列を別々のファイルに格納するためです。 単純な低負荷のシナリオで使用します。
+## 差異 {#differences}
 
-その `Log` と `StripeLog` エンジンの支援並列データです。 読み込み時にデータClickHouse使複数のスレッド）。 各スレッドプロセス別データブロックです。 その `Log` エンジンは、テーブルの各列に個別のファイルを使用します。 `StripeLog` すべてのデータファイルです。 その結果、 `StripeLog` エンジンは、オペレーティングシス `Log` エンジンはデータを読むとき高性能を提供する。
+`TinyLog`エンジンは、ファミリー内で最もシンプルで、機能と効率が最も低いです。`TinyLog`エンジンは、単一クエリで複数のスレッドによる並行データ読み取りをサポートしません。単一のクエリから並行読み取りをサポートする他のエンジンよりもデータを読むのが遅く、各カラムを別々のファイルに保存するため、`Log`エンジンとほぼ同じ数のファイルディスクリプタを使用します。簡単なシナリオでのみ使用してください。
 
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/log_family/) <!--hide-->
+`Log`および`StripeLog`エンジンは並行データ読み取りをサポートしています。データを読み取る際、ClickHouseは複数のスレッドを使用し、各スレッドは別々のデータブロックを処理します。`Log`エンジンはテーブルの各カラムに対して別々のファイルを使用します。一方、`StripeLog`はすべてのデータを1つのファイルに格納します。その結果、`StripeLog`エンジンは使用するファイルディスクリプタが少なくなりますが、`Log`エンジンの方がデータ読み取りの効率が高くなります。

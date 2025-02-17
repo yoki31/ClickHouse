@@ -1,19 +1,17 @@
 #pragma once
 
-#include "config_formats.h"
+#include "config.h"
 
 #if USE_PROTOBUF
-#    include <Core/Block.h>
-#    include <Formats/FormatSchemaInfo.h>
-#    include <Formats/FormatSettings.h>
 #    include <Processors/Formats/IRowOutputFormat.h>
-
+#    include <Formats/FormatSchemaInfo.h>
+#    include <Formats/ProtobufSchemas.h>
 
 namespace DB
 {
-class ProtobufWriter;
 class ProtobufSerializer;
-class FormatSchemaInfo;
+class ProtobufWriter;
+class WriteBuffer;
 struct FormatSettings;
 
 /** Stream designed to serialize data in the google protobuf format.
@@ -32,8 +30,7 @@ public:
     ProtobufRowOutputFormat(
         WriteBuffer & out_,
         const Block & header_,
-        const RowOutputFormatParams & params_,
-        const FormatSchemaInfo & schema_info_,
+        const ProtobufSchemaInfo & schema_info_,
         const FormatSettings & settings_,
         bool with_length_delimiter_);
 
@@ -46,6 +43,7 @@ private:
     void writeField(const IColumn &, const ISerialization &, size_t) override {}
 
     std::unique_ptr<ProtobufWriter> writer;
+    ProtobufSchemas::DescriptorHolder descriptor_holder;
     std::unique_ptr<ProtobufSerializer> serializer;
     const bool allow_multiple_rows;
 };

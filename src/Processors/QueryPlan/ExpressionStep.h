@@ -1,11 +1,9 @@
 #pragma once
 #include <Processors/QueryPlan/ITransformingStep.h>
+#include <Interpreters/ActionsDAG.h>
 
 namespace DB
 {
-
-class ActionsDAG;
-using ActionsDAGPtr = std::shared_ptr<ActionsDAG>;
 
 class ExpressionTransform;
 class JoiningTransform;
@@ -14,22 +12,25 @@ class JoiningTransform;
 class ExpressionStep : public ITransformingStep
 {
 public:
-
-    explicit ExpressionStep(const DataStream & input_stream_, ActionsDAGPtr actions_dag_);
+    explicit ExpressionStep(const Header & input_header_, ActionsDAG actions_dag_);
     String getName() const override { return "Expression"; }
 
     void transformPipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings & settings) override;
 
-    void updateInputStream(DataStream input_stream, bool keep_header);
-
     void describeActions(FormatSettings & settings) const override;
 
-    const ActionsDAGPtr & getExpression() const { return actions_dag; }
+    ActionsDAG & getExpression() { return actions_dag; }
+    const ActionsDAG & getExpression() const { return actions_dag; }
 
     void describeActions(JSONBuilder::JSONMap & map) const override;
 
+    void serialize(Serialization & ctx) const override;
+    static std::unique_ptr<IQueryPlanStep> deserialize(Deserialization & ctx);
+
 private:
-    ActionsDAGPtr actions_dag;
+    void updateOutputHeader() override;
+
+    ActionsDAG actions_dag;
 };
 
 }

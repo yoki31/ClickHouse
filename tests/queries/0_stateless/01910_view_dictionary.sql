@@ -21,9 +21,11 @@ CREATE TABLE dictionary_source_ru
 
 INSERT INTO dictionary_source_ru VALUES (1, 'Один'), (2,'Два'), (3, 'Три');
 
-CREATE VIEW dictionary_source_view AS  SELECT id, dictionary_source_en.value as value_en, dictionary_source_ru.value as value_ru  FROM  dictionary_source_en LEFT JOIN dictionary_source_ru USING (id);
+CREATE VIEW dictionary_source_view AS
+    SELECT id, dictionary_source_en.value as value_en, dictionary_source_ru.value as value_ru
+    FROM dictionary_source_en LEFT JOIN dictionary_source_ru USING (id);
 
-select * from dictionary_source_view;
+select * from dictionary_source_view ORDER BY id;
 
 CREATE DICTIONARY flat_dictionary
 (
@@ -32,7 +34,7 @@ CREATE DICTIONARY flat_dictionary
     value_ru String
 )
 PRIMARY KEY id
-SOURCE(CLICKHOUSE(HOST 'localhost' PORT 9000 USER 'default' PASSWORD '' TABLE 'dictionary_source_view'))
+SOURCE(CLICKHOUSE(HOST 'localhost' PORT tcpPort() USER 'default' PASSWORD '' TABLE 'dictionary_source_view'))
 LIFETIME(MIN 1 MAX 1000)
 LAYOUT(FLAT());
 
@@ -43,5 +45,5 @@ FROM numbers(3);
 
 DROP TABLE dictionary_source_en;
 DROP TABLE dictionary_source_ru;
-DROP TABLE dictionary_source_view;
 DROP DICTIONARY flat_dictionary;
+DROP TABLE dictionary_source_view;

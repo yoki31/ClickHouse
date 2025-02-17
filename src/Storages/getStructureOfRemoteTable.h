@@ -1,13 +1,14 @@
 #pragma once
 
 #include <Storages/ColumnsDescription.h>
-#include <Parsers/IAST.h>
+#include <Parsers/IAST_fwd.h>
 #include <Parsers/queryToString.h>
 #include <Interpreters/Cluster.h>
 
 
 namespace DB
 {
+
 class Context;
 struct StorageID;
 
@@ -18,5 +19,15 @@ ColumnsDescription getStructureOfRemoteTable(
     const StorageID & table_id,
     ContextPtr context,
     const ASTPtr & table_func_ptr = nullptr);
+
+
+using ColumnsDescriptionByShardNum = std::unordered_map<UInt32, ColumnsDescription>;
+
+/// Returns descriptions of columns of type Object for each shard.
+ColumnsDescriptionByShardNum getExtendedObjectsOfRemoteTables(
+    const Cluster & cluster,
+    const StorageID & remote_table_id,
+    const ColumnsDescription & storage_columns,
+    ContextPtr context);
 
 }

@@ -24,7 +24,9 @@ public:
 
     String getName() const override { return name; }
     bool useDefaultImplementationForNulls() const override { return false; }
+    bool useDefaultImplementationForNothing() const override { return false; }
     bool useDefaultImplementationForLowCardinalityColumns() const override { return false; }
+    bool useDefaultImplementationForSparseColumns() const override { return false; }
     bool isVariadic() const override { return true; }
     bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
     size_t getNumberOfArguments() const override { return 0; }
@@ -65,11 +67,11 @@ public:
             const IColumn * column = arguments[arg_num].column.get();
 
             if (arg_num == 0)
-                for (size_t row_num = 0; row_num < input_rows_count; ++row_num)
-                    vec_res[row_num] = column->byteSizeAt(row_num);
+                for (size_t row = 0; row < input_rows_count; ++row)
+                    vec_res[row] = column->byteSizeAt(row);
             else
-                for (size_t row_num = 0; row_num < input_rows_count; ++row_num)
-                    vec_res[row_num] += column->byteSizeAt(row_num);
+                for (size_t row = 0; row < input_rows_count; ++row)
+                    vec_res[row] += column->byteSizeAt(row);
         }
 
         return result_col;
@@ -78,7 +80,7 @@ public:
 
 }
 
-void registerFunctionByteSize(FunctionFactory & factory)
+REGISTER_FUNCTION(ByteSize)
 {
     factory.registerFunction<FunctionByteSize>();
 }

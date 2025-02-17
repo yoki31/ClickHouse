@@ -1,13 +1,8 @@
 <test>
     <settings>
-        <allow_experimental_bigint_types>1</allow_experimental_bigint_types>
         <max_threads>1</max_threads>
         <max_insert_threads>8</max_insert_threads>
     </settings>
-
-    <preconditions>
-        <table_exists>hits_100m_single</table_exists>
-    </preconditions>
 
     <create_query>CREATE TABLE perf_avg(
         num UInt64,
@@ -31,10 +26,22 @@
     <query>SELECT avg(num_f)                FROM perf_avg FORMAT Null</query>
     <query>SELECT avgWeighted(num_f, num)   FROM perf_avg FORMAT Null</query>
     <query>SELECT avgWeighted(num_f, num_f) FROM perf_avg FORMAT Null</query>
-    <query>SELECT avgWeighted(num_f, num_u) FROM perf_avg FORMAT Null</query>
-    <query>SELECT avgWeighted(num_u, num_f) FROM perf_avg FORMAT Null</query>
-    <query>SELECT avgWeighted(num_u, num)   FROM perf_avg FORMAT Null</query>
-    <query>SELECT avgWeighted(num_u, num_u) FROM perf_avg FORMAT Null</query>
+
+    <query>SELECT avgWeighted(num_f,                num_f)             FROM perf_avg FORMAT Null</query>
+    <query>SELECT avgWeighted(toNullable(num_f),    num_f)             FROM perf_avg FORMAT Null</query>
+    <query>SELECT avgWeighted(num_f,                toNullable(num_f)) FROM perf_avg FORMAT Null</query>
+    <query>SELECT avgWeighted(toNullable(num_f),    toNullable(num_f)) FROM perf_avg FORMAT Null</query>
+
+    <query>SELECT avgWeightedIf(num_f,                num_f,             num % 10) FROM perf_avg FORMAT Null</query>
+    <query>SELECT avgWeightedIf(toNullable(num_f),    num_f,             num % 10) FROM perf_avg FORMAT Null</query>
+    <query>SELECT avgWeightedIf(num_f,                toNullable(num_f), num % 10) FROM perf_avg FORMAT Null</query>
+    <query>SELECT avgWeightedIf(toNullable(num_f),    toNullable(num_f), num % 10) FROM perf_avg FORMAT Null</query>
+
+    <query>SELECT avgWeightedIf(num_f,                num_f,             toNullable(num) % 10) FROM perf_avg FORMAT Null</query>
+    <query>SELECT avgWeightedIf(toNullable(num_f),    num_f,             toNullable(num) % 10) FROM perf_avg FORMAT Null</query>
+    <query>SELECT avgWeightedIf(num_f,                toNullable(num_f), toNullable(num) % 10) FROM perf_avg FORMAT Null</query>
+    <query>SELECT avgWeightedIf(toNullable(num_f),    toNullable(num_f), toNullable(num) % 10) FROM perf_avg FORMAT Null</query>
+
 
     <drop_query>DROP TABLE IF EXISTS perf_avg</drop_query>
 </test>

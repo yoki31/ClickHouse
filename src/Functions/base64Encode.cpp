@@ -1,20 +1,26 @@
-#include <Functions/FunctionFactory.h>
 #include <Functions/FunctionBase64Conversion.h>
 
-#include "config_functions.h"
-
 #if USE_BASE64
-#    include <DataTypes/DataTypeString.h>
+#include <Functions/FunctionFactory.h>
 
 namespace DB
 {
-void registerFunctionBase64Encode(FunctionFactory & factory)
-{
-    tb64ini(0, 0);
-    factory.registerFunction<FunctionBase64Conversion<Base64Encode>>();
 
-    /// MysQL compatibility alias.
-    factory.registerFunction<FunctionBase64Conversion<Base64Encode>>("TO_BASE64", FunctionFactory::CaseInsensitive);
+REGISTER_FUNCTION(Base64Encode)
+{
+    FunctionDocumentation::Description description = R"(Encodes a String as base64, according to RFC 4648 (https://datatracker.ietf.org/doc/html/rfc4648#section-4). Alias: TO_BASE64.)";
+    FunctionDocumentation::Syntax syntax = "base64Encode(plaintext)";
+    FunctionDocumentation::Arguments arguments = {{"plaintext", "String column or constant."}};
+    FunctionDocumentation::ReturnedValue returned_value = "A string containing the encoded value of the argument.";
+    FunctionDocumentation::Examples examples = {{"Example", "SELECT base64Encode('clickhouse')", "Y2xpY2tob3VzZQ=="}};
+    FunctionDocumentation::Category category = {"Strings"};
+
+    factory.registerFunction<FunctionBase64Conversion<Base64Encode<Base64Variant::Normal>>>({description, syntax, arguments, returned_value, examples, category});
+
+    /// MySQL compatibility alias.
+    factory.registerAlias("TO_BASE64", "base64Encode", FunctionFactory::Case::Insensitive);
 }
+
 }
+
 #endif

@@ -1,4 +1,5 @@
 #include "ThreadPoolReader.h"
+#include <Common/VersionNumber.h>
 #include <Common/assert_cast.h>
 #include <Common/Exception.h>
 #include <Common/ProfileEvents.h>
@@ -7,13 +8,15 @@
 #include <Common/setThreadName.h>
 #include <Common/MemorySanitizer.h>
 #include <Common/CurrentThread.h>
+#include <Common/ThreadPool.h>
+#include <Poco/Environment.h>
 #include <base/errnoToString.h>
 #include <Poco/Event.h>
 #include <future>
 #include <unistd.h>
 #include <fcntl.h>
 
-#if defined(__linux__)
+#if defined(OS_LINUX)
 
 #include <sys/syscall.h>
 #include <sys/uio.h>
@@ -29,9 +32,11 @@
         #define SYS_preadv2 327
     #elif defined(__aarch64__)
         #define SYS_preadv2 286
-    #elif defined(__ppc64__)
+    #elif defined(__powerpc64__)
         #define SYS_preadv2 380
     #elif defined(__riscv)
+        #define SYS_preadv2 286
+    #elif defined(__loongarch64)
         #define SYS_preadv2 286
     #else
         #error "Unsupported architecture"
@@ -49,6 +54,7 @@ namespace ProfileEvents
     extern const Event ThreadPoolReaderPageCacheMiss;
     extern const Event ThreadPoolReaderPageCacheMissBytes;
     extern const Event ThreadPoolReaderPageCacheMissElapsedMicroseconds;
+    extern const Event AsynchronousReaderIgnoredBytes;
 
     extern const Event ReadBufferFromFileDescriptorRead;
     extern const Event ReadBufferFromFileDescriptorReadFailed;
@@ -59,6 +65,9 @@ namespace ProfileEvents
 namespace CurrentMetrics
 {
     extern const Metric Read;
+    extern const Metric ThreadPoolFSReaderThreads;
+    extern const Metric ThreadPoolFSReaderThreadsActive;
+    extern const Metric ThreadPoolFSReaderThreadsScheduled;
 }
 
 
@@ -71,9 +80,19 @@ namespace ErrorCodes
 
 }
 
+#if defined(OS_LINUX)
+/// According to man, Linux 5.9 and 5.10 have a bug in preadv2() with the RWF_NOWAIT.
+/// https://manpages.debian.org/testing/manpages-dev/preadv2.2.en.html#BUGS
+/// We also disable it for older Linux kernels, because according to user's reports, RedHat-patched kernels might be also affected.
+static bool hasBugInPreadV2()
+{
+    VersionNumber linux_version(Poco::Environment::osVersion());
+    return linux_version < VersionNumber{5, 11, 0};
+}
+#endif
 
 ThreadPoolReader::ThreadPoolReader(size_t pool_size, size_t queue_size_)
-    : pool(pool_size, pool_size, queue_size_)
+    : pool(std::make_unique<ThreadPool>(CurrentMetrics::ThreadPoolFSReaderThreads, CurrentMetrics::ThreadPoolFSReaderThreadsActive, CurrentMetrics::ThreadPoolFSReaderThreadsScheduled, pool_size, pool_size, queue_size_))
 {
 }
 
@@ -84,15 +103,30 @@ std::future<IAsynchronousReader::Result> ThreadPoolReader::submit(Request reques
 
     int fd = assert_cast<const LocalFileDescriptor &>(*request.descriptor).fd;
 
-#if defined(__linux__)
+#if defined(OS_LINUX)
     /// Check if data is already in page cache with preadv2 syscall.
 
     /// We don't want to depend on new Linux kernel.
-    static std::atomic<bool> has_pread_nowait_support{true};
+    /// But kernels 5.9 and 5.10 have a bug where preadv2() with the
+    /// RWF_NOWAIT flag may return 0 even when not at end of file.
+    /// It can't be distinguished from the real eof, so we have to
+    /// disable pread with nowait.
+    static const bool has_pread_nowait_support = !hasBugInPreadV2();
 
-    if (has_pread_nowait_support.load(std::memory_order_relaxed))
+    if (has_pread_nowait_support)
     {
+        /// It reports real time spent including the time spent while thread was preempted doing nothing.
+        /// And it is Ok for the purpose of this watch (it is used to lower the number of threads to read from tables).
+        /// Sometimes it is better to use taskstats::blkio_delay_total, but it is quite expensive to get it
+        /// (NetlinkMetricsProvider has about 500K RPS).
         Stopwatch watch(CLOCK_MONOTONIC);
+
+        SCOPE_EXIT({
+            watch.stop();
+
+            ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheHitElapsedMicroseconds, watch.elapsedMicroseconds());
+            ProfileEvents::increment(ProfileEvents::DiskReadElapsedMicroseconds, watch.elapsedMicroseconds());
+        });
 
         std::promise<Result> promise;
         std::future<Result> future = promise.get_future();
@@ -118,12 +152,7 @@ std::future<IAsynchronousReader::Result> ThreadPoolReader::submit(Request reques
             if (!res)
             {
                 /// The file has ended.
-                promise.set_value({0, 0});
-
-                watch.stop();
-                ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheHitElapsedMicroseconds, watch.elapsedMicroseconds());
-                ProfileEvents::increment(ProfileEvents::DiskReadElapsedMicroseconds, watch.elapsedMicroseconds());
-
+                promise.set_value({0, 0, nullptr});
                 return future;
             }
 
@@ -132,52 +161,40 @@ std::future<IAsynchronousReader::Result> ThreadPoolReader::submit(Request reques
                 if (errno == ENOSYS || errno == EOPNOTSUPP)
                 {
                     /// No support for the syscall or the flag in the Linux kernel.
-                    has_pread_nowait_support.store(false, std::memory_order_relaxed);
+                    /// It shouldn't happen because we check the kernel version but let's
+                    /// fallback to the thread pool.
                     break;
                 }
-                else if (errno == EAGAIN)
+                if (errno == EAGAIN)
                 {
                     /// Data is not available in page cache. Will hand off to thread pool.
                     break;
                 }
-                else if (errno == EINTR)
+                if (errno == EINTR)
                 {
                     /// Interrupted by a signal.
                     continue;
                 }
-                else
-                {
-                    ProfileEvents::increment(ProfileEvents::ReadBufferFromFileDescriptorReadFailed);
-                    promise.set_exception(std::make_exception_ptr(ErrnoException(
-                        fmt::format("Cannot read from file {}, {}", fd,
-                            errnoToString(ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, errno)),
-                        ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, errno)));
-                    return future;
-                }
+
+                ProfileEvents::increment(ProfileEvents::ReadBufferFromFileDescriptorReadFailed);
+                promise.set_exception(
+                    std::make_exception_ptr(ErrnoException(ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, "Cannot read from file {}", fd)));
+                return future;
             }
-            else
-            {
-                bytes_read += res;
-                __msan_unpoison(request.buf, res);
-            }
+
+            bytes_read += res;
+            __msan_unpoison(request.buf, res);
         }
 
         if (bytes_read)
         {
-            /// It reports real time spent including the time spent while thread was preempted doing nothing.
-            /// And it is Ok for the purpose of this watch (it is used to lower the number of threads to read from tables).
-            /// Sometimes it is better to use taskstats::blkio_delay_total, but it is quite expensive to get it
-            /// (TaskStatsInfoGetter has about 500K RPS).
-            watch.stop();
-
             /// Read successfully from page cache.
             ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheHit);
             ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheHitBytes, bytes_read);
             ProfileEvents::increment(ProfileEvents::ReadBufferFromFileDescriptorReadBytes, bytes_read);
-            ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheHitElapsedMicroseconds, watch.elapsedMicroseconds());
-            ProfileEvents::increment(ProfileEvents::DiskReadElapsedMicroseconds, watch.elapsedMicroseconds());
+            ProfileEvents::increment(ProfileEvents::AsynchronousReaderIgnoredBytes, request.ignore);
 
-            promise.set_value({bytes_read, request.ignore});
+            promise.set_value({bytes_read, request.ignore, nullptr});
             return future;
         }
     }
@@ -185,27 +202,17 @@ std::future<IAsynchronousReader::Result> ThreadPoolReader::submit(Request reques
 
     ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheMiss);
 
-    ThreadGroupStatusPtr running_group = CurrentThread::isInitialized() && CurrentThread::get().getThreadGroup()
-            ? CurrentThread::get().getThreadGroup()
-            : MainThreadStatus::getInstance().getThreadGroup();
+    auto schedule = threadPoolCallbackRunnerUnsafe<Result>(*pool, "ThreadPoolRead");
 
-    ContextPtr query_context;
-    if (CurrentThread::isInitialized())
-        query_context = CurrentThread::get().getQueryContext();
-
-    auto task = std::make_shared<std::packaged_task<Result()>>([request, fd, running_group, query_context]
+    return schedule([request, fd]() -> Result
     {
-        ThreadStatus thread_status;
-
-        if (query_context)
-            thread_status.attachQueryContext(query_context);
-
-        if (running_group)
-            thread_status.attachQuery(running_group);
-
-        setThreadName("ThreadPoolRead");
-
         Stopwatch watch(CLOCK_MONOTONIC);
+        SCOPE_EXIT({
+            watch.stop();
+
+            ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheMissElapsedMicroseconds, watch.elapsedMicroseconds());
+            ProfileEvents::increment(ProfileEvents::DiskReadElapsedMicroseconds, watch.elapsedMicroseconds());
+        });
 
         size_t bytes_read = 0;
         while (!bytes_read)
@@ -224,7 +231,7 @@ std::future<IAsynchronousReader::Result> ThreadPoolReader::submit(Request reques
             if (-1 == res && errno != EINTR)
             {
                 ProfileEvents::increment(ProfileEvents::ReadBufferFromFileDescriptorReadFailed);
-                throwFromErrno(fmt::format("Cannot read from file {}", fd), ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
+                throw ErrnoException(ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, "Cannot read from file {}", fd);
             }
 
             bytes_read += res;
@@ -234,21 +241,15 @@ std::future<IAsynchronousReader::Result> ThreadPoolReader::submit(Request reques
 
         ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheMissBytes, bytes_read);
         ProfileEvents::increment(ProfileEvents::ReadBufferFromFileDescriptorReadBytes, bytes_read);
-        ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheMissElapsedMicroseconds, watch.elapsedMicroseconds());
-        ProfileEvents::increment(ProfileEvents::DiskReadElapsedMicroseconds, watch.elapsedMicroseconds());
-
-        if (running_group)
-            thread_status.detachQuery();
+        ProfileEvents::increment(ProfileEvents::AsynchronousReaderIgnoredBytes, request.ignore);
 
         return Result{ .size = bytes_read, .offset = request.ignore };
-    });
+    }, request.priority);
+}
 
-    auto future = task->get_future();
-
-    /// ThreadPool is using "bigger is higher priority" instead of "smaller is more priority".
-    pool.scheduleOrThrow([task]{ (*task)(); }, -request.priority);
-
-    return future;
+void ThreadPoolReader::wait()
+{
+    pool->wait();
 }
 
 }

@@ -17,7 +17,7 @@ namespace DB
 class DelayedSource : public IProcessor
 {
 public:
-    using Creator = std::function<Pipe()>;
+    using Creator = std::function<QueryPipelineBuilder()>;
 
     DelayedSource(const Block & header, Creator processors_creator, bool add_totals_port, bool add_extremes_port);
     String getName() const override { return "Delayed"; }
@@ -30,9 +30,15 @@ public:
     OutputPort * getTotalsPort() { return totals; }
     OutputPort * getExtremesPort() { return extremes; }
 
+    void setRowsBeforeLimitCounter(RowsBeforeStepCounterPtr counter) override { rows_before_limit.swap(counter); }
+    void setRowsBeforeAggregationCounter(RowsBeforeStepCounterPtr counter) override { rows_before_aggregation.swap(counter); }
+
 private:
+    QueryPlanResourceHolder resources;
     Creator creator;
     Processors processors;
+    RowsBeforeStepCounterPtr rows_before_limit;
+    RowsBeforeStepCounterPtr rows_before_aggregation;
 
     /// Outputs for DelayedSource.
     OutputPort * main = nullptr;

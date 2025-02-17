@@ -1,10 +1,11 @@
 ---
-toc_priority: 106
+slug: /zh/sql-reference/aggregate-functions/reference/argmax
+sidebar_position: 106
 ---
 
 # argMax {#agg-function-argmax}
 
-计算 `val` 最大值对应的 `arg` 值。 如果 `val` 最大值存在几个不同的 `arg` 值，输出遇到的第一个值。
+计算 `val` 最大值对应的 `arg` 值。
 
 **语法**
 

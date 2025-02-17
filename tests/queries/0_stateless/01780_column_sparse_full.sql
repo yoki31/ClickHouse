@@ -6,7 +6,10 @@ DROP TABLE IF EXISTS t_sparse_full;
 CREATE TABLE t_sparse_full (id UInt64, u UInt64, s String)
 ENGINE = MergeTree ORDER BY id
 SETTINGS index_granularity = 32,
-ratio_of_defaults_for_sparse_serialization = 0.1;
+    index_granularity_bytes = '10Mi',
+    ratio_of_defaults_for_sparse_serialization = 0.1,
+    enable_block_number_column = 0,
+    enable_block_offset_column = 0;
 
 SYSTEM STOP MERGES t_sparse_full;
 
@@ -43,13 +46,13 @@ SELECT '======';
 SELECT toUInt32(s) % 5 AS k, groupUniqArray(u % 4) FROM t_sparse_full WHERE s != '' GROUP BY k ORDER BY k;
 SELECT max(range(id % 10)[u]) FROM t_sparse_full;
 SELECT '======';
-SELECT id, u, s FROM remote('127.0.0.{1,2}', currentDatabase(), t_sparse_full) ORDER BY id LIMIT 5;
+SELECT id, u, s FROM remote('127.0.0.{1,2}', currentDatabase(), t_sparse_full) ORDER BY id, u, s LIMIT 5;
 SELECT '======';
 SELECT sum(u) FROM t_sparse_full GROUP BY id % 3 AS k WITH TOTALS ORDER BY k;
 SELECT '======';
-SELECT sum(u) FROM t_sparse_full GROUP BY id % 3 AS k WITH ROLLUP ORDER BY k;
+SELECT sum(u) AS value FROM t_sparse_full GROUP BY id % 3 AS k WITH ROLLUP ORDER BY value;
 SELECT '======';
-SELECT sum(u) FROM t_sparse_full GROUP BY id % 3 AS k WITH CUBE ORDER BY k;
+SELECT sum(u) AS value FROM t_sparse_full GROUP BY id % 3 AS k WITH CUBE ORDER BY value;
 SELECT '======';
 SELECT sum(id) FROM t_sparse_full GROUP BY u % 3 AS k ORDER BY k;
 SELECT '======';

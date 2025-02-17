@@ -1,20 +1,21 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 44
-toc_title: "\u6587\u5B57\u5217"
+slug: /ja/sql-reference/data-types/string
+sidebar_position: 8
+sidebar_label: String
 ---
 
-# 文字列 {#string}
+# String
 
-任意の長さの文字列。 長さは限定されない。 値には、nullバイトを含む任意のバイトセットを含めることができます。
-文字列型は、他のDbmsのVARCHAR型、BLOB型、CLOB型などを置き換えます。
+任意の長さの文字列です。長さに制限はありません。値は、ヌルバイトを含む任意のバイトセットを含むことができます。String型は、他のDBMSのVARCHAR、BLOB、CLOBなどの型を置き換えます。
 
-## エンコード {#encodings}
+テーブルを作成する際に、文字列フィールド用に数値パラメータを設定することができます（例: `VARCHAR(255)`）。ただし、ClickHouseはこれを無視します。
 
-ClickHouseにはエンコーディングの概念はありません。 文字列には、任意のバイトセットを含めることができます。
-が必要な場合は店舗テキストの使用をお勧めしまUTF-8エンコーディングです。 少なくとも、端末がUTF-8（推奨）を使用している場合は、変換を行わずに値を読み書きできます。
-同様に、文字列を操作するための特定の関数には、UTF-8でエンコードされたテキストを表すバイトセットが文字列に含まれているという前提の下で
-例えば、 ‘length’ 関数は、文字列の長さをバイト単位で計算します。 ‘lengthUTF8’ 関数は、値がUTF-8でエンコードされていると仮定して、Unicodeコードポイントで文字列の長さを計算します。
+エイリアス：
 
-[元の記事](https://clickhouse.com/docs/en/data_types/string/) <!--hide-->
+- `String` — `LONGTEXT`, `MEDIUMTEXT`, `TINYTEXT`, `TEXT`, `LONGBLOB`, `MEDIUMBLOB`, `TINYBLOB`, `BLOB`, `VARCHAR`, `CHAR`, `CHAR LARGE OBJECT`, `CHAR VARYING`, `CHARACTER LARGE OBJECT`, `CHARACTER VARYING`, `NCHAR LARGE OBJECT`, `NCHAR VARYING`, `NATIONAL CHARACTER LARGE OBJECT`, `NATIONAL CHARACTER VARYING`, `NATIONAL CHAR VARYING`, `NATIONAL CHARACTER`, `NATIONAL CHAR`, `BINARY LARGE OBJECT`, `BINARY VARYING`,
+
+## エンコーディング
+
+ClickHouseにはエンコーディングの概念がありません。文字列は任意のバイトセットを含むことができ、それらはそのまま保存および出力されます。テキストを保存する必要がある場合は、UTF-8エンコーディングの使用を推奨します。少なくとも、あなたの端末がUTF-8を使用しているのであれば（推奨されるとおり）、値を変換せずに読み書きできます。
+
+同様に、文字列操作のための特定の関数には、文字列がUTF-8でエンコードされたテキストを表すバイトセットであると仮定して動作する別のバリエーションがあります。たとえば、[length](../functions/string-functions.md#length)関数は、文字列の長さをバイト単位で計算しますが、[lengthUTF8](../functions/string-functions.md#lengthutf8)関数は、値がUTF-8でエンコードされていると仮定してUnicodeコードポイント単位で文字列の長さを計算します。

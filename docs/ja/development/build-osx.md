@@ -1,60 +1,89 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 65
-toc_title: "Mac OS X\u3067ClickHouse\u3092\u69CB\u7BC9\u3059\u308B\u65B9\u6CD5"
+slug: /ja/development/build-osx
+sidebar_position: 65
+sidebar_label: macOSでビルド
+title: macOSでClickHouseをビルドする方法
+description: macOS向けにClickHouseをビルドする方法
 ---
 
-# Mac OS XでClickHouseを構築する方法 {#how-to-build-clickhouse-on-mac-os-x}
+:::info ClickHouseを自分でビルドする必要はありません！
+[クイックスタート](https://clickhouse.com/#quick-start)に記載されているように、事前にビルドされたClickHouseをインストールできます。**macOS (Intel)** または **macOS (Apple silicon)** のインストール手順に従ってください。
+:::
 
-ビルドはMac OS X10.15(Catalina)
+このビルドはmacOS 10.15 (Catalina)以降のx86_64 (Intel)およびarm64 (Apple Silicon)で、Homebrewの標準Clangを使用して動作します。
 
-## 自作のインストール {#install-homebrew}
+:::note
+AppleのXCode `apple-clang`でもコンパイルすることが可能ですが、これは強く推奨されません。
+:::
 
-``` bash
-$ /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-```
+## Homebrewをインストールする {#install-homebrew}
 
-## 設置に必要なコンパイラ、ツール、図書館 {#install-required-compilers-tools-and-libraries}
+まず、[Homebrew](https://brew.sh/)をインストールしてください。
 
-``` bash
-$ brew install cmake ninja libtool gettext
-```
+## AppleのClangを使用する場合（非推奨）：XCodeおよびコマンドラインツールのインストール {#install-xcode-and-command-line-tools}
 
-## ﾂつｨﾂ姪"ﾂ債ﾂつｹ {#checkout-clickhouse-sources}
+App Storeから最新の[XCode](https://apps.apple.com/am/app/xcode/id497799835?mt=12)をインストールします。
 
-``` bash
-$ git clone --recursive git@github.com:ClickHouse/ClickHouse.git
-```
+少なくとも一度開いて、エンドユーザーライセンス契約に同意し、自動的に必要なコンポーネントをインストールします。
 
-または
+次に、最新のコマンドラインツールがシステムにインストールされて選択されていることを確認してください:
 
 ``` bash
-$ git clone --recursive https://github.com/ClickHouse/ClickHouse.git
-
-$ cd ClickHouse
+sudo rm -rf /Library/Developer/CommandLineTools
+sudo xcode-select --install
 ```
 
-## ビルドClickHouse {#build-clickhouse}
+## 必要なコンパイラ、ツール、およびライブラリのインストール {#install-required-compilers-tools-and-libraries}
 
 ``` bash
-$ mkdir build
-$ cd build
-$ cmake .. -DCMAKE_CXX_COMPILER=`which clang++` -DCMAKE_C_COMPILER=`which clang`
-$ ninja
-$ cd ..
+brew update
+brew install ccache cmake ninja libtool gettext llvm gcc binutils grep findutils nasm
 ```
 
-## 警告 {#caveats}
+## ClickHouseソースのチェックアウト {#checkout-clickhouse-sources}
 
-Clickhouse-serverを実行する場合は、システムのmaxfiles変数を増やしてください。
+``` bash
+git clone --recursive git@github.com:ClickHouse/ClickHouse.git
+# ...または、https://github.com/ClickHouse/ClickHouse.git をリポジトリURLとして使用することもできます。
+```
 
-!!! info "注"
-    Sudoを使用する必要があります。
+Appleはデフォルトでケースインセンシティブなファイルシステムを使用しています。通常、これはコンパイルに影響はありません（特にスクラッチメイクは問題なく動作します）が、`git mv`のようなファイル操作を混乱させることがあります。macOSで本格的な開発を行う場合、ソースコードがケースセンシティブなディスクボリュームに保存されていることを確認してください。たとえば、[これらの手順](https://brianboyko.medium.com/a-case-sensitive-src-folder-for-mac-programmers-176cc82a3830)を参照してください。
 
-これを行うには、次のファイルを作成します:
+## ClickHouseをビルドする {#build-clickhouse}
 
-/ライブラリ/LaunchDaemons/limit.マックスファイルプリスト:
+Homebrewの標準Clangコンパイラを使用してビルドする場合（唯一の**推奨される**方法）:
+
+``` bash
+cd ClickHouse
+mkdir build
+export PATH=$(brew --prefix llvm)/bin:$PATH
+cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=$(brew --prefix llvm)/bin/clang -DCMAKE_CXX_COMPILER=$(brew --prefix llvm)/bin/clang++ -S . -B build
+cmake --build build
+# 結果として生成されるバイナリは次の場所に作成されます: build/programs/clickhouse
+```
+
+XCodeのネイティブAppleClangコンパイラを使用してXCode IDEでビルドする場合（このオプションは開発ビルドとワークフローのみであり、あなたが何をしているかについて理解がある場合を除き、**推奨されません**）:
+
+``` bash
+cd ClickHouse
+rm -rf build
+mkdir build
+cd build
+XCODE_IDE=1 ALLOW_APPLECLANG=1 cmake -G Xcode -DCMAKE_BUILD_TYPE=Debug -DENABLE_JEMALLOC=OFF ..
+cmake --open .
+# ...次に、XCode IDEでALL_BUILDスキームを選択し、ビルドプロセスを開始します。
+# 結果として生成されるバイナリは次の場所に作成されます: ./programs/Debug/clickhouse
+```
+
+## 注意事項 {#caveats}
+
+`clickhouse-server`を実行する予定がある場合、システムの`maxfiles`変数を増やす必要があります。
+
+:::note
+`sudo`を使用する必要があります。
+:::
+
+そのためには、次の内容で`/Library/LaunchDaemons/limit.maxfiles.plist`ファイルを作成します:
 
 ``` xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -80,14 +109,29 @@ Clickhouse-serverを実行する場合は、システムのmaxfiles変数を増�
 </plist>
 ```
 
-次のコマンドを実行します:
+ファイルに正しい権限を与えます:
 
 ``` bash
-$ sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
+sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
 ```
 
-再起動しろ
+ファイルが正しいことを確認します:
 
-チェックの場合は、利用できる `ulimit -n` コマンド
+``` bash
+plutil /Library/LaunchDaemons/limit.maxfiles.plist
+```
 
-[元の記事](https://clickhouse.com/docs/en/development/build_osx/) <!--hide-->
+ファイルをロードします（または再起動します）:
+
+``` bash
+sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
+```
+
+機能しているか確認するには、`ulimit -n`または`launchctl limit maxfiles`コマンドを使用します。
+
+## ClickHouseサーバーを実行する
+
+``` bash
+cd ClickHouse
+./build/programs/clickhouse-server --config-file ./programs/server/config.xml
+```

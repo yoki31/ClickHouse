@@ -2,8 +2,10 @@
 
 #include <Parsers/ASTQueryWithOnCluster.h>
 #include <Parsers/IAST.h>
+#include <Parsers/SyncReplicaMode.h>
+#include <Server/ServerType.h>
 
-#include "config_core.h"
+#include "config.h"
 
 
 namespace DB
@@ -20,21 +22,42 @@ public:
         KILL,
         SUSPEND,
         DROP_DNS_CACHE,
+        DROP_CONNECTIONS_CACHE,
+        PREWARM_MARK_CACHE,
+        PREWARM_PRIMARY_INDEX_CACHE,
         DROP_MARK_CACHE,
+        DROP_PRIMARY_INDEX_CACHE,
         DROP_UNCOMPRESSED_CACHE,
         DROP_INDEX_MARK_CACHE,
         DROP_INDEX_UNCOMPRESSED_CACHE,
+        DROP_SKIPPING_INDEX_CACHE,
         DROP_MMAP_CACHE,
-#if USE_EMBEDDED_COMPILER
+        DROP_QUERY_CACHE,
         DROP_COMPILED_EXPRESSION_CACHE,
-#endif
-        STOP_LISTEN_QUERIES,
-        START_LISTEN_QUERIES,
+        DROP_FILESYSTEM_CACHE,
+        DROP_DISK_METADATA_CACHE,
+        DROP_PAGE_CACHE,
+        DROP_SCHEMA_CACHE,
+        DROP_FORMAT_SCHEMA_CACHE,
+        DROP_S3_CLIENT_CACHE,
+        STOP_LISTEN,
+        START_LISTEN,
         RESTART_REPLICAS,
         RESTART_REPLICA,
         RESTORE_REPLICA,
+        WAIT_LOADING_PARTS,
         DROP_REPLICA,
+        DROP_DATABASE_REPLICA,
+        JEMALLOC_PURGE,
+        JEMALLOC_ENABLE_PROFILE,
+        JEMALLOC_DISABLE_PROFILE,
+        JEMALLOC_FLUSH_PROFILE,
         SYNC_REPLICA,
+        SYNC_DATABASE_REPLICA,
+        SYNC_TRANSACTION_LOG,
+        SYNC_FILE_CACHE,
+        REPLICA_READY,
+        REPLICA_UNREADY,
         RELOAD_DICTIONARY,
         RELOAD_DICTIONARIES,
         RELOAD_MODEL,
@@ -43,7 +66,8 @@ public:
         RELOAD_FUNCTIONS,
         RELOAD_EMBEDDED_DICTIONARIES,
         RELOAD_CONFIG,
-        RELOAD_SYMBOLS,
+        RELOAD_USERS,
+        RELOAD_ASYNCHRONOUS_METRICS,
         RESTART_DISK,
         STOP_MERGES,
         START_MERGES,
@@ -59,10 +83,31 @@ public:
         START_REPLICATION_QUEUES,
         FLUSH_LOGS,
         FLUSH_DISTRIBUTED,
+        FLUSH_ASYNC_INSERT_QUEUE,
         STOP_DISTRIBUTED_SENDS,
         START_DISTRIBUTED_SENDS,
         START_THREAD_FUZZER,
         STOP_THREAD_FUZZER,
+        UNFREEZE,
+        ENABLE_FAILPOINT,
+        DISABLE_FAILPOINT,
+        WAIT_FAILPOINT,
+        SYNC_FILESYSTEM_CACHE,
+        STOP_PULLING_REPLICATION_LOG,
+        START_PULLING_REPLICATION_LOG,
+        STOP_CLEANUP,
+        START_CLEANUP,
+        RESET_COVERAGE,
+        REFRESH_VIEW,
+        WAIT_VIEW,
+        START_VIEW,
+        START_VIEWS,
+        STOP_VIEW,
+        STOP_VIEWS,
+        CANCEL_VIEW,
+        TEST_VIEW,
+        LOAD_PRIMARY_KEY,
+        UNLOAD_PRIMARY_KEY,
         END
     };
 
@@ -72,6 +117,7 @@ public:
 
     ASTPtr database;
     ASTPtr table;
+    ASTPtr query_settings;
 
     String getDatabase() const;
     String getTable() const;
@@ -82,12 +128,39 @@ public:
     String target_model;
     String target_function;
     String replica;
+    String shard;
     String replica_zk_path;
     bool is_drop_whole_replica{};
     String storage_policy;
     String volume;
     String disk;
     UInt64 seconds{};
+
+    std::optional<String> query_cache_tag;
+
+    String filesystem_cache_name;
+    std::string key_to_drop;
+    std::optional<size_t> offset_to_drop;
+
+    String backup_name;
+
+    String schema_cache_storage;
+
+    String schema_cache_format;
+
+    String fail_point_name;
+
+    SyncReplicaMode sync_replica_mode = SyncReplicaMode::DEFAULT;
+
+    std::vector<String> src_replicas;
+
+    Strings logs;
+
+    ServerType server_type;
+
+    /// For SYSTEM TEST VIEW <name> (SET FAKE TIME <time> | UNSET FAKE TIME).
+    /// Unix time.
+    std::optional<Int64> fake_time_for_view;
 
     String getID(char) const override { return "SYSTEM query"; }
 
@@ -98,20 +171,20 @@ public:
 
         if (database) { res->database = database->clone(); res->children.push_back(res->database); }
         if (table) { res->table = table->clone(); res->children.push_back(res->table); }
+        if (query_settings) { res->query_settings = query_settings->clone(); res->children.push_back(res->query_settings); }
 
         return res;
     }
 
-    ASTPtr getRewrittenASTWithoutOnCluster(const std::string & new_database) const override
+    ASTPtr getRewrittenASTWithoutOnCluster(const WithoutOnClusterASTRewriteParams & params) const override
     {
-        return removeOnCluster<ASTSystemQuery>(clone(), new_database);
+        return removeOnCluster<ASTSystemQuery>(clone(), params.default_database);
     }
 
-    virtual QueryKind getQueryKind() const override { return QueryKind::System; }
+    QueryKind getQueryKind() const override { return QueryKind::System; }
 
 protected:
-
-    void formatImpl(const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
+    void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
 };
 
 

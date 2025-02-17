@@ -1,39 +1,37 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 34
-toc_title: "\u5916\u90E8\u30C7\u30FC\u30BF"
+slug: /ja/engines/table-engines/special/external-data
+sidebar_position: 130
+sidebar_label: 外部データ
 ---
 
-# クエリ処理の外部データ {#external-data-for-query-processing}
+# クエリ処理用の外部データ
 
-ClickHouseでは、クエリの処理に必要なデータをSELECTクエリと共にサーバーに送信できます。 このデータは一時テーブルに格納されます(セクションを参照 “Temporary tables”）とクエリで使用できます（たとえば、in演算子）。
+ClickHouseでは、`SELECT`クエリと一緒に、クエリの処理に必要なデータをサーバに送信することができます。このデータは一時テーブル（「一時テーブル」のセクションを参照）に置かれ、クエリで使用することができます（例えば、`IN`演算子内で）。
 
-たとえば、重要なユーザー識別子を持つテキストファイルがある場合は、このリストによるフィルタリングを使用するクエリと共にサーバーにアップロードで
+例えば、重要なユーザー識別子を持つテキストファイルがある場合、このリストによるフィルタリングを行うクエリと一緒に、サーバにアップロードすることができます。
 
-大量の外部データを含む複数のクエリを実行する必要がある場合は、この機能を使用しないでください。 事前にDBにデータをアップロードする方が良いです。
+大量の外部データで複数のクエリを実行する必要がある場合、この機能は使用しないでください。このデータを事前にデータベースにアップロードする方が良いです。
 
-外部データは、コマンドラインクライアント(非対話モード)またはHTTPインターフェイスを使用してアップロードできます。
+外部データは、コマンドラインクライアント（非対話モード）やHTTPインターフェースを使用してアップロードできます。
 
-コマンドラインクライアントでは、parametersセクションを次の形式で指定できます
+コマンドラインクライアントでは、次の形式でパラメータセクションを指定できます。
 
 ``` bash
 --external --file=... [--name=...] [--format=...] [--types=...|--structure=...]
 ```
 
-して複数の部分のように、このテーブルが送信されます。
+このようなセクションを複数持つことができ、送信されるテーブルの数に応じます。
 
-**–external** – Marks the beginning of a clause.
-**–file** – Path to the file with the table dump, or -, which refers to stdin.
-Stdinから取得できるのは単一のテーブルのみです。
+**–external** – 節の開始を示します。
+**–file** – テーブルダンプのファイルへのパス、またはstdinを指す-です。stdinからは1つのテーブルしか取得できません。
 
-次のパラメータは省略可能です: **–name**– Name of the table. If omitted, _data is used.
-**–format** – Data format in the file. If omitted, TabSeparated is used.
+以下のパラメータは任意です:**–name**– テーブルの名前。省略した場合、_dataが使用されます。
+**–format** – ファイル内のデータ形式。省略した場合、TabSeparatedが使用されます。
 
-次のいずれかのパラメータが必要です:**–types** – A list of comma-separated column types. For example: `UInt64,String`. The columns will be named _1, _2, …
-**–structure**– The table structure in the format`UserID UInt64`, `URL String`. 列名と型を定義します。
+次のいずれかのパラメータは必須です:**–types** – カンマで区切られたカラムタイプのリスト。例: `UInt64,String`。カラムは_1, _2, ...と命名されます。
+**–structure**– テーブル構造で`UserID UInt64`, `URL String`の形式で定義。カラム名とタイプを定義します。
 
-で指定されたファイル ‘file’ に指定された形式で解析されます。 ‘format’ で指定されたデータ型を使用します ‘types’ または ‘structure’. のテーブルがアップロードサーバへのアクセスが一時テーブルの名前 ‘name’.
+‘file’で指定されたファイルは、‘format’で指定された形式で解析され、‘types’や‘structure’で指定されたデータ型を使用します。このテーブルはサーバにアップロードされ、‘name’で指定された名前で一時テーブルとしてアクセス可能になります。
 
 例:
 
@@ -48,7 +46,7 @@ $ cat /etc/passwd | sed 's/:/\t/g' | clickhouse-client --query="SELECT shell, co
 /bin/sync       1
 ```
 
-HTTPインターフェイスを使用する場合、外部データはmultipart/form-data形式で渡されます。 各テーブルは別々のファイルとして送信されます。 テーブル名は、ファイル名から取得されます。 その ‘query_string’ パラメータが渡されます ‘name_format’, ‘name_types’,and ‘name_structure’,ここで ‘name’ これらのパラメーターが対応するテーブルの名前を指定します。 パラメーターの意味は、コマンドラインクライアントを使用する場合と同じです。
+HTTPインターフェースを使用する場合、外部データはmultipart/form-data形式で渡されます。各テーブルは個別のファイルとして送信されます。テーブル名はファイル名から取得されます。`query_string`には`name_format`、`name_types`、`name_structure`のパラメータが渡されます。`name`はこれらのパラメータに対応するテーブル名です。パラメータの意味はコマンドラインクライアントを使用するときと同じです。
 
 例:
 
@@ -63,6 +61,4 @@ $ curl -F 'passwd=@passwd.tsv;' 'http://localhost:8123/?query=SELECT+shell,+coun
 /bin/sync       1
 ```
 
-分散クエリ処理では、一時テーブルがすべてのリモートサーバーに送信されます。
-
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/external_data/) <!--hide-->
+分散クエリ処理の場合、一時テーブルはすべてのリモートサーバに送信されます。

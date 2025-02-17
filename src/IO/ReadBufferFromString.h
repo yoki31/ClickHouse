@@ -15,4 +15,14 @@ public:
 
     explicit ReadBufferFromString(std::string_view s) : ReadBufferFromMemory(s.data(), s.size()) {}
 };
+
+class ReadBufferFromOwnString : public String, public ReadBufferFromString
+{
+public:
+    template <typename S>
+    explicit ReadBufferFromOwnString(S && s_) : String(std::forward<S>(s_)), ReadBufferFromString(*this)
+    {
+    }
+};
+
 }

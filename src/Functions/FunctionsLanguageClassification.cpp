@@ -1,25 +1,29 @@
-#include "config_functions.h"
+#include "config.h"
 
 #if USE_NLP
 
 #include <Columns/ColumnMap.h>
 #include <Columns/ColumnArray.h>
+#include <Columns/ColumnTuple.h>
 #include <Columns/ColumnString.h>
-#include <Columns/ColumnsNumber.h>
 #include <Common/isValidUTF8.h>
 #include <DataTypes/DataTypeMap.h>
 #include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Functions/FunctionHelpers.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionsTextClassification.h>
-#include <Interpreters/Context.h>
 
 #include <compact_lang_det.h>
 
+
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsBool allow_experimental_nlp_functions;
+}
+
 /* Determine language of Unicode UTF-8 text.
  * Uses the cld2 library https://github.com/CLD2Owners/cld2
  */
@@ -33,7 +37,7 @@ extern const int SUPPORT_IS_DISABLED;
 
 struct FunctionDetectLanguageImpl
 {
-    static ALWAYS_INLINE inline std::string_view codeISO(std::string_view code_string)
+    static std::string_view codeISO(std::string_view code_string)
     {
         if (code_string.ends_with("-Latn"))
             code_string.remove_suffix(code_string.size() - 5);
@@ -65,16 +69,17 @@ struct FunctionDetectLanguageImpl
         const ColumnString::Chars & data,
         const ColumnString::Offsets & offsets,
         ColumnString::Chars & res_data,
-        ColumnString::Offsets & res_offsets)
+        ColumnString::Offsets & res_offsets,
+        size_t input_rows_count)
     {
         /// Constant 3 is based on the fact that in general we need 2 characters for ISO code + 1 zero byte
-        res_data.reserve(offsets.size() * 3);
-        res_offsets.resize(offsets.size());
+        res_data.reserve(input_rows_count * 3);
+        res_offsets.resize(input_rows_count);
 
         bool is_reliable;
         size_t res_offset = 0;
 
-        for (size_t i = 0; i < offsets.size(); ++i)
+        for (size_t i = 0; i < input_rows_count; ++i)
         {
             const UInt8 * str = data.data() + offsets[i - 1];
             const size_t str_len = offsets[i] - offsets[i - 1] - 1;
@@ -83,7 +88,10 @@ struct FunctionDetectLanguageImpl
 
             if (UTF8::isValidUTF8(str, str_len))
             {
-                auto lang = CLD2::DetectLanguage(reinterpret_cast<const char *>(str), str_len, true, &is_reliable);
+                auto lang = CLD2::DetectLanguage(
+                    reinterpret_cast<const char *>(str),
+                    static_cast<int>(str_len),
+                    true, &is_reliable);
                 res = codeISO(LanguageCode(lang));
             }
             else
@@ -112,9 +120,10 @@ public:
 
     static FunctionPtr create(ContextPtr context)
     {
-        if (!context->getSettingsRef().allow_experimental_nlp_functions)
+        if (!context->getSettingsRef()[Setting::allow_experimental_nlp_functions])
             throw Exception(ErrorCodes::SUPPORT_IS_DISABLED,
-                "Natural language processing function '{}' is experimental. Set `allow_experimental_nlp_functions` setting to enable it", name);
+                            "Natural language processing function '{}' is experimental. "
+                            "Set `allow_experimental_nlp_functions` setting to enable it", name);
 
         return std::make_shared<FunctionDetectLanguageMixed>();
     }
@@ -143,9 +152,8 @@ public:
         const ColumnString * col = checkAndGetColumn<ColumnString>(column.get());
 
         if (!col)
-            throw Exception(
-                "Illegal columns " + arguments[0].column->getName() + " of arguments of function " + getName(),
-                ErrorCodes::ILLEGAL_COLUMN);
+            throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Illegal columns {} of arguments of function {}",
+                arguments[0].column->getName(), getName());
 
         const auto & input_data = col->getChars();
         const auto & input_offsets = col->getOffsets();
@@ -178,7 +186,10 @@ public:
 
             if (UTF8::isValidUTF8(str, str_len))
             {
-                CLD2::DetectLanguageSummary(reinterpret_cast<const char *>(str), str_len, true, result_lang_top3, pc, bytes, &is_reliable);
+                CLD2::DetectLanguageSummary(
+                    reinterpret_cast<const char *>(str),
+                    static_cast<int>(str_len),
+                    true, result_lang_top3, pc, bytes, &is_reliable);
 
                 for (size_t j = 0; j < top_N; ++j)
                 {
@@ -221,7 +232,7 @@ struct NameDetectLanguage
 
 using FunctionDetectLanguage = FunctionTextClassificationString<FunctionDetectLanguageImpl, NameDetectLanguage>;
 
-void registerFunctionsDetectLanguage(FunctionFactory & factory)
+REGISTER_FUNCTION(DetectLanguage)
 {
     factory.registerFunction<FunctionDetectLanguage>();
     factory.registerFunction<FunctionDetectLanguageMixed>();

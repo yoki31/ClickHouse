@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tags: no-parallel
 
 CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
@@ -10,7 +9,7 @@ CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 ${CLICKHOUSE_CLIENT} --query="DROP TABLE IF EXISTS mutations"
 
-${CLICKHOUSE_CLIENT} --query="CREATE TABLE mutations(d Date, x UInt32, s String, a UInt32 ALIAS x + 1, m MATERIALIZED x + 2) ENGINE MergeTree(d, intDiv(x, 10), 8192)"
+${CLICKHOUSE_CLIENT} --allow_deprecated_syntax_for_merge_tree=1 --query="CREATE TABLE mutations(d Date, x UInt32, s String, a UInt32 ALIAS x + 1, m MATERIALIZED x + 2) ENGINE MergeTree(d, intDiv(x, 10), 8192)"
 
 # Test a mutation on empty table
 ${CLICKHOUSE_CLIENT} --query="ALTER TABLE mutations DELETE WHERE x = 1"
@@ -70,6 +69,21 @@ wait_for_mutation "mutations_cleaner" "mutation_4.txt"
 sleep 1
 ${CLICKHOUSE_CLIENT} --query="INSERT INTO mutations_cleaner(x) VALUES (4)"
 sleep 0.1
+
+for i in {1..10}
+do
+
+    if [ "$(${CLICKHOUSE_CLIENT} --query="SELECT count() FROM system.mutations WHERE database = '$CLICKHOUSE_DATABASE' and table = 'mutations_cleaner'")" -eq 2 ]; then
+        break
+    fi
+
+    if [[ $i -eq 100 ]]; then
+        echo "Timed out while waiting for outdated mutation record to be deleted!"
+    fi
+
+    sleep 1
+    ${CLICKHOUSE_CLIENT} --query="INSERT INTO mutations_cleaner(x) VALUES (4)"  
+done
 
 # Check that the first mutation is cleaned
 ${CLICKHOUSE_CLIENT} --query="SELECT mutation_id, command, is_done FROM system.mutations WHERE database = '$CLICKHOUSE_DATABASE' and table = 'mutations_cleaner' ORDER BY mutation_id"

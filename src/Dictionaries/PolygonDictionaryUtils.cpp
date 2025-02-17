@@ -2,11 +2,9 @@
 
 #include <Common/ThreadPool.h>
 
-#include <base/logger_useful.h>
-#include <base/sort.h>
+#include <Common/logger_useful.h>
 
 #include <algorithm>
-#include <thread>
 #include <numeric>
 
 
@@ -69,7 +67,7 @@ const FinalCellWithSlabs * FinalCellWithSlabs::find(Coord, Coord) const
 
 SlabsPolygonIndex::SlabsPolygonIndex(
     const std::vector<Polygon> & polygons)
-    : log(&Poco::Logger::get("SlabsPolygonIndex")),
+    : log(getLogger("SlabsPolygonIndex")),
       sorted_x(uniqueX(polygons))
 {
     indexBuild(polygons);
@@ -129,9 +127,9 @@ void SlabsPolygonIndex::indexBuild(const std::vector<Polygon> & polygons)
     edges_index_tree.resize(2 * n);
 
     /** Map of interesting edge ids to the index of left x, the index of right x */
-    std::vector<size_t> edge_left(m, n), edge_right(m, n);
+    std::vector<size_t> edge_left(m, n);
+    std::vector<size_t> edge_right(m, n);
 
-    size_t total_index_edges = 0;
     size_t edges_it = 0;
     for (size_t l = 0, r = 1; r < sorted_x.size(); ++l, ++r)
     {
@@ -170,12 +168,10 @@ void SlabsPolygonIndex::indexBuild(const std::vector<Polygon> & polygons)
             if (l & 1)
             {
                 edges_index_tree[l++].emplace_back(all_edges[i]);
-                ++total_index_edges;
             }
             if (r & 1)
             {
                 edges_index_tree[--r].emplace_back(all_edges[i]);
-                ++total_index_edges;
             }
         }
     }
@@ -270,7 +266,7 @@ bool SlabsPolygonIndex::find(const Point & point, size_t & id) const
     Coord y = point.y();
 
     /** Not in bounding box */
-    if (x < sorted_x[0] || x > sorted_x.back())
+    if (x < sorted_x.front() || x > sorted_x.back())
         return false;
 
     bool found = false;

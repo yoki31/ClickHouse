@@ -14,15 +14,17 @@ class MergeTreeData;
 struct FormatSettings;
 struct MergeTreeDataPartChecksums;
 struct StorageInMemoryMetadata;
+class IDataPartStorage;
+class IMergeTreeDataPart;
 
 using StorageMetadataPtr = std::shared_ptr<const StorageInMemoryMetadata>;
+using MutableDataPartStoragePtr = std::shared_ptr<IDataPartStorage>;
 
 /// This class represents a partition value of a single part and encapsulates its loading/storing logic.
 struct MergeTreePartition
 {
     Row value;
 
-public:
     MergeTreePartition() = default;
 
     explicit MergeTreePartition(Row value_) : value(std::move(value_)) {}
@@ -35,13 +37,24 @@ public:
 
     static std::optional<Row> tryParseValueFromID(const String & partition_id, const Block & partition_key_sample);
 
-    void serializeText(const MergeTreeData & storage, WriteBuffer & out, const FormatSettings & format_settings) const;
+    void serializeText(StorageMetadataPtr metadata_snapshot, WriteBuffer & out, const FormatSettings & format_settings) const;
+    String serializeToString(StorageMetadataPtr metadata_snapshot) const;
 
-    void load(const MergeTreeData & storage, const DiskPtr & disk, const String & part_path);
+    void load(const IMergeTreeDataPart & part);
+
     /// Store functions return write buffer with written but not finalized data.
     /// User must call finish() for returned object.
-    [[nodiscard]] std::unique_ptr<WriteBufferFromFileBase> store(const MergeTreeData & storage, const DiskPtr & disk, const String & part_path, MergeTreeDataPartChecksums & checksums) const;
-    [[nodiscard]] std::unique_ptr<WriteBufferFromFileBase> store(const Block & partition_key_sample, const DiskPtr & disk, const String & part_path, MergeTreeDataPartChecksums & checksums) const;
+    [[nodiscard]] std::unique_ptr<WriteBufferFromFileBase> store(
+        StorageMetadataPtr metadata_snapshot,
+        ContextPtr storage_context,
+        IDataPartStorage & data_part_storage,
+        MergeTreeDataPartChecksums & checksums) const;
+
+    [[nodiscard]] std::unique_ptr<WriteBufferFromFileBase> store(
+        const Block & partition_key_sample,
+        IDataPartStorage & data_part_storage,
+        MergeTreeDataPartChecksums & checksums,
+        const WriteSettings & settings) const;
 
     void assign(const MergeTreePartition & other) { value = other.value; }
 

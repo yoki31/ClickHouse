@@ -1,5 +1,6 @@
 ---
-toc_priority: 220
+slug: /ru/sql-reference/aggregate-functions/reference/simplelinearregression
+sidebar_position: 220
 ---
 
 # simpleLinearRegression {#simplelinearregression}
@@ -17,7 +18,7 @@ simpleLinearRegression(x, y)
 
 Возвращаемые значения:
 
-Константы `(a, b)` результирующей прямой `y = a*x + b`.
+Константы `(k, b)` результирующей прямой `y = k*x + b`.
 
 **Примеры**
 
@@ -40,4 +41,3 @@ SELECT arrayReduce('simpleLinearRegression', [0, 1, 2, 3], [3, 4, 5, 6])
 │ (1,3)                                                             │
 └───────────────────────────────────────────────────────────────────┘
 ```
-

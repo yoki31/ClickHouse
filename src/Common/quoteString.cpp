@@ -13,8 +13,16 @@ String quoteString(std::string_view x)
     return res;
 }
 
+String quoteStringSingleQuoteWithSingleQuote(std::string_view x)
+{
+    String res(x.size(), '\0');
+    WriteBufferFromString wb(res);
+    writeQuotedStringPostgreSQL(x, wb);
+    return res;
+}
 
-String doubleQuoteString(const StringRef & x)
+
+String doubleQuoteString(StringRef x)
 {
     String res(x.size, '\0');
     WriteBufferFromString wb(res);
@@ -23,7 +31,7 @@ String doubleQuoteString(const StringRef & x)
 }
 
 
-String backQuote(const StringRef & x)
+String backQuote(StringRef x)
 {
     String res(x.size, '\0');
     {
@@ -34,7 +42,7 @@ String backQuote(const StringRef & x)
 }
 
 
-String backQuoteIfNeed(const StringRef & x)
+String backQuoteIfNeed(StringRef x)
 {
     String res(x.size, '\0');
     {
@@ -43,4 +51,16 @@ String backQuoteIfNeed(const StringRef & x)
     }
     return res;
 }
+
+
+String backQuoteMySQL(StringRef x)
+{
+    String res(x.size, '\0');
+    {
+        WriteBufferFromString wb(res);
+        writeBackQuotedStringMySQL(x, wb);
+    }
+    return res;
+}
+
 }

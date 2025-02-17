@@ -1,13 +1,12 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 45
-toc_title: hdfs
+slug: /ja/sql-reference/table-functions/hdfs
+sidebar_position: 80
+sidebar_label: hdfs
 ---
 
-# hdfs {#hdfs}
+# hdfs
 
-HDFS内のファイルからテーブルを作成します。 この表関数は次のようになります [url](url.md) と [ファイル](file.md) ワンズ
+HDFS内のファイルからテーブルを作成します。このテーブル関数は、[url](../../sql-reference/table-functions/url.md)や[file](../../sql-reference/table-functions/file.md)の関数と似ています。
 
 ``` sql
 hdfs(URI, format, structure)
@@ -15,17 +14,17 @@ hdfs(URI, format, structure)
 
 **入力パラメータ**
 
--   `URI` — The relative URI to the file in HDFS. Path to file support following globs in readonly mode: `*`, `?`, `{abc,def}` と `{N..M}` どこに `N`, `M` — numbers, \``'abc', 'def'` — strings.
--   `format` — The [形式](../../interfaces/formats.md#formats) ファイルの。
--   `structure` — Structure of the table. Format `'column1_name column1_type, column2_name column2_type, ...'`.
+- `URI` — HDFS内のファイルへの相対URIです。ファイルパスは読み取り専用モードで以下のグロブをサポートしています: `*`, `?`, `{abc,def}` および `{N..M}` ただし `N`, `M` は数字で、`'abc', 'def'` は文字列です。
+- `format` — ファイルの[フォーマット](../../interfaces/formats.md#formats)です。
+- `structure` — テーブルの構造です。フォーマットは `'column1_name column1_type, column2_name column2_type, ...'` です。
 
-**戻り値**
+**返される値**
 
-テーブルの指定された構造を読み取りまたは書き込みデータを、指定されたファイルです。
+指定されたファイル内のデータを読み書きできるようにした、指定された構造を持つテーブルです。
 
 **例**
 
-テーブルから `hdfs://hdfs1:9000/test` そして、それから最初の二つの行の選択:
+`hdfs://hdfs1:9000/test` からテーブルを取得し、そのテーブルから最初の二行を選択します:
 
 ``` sql
 SELECT *
@@ -40,29 +39,30 @@ LIMIT 2
 └─────────┴─────────┴─────────┘
 ```
 
-**パス内のグロブ**
+## パスのグロブ {#globs_in_path}
 
-複数のパスコンポーネ のための処理中のファイルが存在するマッチのパスのパターンのみならず接尾辞または接頭).
+パスはグロブ化を使用することができます。ファイルはパスパターン全体と一致する必要があり、接尾辞や接頭辞だけに一致するものではありません。
 
--   `*` — Substitutes any number of any characters except `/` 空の文字列を含む。
--   `?` — Substitutes any single character.
--   `{some_string,another_string,yet_another_one}` — Substitutes any of strings `'some_string', 'another_string', 'yet_another_one'`.
--   `{N..M}` — Substitutes any number in range from N to M including both borders.
+- `*` — `/` を除く任意の文字列を表しますが、空の文字列も含みます。
+- `**` — フォルダ内のすべてのファイルを再帰的に表します。
+- `?` — 任意の1文字を表します。
+- `{some_string,another_string,yet_another_one}` — 文字列 `'some_string', 'another_string', 'yet_another_one'` のいずれかを代用します。文字列には `/` 記号を含めることができます。
+- `{N..M}` — 任意の数値 `>= N` かつ `<= M` を表します。
 
-構造との `{}` に類似しています [遠隔テーブル機能](../../sql-reference/table-functions/remote.md)).
+`{}` を使用した構造は、[remote](remote.md) および [file](file.md) テーブル関数に似ています。
 
 **例**
 
-1.  HDFSに次のUriを持つ複数のファイルがあるとします:
+1. 以下のURIを持つ複数のファイルがHDFSに存在するとします:
 
--   ‘hdfs://hdfs1:9000/some_dir/some_file_1’
--   ‘hdfs://hdfs1:9000/some_dir/some_file_2’
--   ‘hdfs://hdfs1:9000/some_dir/some_file_3’
--   ‘hdfs://hdfs1:9000/another_dir/some_file_1’
--   ‘hdfs://hdfs1:9000/another_dir/some_file_2’
--   ‘hdfs://hdfs1:9000/another_dir/some_file_3’
+- ‘hdfs://hdfs1:9000/some_dir/some_file_1’
+- ‘hdfs://hdfs1:9000/some_dir/some_file_2’
+- ‘hdfs://hdfs1:9000/some_dir/some_file_3’
+- ‘hdfs://hdfs1:9000/another_dir/some_file_1’
+- ‘hdfs://hdfs1:9000/another_dir/some_file_2’
+- ‘hdfs://hdfs1:9000/another_dir/some_file_3’
 
-1.  これらのファイル内の行の量を照会します:
+2. これらのファイル内の行数をクエリします:
 
 <!-- -->
 
@@ -71,7 +71,7 @@ SELECT count(*)
 FROM hdfs('hdfs://hdfs1:9000/{some,another}_dir/some_file_{1..3}', 'TSV', 'name String, value UInt32')
 ```
 
-1.  クエリの量の行のすべてのファイルのディレクトリ:
+3. これら二つのディレクトリのすべてのファイル内の行数をクエリします:
 
 <!-- -->
 
@@ -80,25 +80,46 @@ SELECT count(*)
 FROM hdfs('hdfs://hdfs1:9000/{some,another}_dir/*', 'TSV', 'name String, value UInt32')
 ```
 
-!!! warning "警告"
-    ファイ `?`.
+:::note
+ファイルのリストに先頭ゼロ付きの数値範囲が含まれる場合、各桁ごとに波括弧を使用するか、`?` を使用してください。
+:::
 
 **例**
 
-クエリからのデータファイル名 `file000`, `file001`, … , `file999`:
+`file000`, `file001`, ... , `file999` と名付けられたファイルからデータをクエリします:
 
 ``` sql
 SELECT count(*)
 FROM hdfs('hdfs://hdfs1:9000/big_dir/file{0..9}{0..9}{0..9}', 'CSV', 'name String, value UInt32')
 ```
 
-## 仮想列 {#virtual-columns}
+## バーチャルカラム
 
--   `_path` — Path to the file.
--   `_file` — Name of the file.
+- `_path` — ファイルのパス。タイプ: `LowCardinality(String)`。
+- `_file` — ファイル名。タイプ: `LowCardinality(String)`。
+- `_size` — ファイルのサイズ（バイト単位）。タイプ: `Nullable(UInt64)`。サイズが不明な場合、値は `NULL` です。
+- `_time` — ファイルの最終更新日時。タイプ: `Nullable(DateTime)`。日時が不明な場合、値は `NULL` です。
 
-**も参照。**
+## Hiveスタイルのパーティショニング {#hive-style-partitioning}
 
--   [仮想列](https://clickhouse.com/docs/en/operations/table_engines/#table_engines-virtual_columns)
+`use_hive_partitioning` を1に設定すると、ClickHouseはパス内の Hiveスタイルのパーティショニング (`/name=value/`) を検出し、クエリ内でパーティションカラムをバーチャルカラムとして使用できるようになります。これらのバーチャルカラムは、パーティション化されたパス内のカラムと同じ名前ですが、`_`で始まります。
 
-[元の記事](https://clickhouse.com/docs/en/query_language/table_functions/hdfs/) <!--hide-->
+**例**
+
+Hiveスタイルのパーティショニングで作成されたバーチャルカラムを使用します
+
+``` sql
+SET use_hive_partitioning = 1;
+SELECT * from HDFS('hdfs://hdfs1:9000/data/path/date=*/country=*/code=*/*.parquet') where _date > '2020-01-01' and _country = 'Netherlands' and _code = 42;
+```
+
+## ストレージ設定 {#storage-settings}
+
+- [hdfs_truncate_on_insert](/docs/ja/operations/settings/settings.md#hdfs_truncate_on_insert) - 挿入前にファイルを切り詰めることを許可します。デフォルトでは無効です。
+- [hdfs_create_new_file_on_insert](/docs/ja/operations/settings/settings.md#hdfs_create_new_file_on_insert) - フォーマットに接尾辞がある場合、挿入ごとに新しいファイルを作成します。デフォルトでは無効です。
+- [hdfs_skip_empty_files](/docs/ja/operations/settings/settings.md#hdfs_skip_empty_files) - 読み取り中に空のファイルをスキップすることを許可します。デフォルトでは無効です。
+- [ignore_access_denied_multidirectory_globs](/docs/ja/operations/settings/settings.md#ignore_access_denied_multidirectory_globs) - マルチディレクトリグロブに対して許可拒否エラーを無視することを許可します。
+
+**関連項目**
+
+- [バーチャルカラム](../../engines/table-engines/index.md#table_engines-virtual_columns)

@@ -1,3 +1,4 @@
+#include <Columns/IColumn.h>
 #include <Functions/IFunction.h>
 #include <Functions/FunctionFactory.h>
 #include <DataTypes/DataTypeString.h>
@@ -25,6 +26,9 @@ public:
     }
 
     bool useDefaultImplementationForNulls() const override { return false; }
+    bool useDefaultImplementationForNothing() const override { return false; }
+    bool useDefaultImplementationForLowCardinalityColumns() const override { return false; }
+    bool useDefaultImplementationForSparseColumns() const override { return false; }
 
     bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
 
@@ -51,7 +55,7 @@ public:
 
 }
 
-void registerFunctionDumpColumnStructure(FunctionFactory & factory)
+REGISTER_FUNCTION(DumpColumnStructure)
 {
     factory.registerFunction<FunctionDumpColumnStructure>();
 }

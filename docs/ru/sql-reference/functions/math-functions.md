@@ -1,6 +1,7 @@
 ---
-toc_priority: 44
-toc_title: "Математические функции"
+slug: /ru/sql-reference/functions/math-functions
+sidebar_position: 44
+sidebar_label: "Математические функции"
 ---
 
 # Математические функции {#matematicheskie-funktsii}
@@ -303,8 +304,8 @@ atan2(y, x)
 
 **Аргументы**
 
--   `y` — координата y точки, в которую проведена линия. [Float64](../../sql-reference/data-types/float.md#float32-float64).
--   `x` — координата х точки, в которую проведена линия. [Float64](../../sql-reference/data-types/float.md#float32-float64).
+-   `y` — координата y точки, в которую проведена линия. [Float64](../../sql-reference/data-types/float.md#float32-float64) или [Decimal](../../sql-reference/data-types/decimal.md).
+-   `x` — координата х точки, в которую проведена линия. [Float64](../../sql-reference/data-types/float.md#float32-float64) или [Decimal](../../sql-reference/data-types/decimal.md).
 
 **Возвращаемое значение**
 
@@ -340,8 +341,8 @@ hypot(x, y)
 
 **Аргументы**
 
--   `x` — первый катет прямоугольного треугольника. [Float64](../../sql-reference/data-types/float.md#float32-float64).
--   `y` — второй катет прямоугольного треугольника. [Float64](../../sql-reference/data-types/float.md#float32-float64).
+-   `x` — первый катет прямоугольного треугольника. [Float64](../../sql-reference/data-types/float.md#float32-float64) или [Decimal](../../sql-reference/data-types/decimal.md).
+-   `y` — второй катет прямоугольного треугольника. [Float64](../../sql-reference/data-types/float.md#float32-float64) или [Decimal](../../sql-reference/data-types/decimal.md).
 
 **Возвращаемое значение**
 
@@ -467,4 +468,3 @@ SELECT sign(-1);
 │       -1 │
 └──────────┘
 ```
-

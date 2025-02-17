@@ -1,29 +1,30 @@
 #pragma once
 
-#include <Core/Block.h>
-#include <IO/WriteBuffer.h>
-#include <Processors/Formats/IRowOutputFormat.h>
+#include <IO/PeekableWriteBuffer.h>
+#include <Processors/Formats/OutputFormatWithUTF8ValidationAdaptor.h>
+#include <Processors/Formats/RowOutputFormatWithExceptionHandlerAdaptor.h>
 #include <Formats/FormatSettings.h>
 
 
 namespace DB
 {
 
+class Block;
+class WriteBuffer;
+
 /** The stream for outputting data in JSON format, by object per line.
-  * Does not validate UTF-8.
   */
-class JSONEachRowRowOutputFormat : public IRowOutputFormat
+class JSONEachRowRowOutputFormat : public RowOutputFormatWithExceptionHandlerAdaptor<RowOutputFormatWithUTF8ValidationAdaptor, bool>
 {
 public:
     JSONEachRowRowOutputFormat(
         WriteBuffer & out_,
         const Block & header_,
-        const RowOutputFormatParams & params_,
-        const FormatSettings & settings_);
+        const FormatSettings & settings_,
+        bool pretty_json_ = false);
 
     String getName() const override { return "JSONEachRowRowOutputFormat"; }
 
-public:
     /// Content-Type to set when sending HTTP response.
     String getContentType() const override
     {
@@ -39,16 +40,16 @@ protected:
     void writePrefix() override;
     void writeSuffix() override;
 
-    /// No totals and extremes.
-    void consumeTotals(Chunk) override {}
-    void consumeExtremes(Chunk) override {}
+    void resetFormatterImpl() override;
 
     size_t field_number = 0;
+    bool pretty_json;
+
+    FormatSettings settings;
+    WriteBuffer * ostr;
 
 private:
     Names fields;
-
-    FormatSettings settings;
 };
 
 }

@@ -1,32 +1,31 @@
 #pragma once
 
-#include <Core/Block.h>
-#include <IO/WriteBuffer.h>
-#include <Processors/Formats/IRowOutputFormat.h>
+#include <Processors/Formats/OutputFormatWithUTF8ValidationAdaptor.h>
+#include <Processors/Formats/RowOutputFormatWithExceptionHandlerAdaptor.h>
 #include <Formats/FormatSettings.h>
 
 
 namespace DB
 {
 
-/** The stream for outputting data in JSON format, by object per line.
-  * Does not validate UTF-8.
+class Block;
+class WriteBuffer;
+
+/** The stream for outputting data in JSON format, by JSON array per line.
   */
-class JSONCompactEachRowRowOutputFormat final : public IRowOutputFormat
+class JSONCompactEachRowRowOutputFormat : public RowOutputFormatWithExceptionHandlerAdaptor<RowOutputFormatWithUTF8ValidationAdaptor, bool>
 {
 public:
     JSONCompactEachRowRowOutputFormat(
         WriteBuffer & out_,
         const Block & header_,
-        const RowOutputFormatParams & params_,
         const FormatSettings & settings_,
         bool with_names_,
-        bool with_types_,
-        bool yield_strings_);
+        bool with_types_);
 
     String getName() const override { return "JSONCompactEachRowRowOutputFormat"; }
 
-private:
+protected:
     void writePrefix() override;
 
     void writeTotals(const Columns & columns, size_t row_num) override;
@@ -35,16 +34,16 @@ private:
     void writeFieldDelimiter() override;
     void writeRowStartDelimiter() override;
     void writeRowEndDelimiter() override;
+    void writeSuffix() override;
 
-    void consumeTotals(Chunk) override;
-    /// No extremes.
-    void consumeExtremes(Chunk) override {}
+    void resetFormatterImpl() override;
 
     void writeLine(const std::vector<String> & values);
 
     FormatSettings settings;
     bool with_names;
     bool with_types;
-    bool yield_strings;
+    WriteBuffer * ostr;
 };
+
 }

@@ -1,32 +1,37 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 63
-toc_title: "Null\u8A31\u5BB9\u5F15\u6570\u306E\u64CD\u4F5C"
+slug: /ja/sql-reference/functions/functions-for-nulls
+sidebar_position: 135
+sidebar_label: Nullable
 ---
 
-# Null許容集計を操作するための関数 {#functions-for-working-with-nullable-aggregates}
+# Nullable 値を扱う関数
 
-## isNull {#isnull}
+## isNull
 
-引数が [NULL](../../sql-reference/syntax.md#null-literal).
+引数が [NULL](../../sql-reference/syntax.md#null) かどうかを返します。
+
+演算子 [`IS NULL`](../operators/index.md#is_null) も参照してください。
+
+**構文**
 
 ``` sql
 isNull(x)
 ```
 
-**パラメータ**
+別名: `ISNULL`.
 
--   `x` — A value with a non-compound data type.
+**引数**
 
-**戻り値**
+- `x` — 非複合データ型の値。
 
--   `1` もし `x` は `NULL`.
--   `0` もし `x` ではない `NULL`.
+**返される値**
+
+- `x` が `NULL` の場合は `1`。
+- `x` が `NULL` でない場合は `0`。
 
 **例**
 
-入力テーブル
+テーブル:
 
 ``` text
 ┌─x─┬────y─┐
@@ -35,11 +40,13 @@ isNull(x)
 └───┴──────┘
 ```
 
-クエリ
+クエリ:
 
 ``` sql
-SELECT x FROM t_null WHERE isNull(y)
+SELECT x FROM t_null WHERE isNull(y);
 ```
+
+結果:
 
 ``` text
 ┌─x─┐
@@ -47,26 +54,67 @@ SELECT x FROM t_null WHERE isNull(y)
 └───┘
 ```
 
-## isNotNull {#isnotnull}
+## isNullable
 
-引数が [NULL](../../sql-reference/syntax.md#null-literal).
+カラムが [Nullable](../data-types/nullable.md) かどうかを返します。Nullable は `NULL` 値を許可することを意味します。
+
+**構文**
+
+``` sql
+isNullable(x)
+```
+
+**引数**
+
+- `x` — カラム。
+
+**返される値**
+
+- `x` が `NULL` 値を許可する場合は `1`。 [UInt8](../data-types/int-uint.md).
+- `x` が `NULL` 値を許可しない場合は `0`。 [UInt8](../data-types/int-uint.md).
+
+**例**
+
+クエリ:
+
+``` sql
+CREATE TABLE tab (ordinary_col UInt32, nullable_col Nullable(UInt32)) ENGINE = Log;
+INSERT INTO tab (ordinary_col, nullable_col) VALUES (1,1), (2, 2), (3,3);
+SELECT isNullable(ordinary_col), isNullable(nullable_col) FROM tab;    
+```
+
+結果:
+
+``` text
+   ┌───isNullable(ordinary_col)──┬───isNullable(nullable_col)──┐
+1. │                           0 │                           1 │
+2. │                           0 │                           1 │
+3. │                           0 │                           1 │
+   └─────────────────────────────┴─────────────────────────────┘
+```
+
+## isNotNull
+
+引数が [NULL](../../sql-reference/syntax.md#null-literal) でないかどうかを返します。
+
+演算子 [`IS NOT NULL`](../operators/index.md#is_not_null) も参照してください。
 
 ``` sql
 isNotNull(x)
 ```
 
-**パラメータ:**
+**引数:**
 
--   `x` — A value with a non-compound data type.
+- `x` — 非複合データ型の値。
 
-**戻り値**
+**返される値**
 
--   `0` もし `x` は `NULL`.
--   `1` もし `x` ではない `NULL`.
+- `x` が `NULL` でない場合は `1`。
+- `x` が `NULL` の場合は `0`。
 
 **例**
 
-入力テーブル
+テーブル:
 
 ``` text
 ┌─x─┬────y─┐
@@ -75,11 +123,13 @@ isNotNull(x)
 └───┴──────┘
 ```
 
-クエリ
+クエリ:
 
 ``` sql
-SELECT x FROM t_null WHERE isNotNull(y)
+SELECT x FROM t_null WHERE isNotNull(y);
 ```
+
+結果:
 
 ``` text
 ┌─x─┐
@@ -87,72 +137,148 @@ SELECT x FROM t_null WHERE isNotNull(y)
 └───┘
 ```
 
-## 合体 {#coalesce}
+## isNotDistinctFrom
 
-左から右にチェックするかどうか `NULL` 引数が渡され、最初のnonを返します-`NULL` 引数。
+NULL セーフな比較を行います。これは、JOIN ON セクションで NULL 値を含む JOIN キーを比較するために使用されます。この関数は 2 つの `NULL` 値を同一とみなし、通常の等号の動作とは異なり、2 つの `NULL` 値を比較すると `NULL` を返します。
+
+:::note
+この関数は JOIN ON の実装に使用される内部関数です。クエリで手動で使用しないでください。
+:::
+
+**構文**
+
+``` sql
+isNotDistinctFrom(x, y)
+```
+
+**引数**
+
+- `x` — 第1の JOIN キー。
+- `y` — 第2の JOIN キー。
+
+**返される値**
+
+- `x` と `y` が両方とも `NULL` の場合は `true`。
+- それ以外の場合は `false`。
+
+**例**
+
+完全な例については、[JOIN キーにおける NULL 値](../../sql-reference/statements/select/join#null-values-in-join-keys)を参照してください。
+
+## isZeroOrNull
+
+引数が 0（ゼロ）または [NULL](../../sql-reference/syntax.md#null-literal) かどうかを返します。
+
+``` sql
+isZeroOrNull(x)
+```
+
+**引数:**
+
+- `x` — 非複合データ型の値。
+
+**返される値**
+
+- `x` が 0（ゼロ）または `NULL` の場合は `1`。
+- それ以外は `0`。
+
+**例**
+
+テーブル:
+
+``` text
+┌─x─┬────y─┐
+│ 1 │ ᴺᵁᴸᴸ │
+│ 2 │    0 │
+│ 3 │    3 │
+└───┴──────┘
+```
+
+クエリ:
+
+``` sql
+SELECT x FROM t_null WHERE isZeroOrNull(y);
+```
+
+結果:
+
+``` text
+┌─x─┐
+│ 1 │
+│ 2 │
+└───┘
+```
+
+## coalesce
+
+最も左にある`NULL` でない引数を返します。
 
 ``` sql
 coalesce(x,...)
 ```
 
-**パラメータ:**
+**引数:**
 
--   非複合型の任意の数のパラメーター。 すべてのパラメータに対応していることが必要となるデータ型になります。
+- 複合型でない任意の数のパラメータ。すべてのパラメータは互いに互換性のあるデータ型である必要があります。
 
-**戻り値**
+**返される値**
 
--   最初の非-`NULL` 引数。
--   `NULL` すべての引数が `NULL`.
-
-**例**
-
-顧客に連絡する複数の方法を指定できる連絡先のリストを検討してください。
-
-``` text
-┌─name─────┬─mail─┬─phone─────┬──icq─┐
-│ client 1 │ ᴺᵁᴸᴸ │ 123-45-67 │  123 │
-│ client 2 │ ᴺᵁᴸᴸ │ ᴺᵁᴸᴸ      │ ᴺᵁᴸᴸ │
-└──────────┴──────┴───────────┴──────┘
-```
-
-その `mail` と `phone` フィールドはString型ですが、 `icq` フィールドは `UInt32` したがって、変換する必要があります `String`.
-
-連絡先リストから顧客に対して最初に使用可能な連絡先方法を取得する:
-
-``` sql
-SELECT coalesce(mail, phone, CAST(icq,'Nullable(String)')) FROM aBook
-```
-
-``` text
-┌─name─────┬─coalesce(mail, phone, CAST(icq, 'Nullable(String)'))─┐
-│ client 1 │ 123-45-67                                            │
-│ client 2 │ ᴺᵁᴸᴸ                                                 │
-└──────────┴──────────────────────────────────────────────────────┘
-```
-
-## ifNull {#ifnull}
-
-Main引数が次の場合、代替値を返します `NULL`.
-
-``` sql
-ifNull(x,alt)
-```
-
-**パラメータ:**
-
--   `x` — The value to check for `NULL`.
--   `alt` — The value that the function returns if `x` は `NULL`.
-
-**戻り値**
-
--   値 `x`,if `x` ではない `NULL`.
--   値 `alt`,if `x` は `NULL`.
+- 最初の `NULL` でない引数
+- すべての引数が `NULL` の場合、`NULL`。
 
 **例**
 
-``` sql
-SELECT ifNull('a', 'b')
+顧客に連絡するための複数の方法を示す連絡先のリストを考えてみましょう。
+
+``` text
+┌─name─────┬─mail─┬─phone─────┬──telegram─┐
+│ client 1 │ ᴺᵁᴸᴸ │ 123-45-67 │       123 │
+│ client 2 │ ᴺᵁᴸᴸ │ ᴺᵁᴸᴸ      │      ᴺᵁᴸᴸ │
+└──────────┴──────┴───────────┴───────────┘
 ```
+
+`mail` と `phone` フィールドは String の型ですが、`telegram` フィールドは `UInt32` なので `String` に変換する必要があります。
+
+顧客のために最初に利用可能な連絡方法を連絡先リストから取得します:
+
+``` sql
+SELECT name, coalesce(mail, phone, CAST(telegram,'Nullable(String)')) FROM aBook;
+```
+
+``` text
+┌─name─────┬─coalesce(mail, phone, CAST(telegram, 'Nullable(String)'))─┐
+│ client 1 │ 123-45-67                                                 │
+│ client 2 │ ᴺᵁᴸᴸ                                                      │
+└──────────┴───────────────────────────────────────────────────────────┘
+```
+
+## ifNull
+
+引数が `NULL` である場合に代替値を返します。
+
+``` sql
+ifNull(x, alt)
+```
+
+**引数:**
+
+- `x` — `NULL` かどうかを確認する値。
+- `alt` — `x` が `NULL` である場合に関数が返す値。
+
+**返される値**
+
+- `x` が `NULL` でない場合、`x`。
+- `x` が `NULL` の場合、`alt`。
+
+**例**
+
+クエリ:
+
+``` sql
+SELECT ifNull('a', 'b');
+```
+
+結果:
 
 ``` text
 ┌─ifNull('a', 'b')─┐
@@ -160,9 +286,13 @@ SELECT ifNull('a', 'b')
 └──────────────────┘
 ```
 
+クエリ:
+
 ``` sql
-SELECT ifNull(NULL, 'b')
+SELECT ifNull(NULL, 'b');
 ```
+
+結果:
 
 ``` text
 ┌─ifNull(NULL, 'b')─┐
@@ -170,28 +300,32 @@ SELECT ifNull(NULL, 'b')
 └───────────────────┘
 ```
 
-## ヌリフ {#nullif}
+## nullIf
 
-ﾂづｩﾂ。 `NULL` 引数が等しい場合。
+2つの引数が等しい場合、`NULL` を返します。
 
 ``` sql
 nullIf(x, y)
 ```
 
-**パラメータ:**
+**引数:**
 
-`x`, `y` — Values for comparison. They must be compatible types, or ClickHouse will generate an exception.
+`x`, `y` — 比較する値。互換性のある型である必要があります。
 
-**戻り値**
+**返される値**
 
--   `NULL`、引数が等しい場合。
--   その `x` 引数が等しくない場合の値。
+- 引数が等しい場合、`NULL`。
+- 引数が等しくない場合、`x`。
 
 **例**
 
+クエリ:
+
 ``` sql
-SELECT nullIf(1, 1)
+SELECT nullIf(1, 1);
 ```
+
+結果:
 
 ``` text
 ┌─nullIf(1, 1)─┐
@@ -199,9 +333,13 @@ SELECT nullIf(1, 1)
 └──────────────┘
 ```
 
+クエリ:
+
 ``` sql
-SELECT nullIf(1, 2)
+SELECT nullIf(1, 2);
 ```
+
+結果:
 
 ``` text
 ┌─nullIf(1, 2)─┐
@@ -209,49 +347,42 @@ SELECT nullIf(1, 2)
 └──────────────┘
 ```
 
-## assumeNotNull {#assumenotnull}
+## assumeNotNull
 
-結果はtypeの値になります [Null可能](../../sql-reference/data-types/nullable.md) 非のため- `Nullable` 値が `NULL`.
+[Nullable](../data-types/nullable.md) 型の値に対して、対応する非 `Nullable` 値を返します。元の値が `NULL` の場合、任意の結果が返される可能性があります。関数 `ifNull` および `coalesce` も参照してください。
 
 ``` sql
 assumeNotNull(x)
 ```
 
-**パラメータ:**
+**引数:**
 
--   `x` — The original value.
+- `x` — 元の値。
 
-**戻り値**
+**返される値**
 
--   非からの元の値-`Nullable` そうでない場合は、タイプ `NULL`.
--   非のデフォルト値-`Nullable` 元の値が `NULL`.
+- 値が `NULL` でない場合、入力値を非 `Nullable` 型で返します。
+- 入力値が `NULL` の場合、任意の値。
 
 **例**
 
-を考える `t_null` テーブル。
-
-``` sql
-SHOW CREATE TABLE t_null
-```
+テーブル:
 
 ``` text
-┌─statement─────────────────────────────────────────────────────────────────┐
-│ CREATE TABLE default.t_null ( x Int8,  y Nullable(Int8)) ENGINE = TinyLog │
-└───────────────────────────────────────────────────────────────────────────┘
-```
 
-``` text
 ┌─x─┬────y─┐
 │ 1 │ ᴺᵁᴸᴸ │
 │ 2 │    3 │
 └───┴──────┘
 ```
 
-を適用する `assumeNotNull` に対する関数 `y` 列。
+クエリ:
 
 ``` sql
-SELECT assumeNotNull(y) FROM t_null
+SELECT assumeNotNull(y) FROM table;
 ```
+
+結果:
 
 ``` text
 ┌─assumeNotNull(y)─┐
@@ -260,9 +391,13 @@ SELECT assumeNotNull(y) FROM t_null
 └──────────────────┘
 ```
 
+クエリ:
+
 ``` sql
-SELECT toTypeName(assumeNotNull(y)) FROM t_null
+SELECT toTypeName(assumeNotNull(y)) FROM t_null;
 ```
+
+結果:
 
 ``` text
 ┌─toTypeName(assumeNotNull(y))─┐
@@ -271,27 +406,31 @@ SELECT toTypeName(assumeNotNull(y)) FROM t_null
 └──────────────────────────────┘
 ```
 
-## toNullable {#tonullable}
+## toNullable
 
-引数の型を次のように変換します `Nullable`.
+引数の型を `Nullable` に変換します。
 
 ``` sql
 toNullable(x)
 ```
 
-**パラメータ:**
+**引数:**
 
--   `x` — The value of any non-compound type.
+- `x` — 非複合型の値。
 
-**戻り値**
+**返される値**
 
--   Aを持つ入力値 `Nullable` タイプ。
+- 入力値を `Nullable` 型として返します。
 
 **例**
 
+クエリ:
+
 ``` sql
-SELECT toTypeName(10)
+SELECT toTypeName(10);
 ```
+
+結果:
 
 ``` text
 ┌─toTypeName(10)─┐
@@ -299,14 +438,16 @@ SELECT toTypeName(10)
 └────────────────┘
 ```
 
+クエリ:
+
 ``` sql
-SELECT toTypeName(toNullable(10))
+SELECT toTypeName(toNullable(10));
 ```
+
+結果:
 
 ``` text
 ┌─toTypeName(toNullable(10))─┐
 │ Nullable(UInt8)            │
 └────────────────────────────┘
 ```
-
-[元の記事](https://clickhouse.com/docs/en/query_language/functions/functions_for_nulls/) <!--hide-->

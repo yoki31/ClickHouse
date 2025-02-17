@@ -1,4 +1,4 @@
-#if defined(__ELF__) && !defined(__FreeBSD__)
+#if defined(__ELF__) && !defined(OS_FREEBSD)
 
 #include <Common/Dwarf.h>
 #include <Columns/ColumnString.h>
@@ -17,7 +17,7 @@ namespace DB
 namespace
 {
 
-class FunctionAddressToLine: public FunctionAddressToLineBase<StringRef, Dwarf::LocationInfoMode::FAST>
+class FunctionAddressToLine : public FunctionAddressToLineBase<StringRef, Dwarf::LocationInfoMode::FAST>
 {
 public:
     static constexpr auto name = "addressToLine";
@@ -52,13 +52,14 @@ protected:
         writeChar(':', out);
         writeIntText(location.line, out);
 
+        out.finalize();
         result = out.complete();
     }
 };
 
 }
 
-void registerFunctionAddressToLine(FunctionFactory & factory)
+REGISTER_FUNCTION(AddressToLine)
 {
     factory.registerFunction<FunctionAddressToLine>();
 }

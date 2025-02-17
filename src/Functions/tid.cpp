@@ -21,6 +21,11 @@ namespace
 
         DataTypePtr getReturnTypeImpl(const DataTypes &) const override { return std::make_shared<DataTypeUInt64>(); }
 
+        DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override
+        {
+            return std::make_shared<DataTypeUInt64>();
+        }
+
         bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
 
         ColumnPtr executeImpl(const ColumnsWithTypeAndName &, const DataTypePtr &, size_t input_rows_count) const override
@@ -32,7 +37,7 @@ namespace
 
 }
 
-void registerFunctionTid(FunctionFactory & factory)
+REGISTER_FUNCTION(Tid)
 {
     factory.registerFunction<FunctionTid>();
 }

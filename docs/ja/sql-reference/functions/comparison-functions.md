@@ -1,37 +1,89 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 36
-toc_title: "\u6BD4\u8F03"
+slug: /ja/sql-reference/functions/comparison-functions
+sidebar_position: 35
+sidebar_label: 比較
 ---
 
-# 比較関数 {#comparison-functions}
+# 比較関数
 
-比較関数は常に0または1(Uint8)を返します。
+以下の比較関数は Uint8 として 0 または 1 を返します。
 
-次のタイプを比較できます:
+次のタイプが比較できます:
+- 数値
+- 文字列と固定長文字列
+- 日付
+- 時間を含む日付
 
--   数字
--   文字列と固定文字列
--   日付
--   日付と時刻
+同じグループ内の値のみが比較可能です（例：UInt16 と UInt64）。しかし、異なるグループ間では比較できません（例：UInt16 と DateTime）。
 
-各グループ内ではなく、異なるグループ間。
+文字列はバイト単位で比較されます。これは、一方の文字列がUTF-8エンコードされたマルチバイト文字を含む場合、予期しない結果を招くことがあります。
 
-たとえば、日付と文字列を比較することはできません。 文字列を日付に変換するには関数を使用する必要があります。
+文字列 S1 が別の文字列 S2 をプレフィックスとして持つ場合、S1 は S2 よりも長いと見なされます。
 
-文字列はバイト単位で比較されます。 短い文字列は、それで始まり、少なくとも一つ以上の文字を含むすべての文字列よりも小さくなります。
+## equals, `=`, `==` 演算子 {#equals}
 
-## 等しい、a=bおよびa==b演算子 {#function-equals}
+**構文**
 
-## ノートイコライザー、a! 演算子=bおよびa\<\>b {#function-notequals}
+```sql
+equals(a, b)
+```
 
-## less,\<演算子 {#function-less}
+エイリアス:
+- `a = b` (演算子)
+- `a == b` (演算子)
 
-## より大きい、\>演算子 {#function-greater}
+## notEquals, `!=`, `<>` 演算子 {#notequals}
 
-## lessOrEquals,\<=演算子 {#function-lessorequals}
+**構文**
 
-## greaterOrEquals,\>=演算子 {#function-greaterorequals}
+```sql
+notEquals(a, b)
+```
 
-[元の記事](https://clickhouse.com/docs/en/query_language/functions/comparison_functions/) <!--hide-->
+エイリアス:
+- `a != b` (演算子)
+- `a <> b` (演算子)
+
+## less, `<` 演算子 {#less}
+
+**構文**
+
+```sql
+less(a, b)
+```
+
+エイリアス:
+- `a < b` (演算子)
+
+## greater, `>` 演算子 {#greater}
+
+**構文**
+
+```sql
+greater(a, b)
+```
+
+エイリアス:
+- `a > b` (演算子)
+
+## lessOrEquals, `<=` 演算子 {#lessorequals}
+
+**構文**
+
+```sql
+lessOrEquals(a, b)
+```
+
+エイリアス:
+- `a <= b` (演算子)
+
+## greaterOrEquals, `>=` 演算子 {#greaterorequals}
+
+**構文**
+
+```sql
+greaterOrEquals(a, b)
+```
+
+エイリアス:
+- `a >= b` (演算子)

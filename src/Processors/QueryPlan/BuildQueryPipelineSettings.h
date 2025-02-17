@@ -5,20 +5,31 @@
 
 #include <cstddef>
 
+
 namespace DB
 {
 
 struct Settings;
 class QueryStatus;
+using QueryStatusPtr = std::shared_ptr<QueryStatus>;
+struct ITemporaryFileLookup;
+using TemporaryFileLookupPtr = std::shared_ptr<ITemporaryFileLookup>;
 
 struct BuildQueryPipelineSettings
 {
+    explicit BuildQueryPipelineSettings(ContextPtr from);
+
+    bool enable_multiple_filters_transforms_for_and_chain;
+
     ExpressionActionsSettings actions_settings;
-    QueryStatus * process_list_element = nullptr;
-    ProgressCallback progress_callback = nullptr;
+    QueryStatusPtr process_list_element;
+    ProgressCallback progress_callback;
+    TemporaryFileLookupPtr temporary_file_lookup;
+
+    size_t max_threads;
+    size_t aggregation_memory_efficient_merge_threads;
 
     const ExpressionActionsSettings & getActionsSettings() const { return actions_settings; }
-    static BuildQueryPipelineSettings fromContext(ContextPtr from);
 };
 
 }

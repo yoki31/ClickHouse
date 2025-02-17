@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Core/Block.h>
 #include <IO/ConnectionTimeouts.h>
 #include <IO/ReadWriteBufferFromHTTP.h>
 #include <Poco/Net/HTTPBasicCredentials.h>
@@ -29,7 +30,7 @@ public:
         const std::string format;
         const std::string update_field;
         const UInt64 update_lag;
-        const ReadWriteBufferFromHTTP::HTTPHeaderEntries header_entries;
+        const HTTPHeaderEntries header_entries;
     };
 
     HTTPDictionarySource(
@@ -37,19 +38,18 @@ public:
         const Configuration & configuration,
         const Poco::Net::HTTPBasicCredentials & credentials_,
         Block & sample_block_,
-        ContextPtr context_,
-        bool created_from_ddl);
+        ContextPtr context_);
 
     HTTPDictionarySource(const HTTPDictionarySource & other);
     HTTPDictionarySource & operator=(const HTTPDictionarySource &) = delete;
 
-    Pipe loadAll() override;
+    QueryPipeline loadAll() override;
 
-    Pipe loadUpdatedAll() override;
+    QueryPipeline loadUpdatedAll() override;
 
-    Pipe loadIds(const std::vector<UInt64> & ids) override;
+    QueryPipeline loadIds(const std::vector<UInt64> & ids) override;
 
-    Pipe loadKeys(const Columns & key_columns, const std::vector<size_t> & requested_rows) override;
+    QueryPipeline loadKeys(const Columns & key_columns, const std::vector<size_t> & requested_rows) override;
 
     bool isModified() const override;
 
@@ -65,9 +65,9 @@ private:
     void getUpdateFieldAndDate(Poco::URI & uri);
 
     // wrap buffer using encoding from made request
-    Pipe createWrappedBuffer(std::unique_ptr<ReadWriteBufferFromHTTP> http_buffer);
+    QueryPipeline createWrappedBuffer(std::unique_ptr<ReadWriteBufferFromHTTP> http_buffer);
 
-    Poco::Logger * log;
+    LoggerPtr log;
 
     LocalDateTime getLastModification() const;
 

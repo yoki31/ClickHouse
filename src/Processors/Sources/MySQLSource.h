@@ -1,15 +1,16 @@
 #pragma once
 
 #include <string>
-#include <Core/Block.h>
-#include <Processors/Sources/SourceWithProgress.h>
+
+#include <Processors/ISource.h>
 #include <mysqlxx/PoolWithFailover.h>
 #include <mysqlxx/Query.h>
 #include <Core/ExternalResultDescription.h>
-#include <Core/Settings.h>
 
 namespace DB
 {
+
+struct Settings;
 
 struct StreamSettings
 {
@@ -20,12 +21,12 @@ struct StreamSettings
     bool fetch_by_name;
     size_t default_num_tries_on_connection_loss;
 
-    StreamSettings(const Settings & settings, bool auto_close_ = false, bool fetch_by_name_ = false, size_t max_retry_ = 5);
+    explicit StreamSettings(const Settings & settings, bool auto_close_ = false, bool fetch_by_name_ = false, size_t max_retry_ = 5);
 
 };
 
 /// Allows processing results of a MySQL query as a sequence of Blocks, simplifies chaining
-class MySQLSource : public SourceWithProgress
+class MySQLSource : public ISource
 {
 public:
     MySQLSource(
@@ -50,7 +51,7 @@ protected:
         mysqlxx::UseQueryResult result;
     };
 
-    Poco::Logger * log;
+    LoggerPtr log;
     std::unique_ptr<Connection> connection;
 
     const std::unique_ptr<StreamSettings> settings;

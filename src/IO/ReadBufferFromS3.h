@@ -1,52 +1,59 @@
 #pragma once
 
-#include <Common/config.h>
+#include <IO/S3Settings.h>
+#include "config.h"
 
 #if USE_AWS_S3
 
 #include <memory>
 
 #include <IO/HTTPCommon.h>
-#include <IO/ReadBuffer.h>
+#include <IO/ParallelReadBuffer.h>
+#include <IO/S3/ReadBufferFromGetObjectResult.h>
 #include <IO/ReadSettings.h>
-#include <IO/SeekableReadBuffer.h>
+#include <IO/ReadBufferFromFileBase.h>
 
 #include <aws/s3/model/GetObjectResult.h>
-
-namespace Aws::S3
-{
-class S3Client;
-}
 
 namespace DB
 {
 /**
  * Perform S3 HTTP GET request and provide response to read.
  */
-class ReadBufferFromS3 : public SeekableReadBufferWithSize
+class ReadBufferFromS3 : public ReadBufferFromFileBase
 {
 private:
-    std::shared_ptr<Aws::S3::S3Client> client_ptr;
+    std::shared_ptr<const S3::Client> client_ptr;
     String bucket;
     String key;
-    UInt64 max_single_read_retries;
-    off_t offset = 0;
+    String version_id;
+    const S3::S3RequestSettings request_settings;
 
-    Aws::S3::Model::GetObjectResult read_result;
-    std::unique_ptr<ReadBuffer> impl;
+    /// These variables are atomic because they can be used for `logging only`
+    /// (where it is not important to get consistent result)
+    /// from separate thread other than the one which uses the buffer for s3 reading.
+    std::atomic<off_t> offset = 0;
+    std::atomic<off_t> read_until_position = 0;
 
-    Poco::Logger * log = &Poco::Logger::get("ReadBufferFromS3");
+    std::unique_ptr<S3::ReadBufferFromGetObjectResult> impl;
+
+    LoggerPtr log = getLogger("ReadBufferFromS3");
 
 public:
     ReadBufferFromS3(
-        std::shared_ptr<Aws::S3::S3Client> client_ptr_,
+        std::shared_ptr<const S3::Client> client_ptr_,
         const String & bucket_,
         const String & key_,
-        UInt64 max_single_read_retries_,
+        const String & version_id_,
+        const S3::S3RequestSettings & request_settings_,
         const ReadSettings & settings_,
         bool use_external_buffer = false,
+        size_t offset_ = 0,
         size_t read_until_position_ = 0,
-        bool restricted_seek_ = false);
+        bool restricted_seek_ = false,
+        std::optional<size_t> file_size = std::nullopt);
+
+    ~ReadBufferFromS3() override = default;
 
     bool nextImpl() override;
 
@@ -54,26 +61,42 @@ public:
 
     off_t getPosition() override;
 
-    std::optional<size_t> getTotalSize() override;
+    std::optional<size_t> tryGetFileSize() override;
 
     void setReadUntilPosition(size_t position) override;
-
-    Range getRemainingReadRange() const override { return Range{ .left = static_cast<size_t>(offset), .right = read_until_position }; }
+    void setReadUntilEnd() override;
 
     size_t getFileOffsetOfBufferEnd() const override { return offset; }
 
+    bool supportsRightBoundedReads() const override { return true; }
+
+    String getFileName() const override { return bucket + "/" + key; }
+
+    size_t readBigAt(char * to, size_t n, size_t range_begin, const std::function<bool(size_t)> & progress_callback) const override;
+
+    bool supportsReadAt() override { return true; }
+
 private:
-    std::unique_ptr<ReadBuffer> initialize();
+    std::unique_ptr<S3::ReadBufferFromGetObjectResult> initialize(size_t attempt);
+
+    /// If true, if we destroy impl now, no work was wasted. Just for metrics.
+    bool atEndOfRequestedRangeGuess();
+
+    /// Call inside catch() block if GetObject fails. Bumps metrics, logs the error.
+    /// Returns true if the error looks retriable.
+    bool processException(size_t read_offset, size_t attempt) const;
+
+    Aws::S3::Model::GetObjectResult sendRequest(size_t attempt, size_t range_begin, std::optional<size_t> range_end_incl) const;
 
     ReadSettings read_settings;
 
     bool use_external_buffer;
 
-    off_t read_until_position = 0;
-
     /// There is different seek policy for disk seek and for non-disk seek
     /// (non-disk seek is applied for seekable input formats: orc, arrow, parquet).
     bool restricted_seek;
+
+    bool read_all_range_successfully = false;
 };
 
 }

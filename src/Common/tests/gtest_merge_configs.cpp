@@ -32,6 +32,7 @@ clickhouse:
     field2: "2"
 )YAML";
         writeString(data, out);
+        out.finalize();
     }
 
     auto system_tables_file = std::make_unique<File>(path / "config.d/system_tables.yaml");
@@ -43,15 +44,13 @@ clickhouse:
     text_log:
         database: system
         table: text_log
-        partition_by:
-            "@remove": "1"
-        engine:
-            - "@replace" : "1"
-            - "ENGINE MergeTree"
+        partition_by: {"@remove": "1"}
+        engine: "ENGINE MergeTree"
         flush_interval_milliseconds: 7500
         level: debug
 )YAML";
         writeString(data, out);
+        out.finalize();
     }
 
 
@@ -99,6 +98,7 @@ clickhouse:
         level: debug
 )YAML";
         writeString(data, out);
+        out.finalize();
     }
 
     auto system_tables_file = std::make_unique<File>(path / "config.d/system_tables.yaml");
@@ -112,15 +112,13 @@ clickhouse:
     text_log :
         database: system
         table: text_log
-        partition_by:
-            "@remove": "1"
-        engine:
-            - "@replace" : "1"
-            - "ENGINE MergeTree"
+        partition_by: {"@remove": "1"}
+        engine: "ENGINE MergeTree"
         flush_interval_milliseconds: 7500
         level: debug
 )YAML";
         writeString(data, out);
+        out.finalize();
     }
 
 

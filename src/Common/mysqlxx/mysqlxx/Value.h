@@ -1,19 +1,11 @@
 #pragma once
 
-#include <string.h>
-#include <stdio.h>
-#include <time.h>
-#include <math.h>
-
-#include <string>
-#include <limits>
-
-#include <base/preciseExp10.h>
-#include <base/types.h>
 #include <Common/DateLUT.h>
-
-#include <mysqlxx/Types.h>
 #include <Common/LocalDateTime.h>
+#include <mysqlxx/Types.h>
+
+#include <ostream>
+#include <string>
 
 
 namespace mysqlxx
@@ -153,7 +145,7 @@ private:
                 (m_data[5] - '0') * 10 + (m_data[6] - '0'),
                 (m_data[8] - '0') * 10 + (m_data[9] - '0'));
         }
-        else if (m_length == 19)
+        if (m_length == 19)
         {
             return date_lut.makeDateTime(
                 (m_data[0] - '0') * 1000 + (m_data[1] - '0') * 100 + (m_data[2] - '0') * 10 + (m_data[3] - '0'),
@@ -163,10 +155,7 @@ private:
                 (m_data[14] - '0') * 10 + (m_data[15] - '0'),
                 (m_data[17] - '0') * 10 + (m_data[18] - '0'));
         }
-        else
-            throwException("Cannot parse DateTime");
-
-        return 0;    /// avoid warning. /// NOLINT
+        throwException("Cannot parse DateTime");
     }
 
 
@@ -181,8 +170,7 @@ private:
                 (m_data[5] - '0') * 10 + (m_data[6] - '0'),
                 (m_data[8] - '0') * 10 + (m_data[9] - '0'));
         }
-        else
-            throwException("Cannot parse Date");
+        throwException("Cannot parse Date");
 
         return 0;    /// avoid warning. /// NOLINT
     }
@@ -201,8 +189,7 @@ private:
 
         if (checkDateTime())
             return getDateTimeImpl();
-        else
-            return getIntImpl();
+        return getIntImpl();
     }
 
 
@@ -213,11 +200,9 @@ private:
 
         if (checkDateTime())
             return getDateImpl();
-        else
-        {
-            const auto & date_lut = DateLUT::instance();
-            return date_lut.toDate(getIntImpl());
-        }
+
+        const auto & date_lut = DateLUT::instance();
+        return date_lut.toDate(getIntImpl());
     }
 
 
@@ -242,13 +227,12 @@ template <> inline unsigned char        Value::get<unsigned char        >() cons
 template <> inline char8_t              Value::get<char8_t              >() const { return getUInt(); }
 template <> inline short                Value::get<short                >() const { return getInt(); } /// NOLINT
 template <> inline unsigned short       Value::get<unsigned short       >() const { return getUInt(); } /// NOLINT
-template <> inline int                  Value::get<int                  >() const { return getInt(); }
-template <> inline unsigned int         Value::get<unsigned int         >() const { return getUInt(); }
+template <> inline int                  Value::get<int                  >() const { return static_cast<int>(getInt()); }
+template <> inline unsigned int         Value::get<unsigned int         >() const { return static_cast<unsigned int>(getUInt()); }
 template <> inline long                 Value::get<long                 >() const { return getInt(); } /// NOLINT
 template <> inline unsigned long        Value::get<unsigned long        >() const { return getUInt(); } /// NOLINT
 template <> inline long long            Value::get<long long            >() const { return getInt(); } /// NOLINT
 template <> inline unsigned long long   Value::get<unsigned long long   >() const { return getUInt(); } /// NOLINT
-template <> inline float                Value::get<float                >() const { return getDouble(); }
 template <> inline double               Value::get<double               >() const { return getDouble(); }
 template <> inline std::string          Value::get<std::string          >() const { return getString(); }
 template <> inline LocalDate            Value::get<LocalDate            >() const { return getDate(); }
@@ -259,7 +243,8 @@ namespace details
 {
 // To avoid stack overflow when converting to type with no appropriate c-tor,
 // resulting in endless recursive calls from `Value::get<T>()` to `Value::operator T()` to `Value::get<T>()` to ...
-template <typename T, typename std::enable_if_t<std::is_constructible_v<T, Value>>>
+template <typename T>
+requires std::is_constructible_v<T, Value>
 inline T contructFromValue(const Value & val)
 {
     return T(val);

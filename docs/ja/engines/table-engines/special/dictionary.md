@@ -1,19 +1,20 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 35
-toc_title: "\u8F9E\u66F8"
+slug: /ja/engines/table-engines/special/dictionary
+sidebar_position: 20
+sidebar_label: Dictionary
 ---
 
-# 辞書 {#dictionary}
+# Dictionary テーブルエンジン
 
-その `Dictionary` エンジンは表示します [辞書](../../../sql-reference/dictionaries/external-dictionaries/external-dicts.md) ClickHouseテーブルとしてのデータ。
+`Dictionary`エンジンは、[Dictionary](../../../sql-reference/dictionaries/index.md) データを ClickHouse テーブルとして表示します。
 
-例として、の辞書を考えてみましょう `products` 以下の構成で:
+## 例 {#example}
+
+以下は、`products` という名前の dictionary の設定例です:
 
 ``` xml
 <dictionaries>
-<dictionary>
+    <dictionary>
         <name>products</name>
         <source>
             <odbc>
@@ -38,11 +39,11 @@ toc_title: "\u8F9E\u66F8"
                 <null_value></null_value>
             </attribute>
         </structure>
-</dictionary>
+    </dictionary>
 </dictionaries>
 ```
 
-辞書データの照会:
+Dictionary データをクエリします:
 
 ``` sql
 SELECT
@@ -64,14 +65,14 @@ WHERE name = 'products'
 └──────────┴──────┴────────┴─────────────────┴─────────────────┴─────────────────┴───────────────┴─────────────────┘
 ```
 
-を使用することができます [dictGet\*](../../../sql-reference/functions/ext-dict-functions.md#ext_dict_functions) この形式の辞書データを取得する関数。
+この形式で dictionary データを取得するには、[dictGet\*](../../../sql-reference/functions/ext-dict-functions.md#ext_dict_functions) 関数を使用できます。
 
-このビューは、生データを取得する必要がある場合や、 `JOIN` 作戦だ これらのケースでは、 `Dictionary` ディクショナリデータをテーブルに表示するエンジン。
+このビューは、元のデータが必要な場合や`JOIN`操作を行う際には役に立ちません。こうした場合には、dictionary データをテーブルとして表示する `Dictionary` エンジンを使用できます。
 
 構文:
 
 ``` sql
-CREATE TABLE %table_name% (%fields%) engine = Dictionary(%dictionary_name%)`
+CREATE TABLE %table_name% (%fields%) engine = Dictionary(%dictionary_name%)
 ```
 
 使用例:
@@ -82,7 +83,7 @@ create table products (product_id UInt64, title String) Engine = Dictionary(prod
 
       Ok
 
-テーブルにあるものを見てみなさい。
+テーブルの内容を確認します。
 
 ``` sql
 select * from products limit 1;
@@ -94,4 +95,6 @@ select * from products limit 1;
 └───────────────┴─────────────────┘
 ```
 
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/dictionary/) <!--hide-->
+**関連項目**
+
+- [Dictionary 関数](../../../sql-reference/table-functions/dictionary.md#dictionary-function)

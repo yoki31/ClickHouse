@@ -1,34 +1,38 @@
 #include "registerTableFunctions.h"
 #include <TableFunctions/TableFunctionFactory.h>
 
-
 namespace DB
 {
-void registerTableFunctions()
+void registerTableFunctions(bool use_legacy_mongodb_integration [[maybe_unused]])
 {
     auto & factory = TableFunctionFactory::instance();
 
     registerTableFunctionMerge(factory);
     registerTableFunctionRemote(factory);
     registerTableFunctionNumbers(factory);
+    registerTableFunctionLoop(factory);
+    registerTableFunctionGenerateSeries(factory);
     registerTableFunctionNull(factory);
     registerTableFunctionZeros(factory);
     registerTableFunctionExecutable(factory);
     registerTableFunctionFile(factory);
+    registerTableFunctionFileCluster(factory);
     registerTableFunctionURL(factory);
+    registerTableFunctionURLCluster(factory);
     registerTableFunctionValues(factory);
     registerTableFunctionInput(factory);
     registerTableFunctionGenerate(factory);
-
-#if USE_AWS_S3
-    registerTableFunctionS3(factory);
-    registerTableFunctionS3Cluster(factory);
-    registerTableFunctionCOS(factory);
+#if USE_MONGODB
+    if (use_legacy_mongodb_integration)
+        registerTableFunctionMongoDBPocoLegacy(factory);
+    else
+        registerTableFunctionMongoDB(factory);
 #endif
-
-#if USE_HDFS
-    registerTableFunctionHDFS(factory);
-    registerTableFunctionHDFSCluster(factory);
+    registerTableFunctionRedis(factory);
+    registerTableFunctionMergeTreeIndex(factory);
+    registerTableFunctionFuzzQuery(factory);
+#if USE_RAPIDJSON || USE_SIMDJSON
+    registerTableFunctionFuzzJSON(factory);
 #endif
 
 #if USE_HIVE
@@ -39,6 +43,7 @@ void registerTableFunctions()
     registerTableFunctionJDBC(factory);
 
     registerTableFunctionView(factory);
+    registerTableFunctionViewIfPermitted(factory);
 
 #if USE_MYSQL
     registerTableFunctionMySQL(factory);
@@ -55,6 +60,13 @@ void registerTableFunctions()
     registerTableFunctionDictionary(factory);
 
     registerTableFunctionFormat(factory);
+    registerTableFunctionExplain(factory);
+    registerTableFunctionTimeSeries(factory);
+
+    registerTableFunctionObjectStorage(factory);
+    registerTableFunctionObjectStorageCluster(factory);
+    registerDataLakeTableFunctions(factory);
+    registerDataLakeClusterTableFunctions(factory);
 }
 
 }

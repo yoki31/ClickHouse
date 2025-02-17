@@ -11,7 +11,7 @@ namespace DB
 namespace
 {
 
-/// @note We place strings in ascending order here under the assumption it colud speed up String to Enum conversion.
+/// @note We place strings in ascending order here under the assumption it could speed up String to Enum conversion.
 String makeStringsEnum(const std::set<String> & values)
 {
     String enum_string = "Enum8(";
@@ -33,8 +33,8 @@ String makeStringsEnum(const std::set<String> & values)
 
 void changeIfArguments(ASTPtr & first, ASTPtr & second)
 {
-    String first_value = first->as<ASTLiteral>()->value.get<String>();
-    String second_value = second->as<ASTLiteral>()->value.get<String>();
+    String first_value = first->as<ASTLiteral>()->value.safeGet<String>();
+    String second_value = second->as<ASTLiteral>()->value.safeGet<String>();
 
     std::set<String> values;
     values.insert(first_value);
@@ -59,9 +59,9 @@ void changeTransformArguments(ASTPtr & array_to, ASTPtr & other)
 {
     std::set<String> values;
 
-    for (const auto & item : array_to->as<ASTLiteral>()->value.get<Array>())
-        values.insert(item.get<String>());
-    values.insert(other->as<ASTLiteral>()->value.get<String>());
+    for (const auto & item : array_to->as<ASTLiteral>()->value.safeGet<Array>())
+        values.insert(item.safeGet<String>());
+    values.insert(other->as<ASTLiteral>()->value.safeGet<String>());
 
     String enum_string = makeStringsEnum(values);
 
@@ -100,7 +100,7 @@ void FindUsedFunctionsMatcher::visit(const ASTPtr & ast, Data & data)
 
 void FindUsedFunctionsMatcher::visit(const ASTFunction & func, Data & data)
 {
-    if (data.names.count(func.name) && !data.call_stack.empty())
+    if (data.names.contains(func.name) && !data.call_stack.empty())
     {
         String alias = func.tryGetAlias();
         if (!alias.empty())
@@ -136,12 +136,12 @@ void ConvertStringsToEnumMatcher::visit(ASTFunction & function_node, Data & data
 
     /// We are not sure we could change the type of function result
     /// cause it is present in other function as argument
-    if (data.used_functions.count(function_node.tryGetAlias()))
+    if (data.used_functions.contains(function_node.tryGetAlias()))
         return;
 
     if (function_node.name == "if")
     {
-        if (function_node.arguments->children.size() != 2)
+        if (function_node.arguments->children.size() != 3)
             return;
 
         const ASTLiteral * literal1 = function_node.arguments->children[1]->as<ASTLiteral>();
@@ -168,7 +168,7 @@ void ConvertStringsToEnumMatcher::visit(ASTFunction & function_node, Data & data
         if (literal_to->value.getTypeName() != "Array" || literal_other->value.getTypeName() != "String")
             return;
 
-        Array array_to = literal_to->value.get<Array>();
+        Array array_to = literal_to->value.safeGet<Array>();
         if (array_to.empty())
             return;
 

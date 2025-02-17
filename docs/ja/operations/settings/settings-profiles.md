@@ -1,45 +1,45 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 61
-toc_title: "\u8A2D\u5B9A\u30D7\u30ED\u30D5\u30A1\u30A4\u30EB"
+slug: /ja/operations/settings/settings-profiles
+sidebar_position: 61
+sidebar_label:  設定プロファイル
 ---
 
-# 設定プロファイル {#settings-profiles}
+# 設定プロファイル
 
-設定プロファイルは、同じ名前でグループ化された設定の集合です。
+設定プロファイルは、同じ名前でグループ化された設定のコレクションです。
 
-!!! note "情報"
-    ClickHouseはまた支えます [SQL駆動型ワークフロー](../access-rights.md#access-control) 設定プロファイルを管理する。 お勧めいたします。
+:::note
+ClickHouseは、設定プロファイルを管理するための[SQL駆動のワークフロー](../../guides/sre/user-management/index.md#access-control)もサポートしています。これの使用をお勧めします。
+:::
 
-プロファイルのどれでも持つ事ができます。 プロファイルのどれでも持つ事ができます。 異なるユーザーに同じプロファイルを指定できます。 最も重要なことが書ける設定プロフィール `readonly=1` 読み取り専用アクセスを保証します。
+プロファイルには任意の名前を付けることができます。異なるユーザーに同じプロファイルを指定することも可能です。設定プロファイルで最も重要なことは、`readonly=1`と記述して読み取り専用アクセスを確保することです。
 
-設定プロファイルは相互に継承できます。 継承を使用するには、一つまたは複数を指定します `profile` プロファイルにリストされている他の設定の前の設定。 ある設定が異なるプロファイルで定義されている場合は、定義された最新の設定が使用されます。
+設定プロファイルは互いに継承できます。継承を使用するには、プロファイル内にリストされた他の設定の前に、1つまたは複数の`profile`設定を示します。同じ設定が異なるプロファイルで定義されている場合、最後に定義されたものが使用されます。
 
-プロファイル内のすべての設定を適用するには、 `profile` 設定。
+プロファイル内のすべての設定を適用するには、`profile`設定をセットします。
 
-例:
+例：
 
-インストール `web` プロフィール
+`web`プロファイルをインストールします。
 
 ``` sql
 SET profile = 'web'
 ```
 
-設定プロファイルで宣言されたユーザのconfigファイルです。 これは通常です `users.xml`.
+設定プロファイルはユーザー設定ファイルで宣言されます。通常、これは`users.xml`です。
 
-例:
+例：
 
 ``` xml
-<!-- Settings profiles -->
+<!-- 設定プロファイル -->
 <profiles>
-    <!-- Default settings -->
+    <!-- デフォルト設定 -->
     <default>
-        <!-- The maximum number of threads when running a single query. -->
+        <!-- 単一のクエリを実行する際の最大スレッド数 -->
         <max_threads>8</max_threads>
     </default>
 
-    <!-- Settings for quries from the user interface -->
+    <!-- ユーザーインターフェイスからのクエリ用設定 -->
     <web>
         <max_rows_to_read>1000000000</max_rows_to_read>
         <max_bytes_to_read>100000000000</max_bytes_to_read>
@@ -67,15 +67,15 @@ SET profile = 'web'
         <max_ast_depth>50</max_ast_depth>
         <max_ast_elements>100</max_ast_elements>
 
+        <max_sessions_for_user>4</max_sessions_for_user>
+
         <readonly>1</readonly>
     </web>
 </profiles>
 ```
 
-この例では、: `default` と `web`.
+この例では、2つのプロファイル: `default`と`web`を指定しています。
 
-その `default` プロファイルには特別な目的があります。 つまり、 `default` オプションの設定デフォルトを設定します。
+`default`プロファイルには特別な目的があります。それは、常に存在し、サーバーの開始時に適用されることです。言い換えれば、`default`プロファイルにはデフォルトの設定が含まれています。
 
-その `web` プロファイルは通常のプロファイルです。 `SET` クエリまたはHTTPクエリでURLパラメータを使用する。
-
-[元の記事](https://clickhouse.com/docs/en/operations/settings/settings_profiles/) <!--hide-->
+`web`プロファイルは、`SET`クエリを使用するか、HTTPクエリにURLパラメータを使用して設定できる通常のプロファイルです。

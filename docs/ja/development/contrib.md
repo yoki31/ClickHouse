@@ -1,42 +1,38 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 70
-toc_title: "\u30B5\u30FC\u30C9\u30D1\u30FC\u30C6\u30A3\u88FD\u30E9\u30A4\u30D6\u30E9\
-  \u30EA\u3092\u4F7F\u7528"
+slug: /ja/development/contrib
+sidebar_position: 73
+sidebar_label: サードパーティライブラリ
+description: 使用されているサードパーティライブラリの一覧
 ---
 
-# サードパーティ製ライブラリを使用 {#third-party-libraries-used}
+# 使用されているサードパーティライブラリ
 
-| ライブラリ         | ライセンス                                                                                                                                  |
-|--------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| base64             | [BSD2条項ライセンス](https://github.com/aklomp/base64/blob/a27c565d1b6c676beaf297fe503c4518185666f7/LICENSE)                                |
-| ブースト           | [Boost Software License1.0](https://github.com/ClickHouse-Extras/boost-extra/blob/6883b40449f378019aec792f9983ce3afc7ff16e/LICENSE_1_0.txt) |
-| ブロトリ           | [MIT](https://github.com/google/brotli/blob/master/LICENSE)                                                                                 |
-| capnproto          | [MIT](https://github.com/capnproto/capnproto/blob/master/LICENSE)                                                                           |
-| cctz               | [Apacheライセンス2.0](https://github.com/google/cctz/blob/4f9776a310f4952454636363def82c2bf6641d5f/LICENSE.txt)                             |
-| 二重変換           | [BSD3条項ライセンス](https://github.com/google/double-conversion/blob/cf2f0f3d547dc73b4612028a155b80536902ba02/LICENSE)                     |
-| FastMemcpy         | [MIT](https://github.com/ClickHouse/ClickHouse/blob/master/libs/libmemcpy/impl/LICENSE)                                                     |
-| googletest         | [BSD3条項ライセンス](https://github.com/google/googletest/blob/master/LICENSE)                                                              |
-| h3                 | [Apacheライセンス2.0](https://github.com/uber/h3/blob/master/LICENSE)                                                                       |
-| hyperscan          | [BSD3条項ライセンス](https://github.com/intel/hyperscan/blob/master/LICENSE)                                                                |
-| libcxxabi          | [BSD + MIT](https://github.com/ClickHouse/ClickHouse/blob/master/libs/libglibc-compatibility/libcxxabi/LICENSE.TXT)                         |
-| libdivide          | [Zlibライセンス](https://github.com/ClickHouse/ClickHouse/blob/master/contrib/libdivide/LICENSE.txt)                                        |
-| libgsasl           | [LGPL v2.1](https://github.com/ClickHouse-Extras/libgsasl/blob/3b8948a4042e34fb00b4fb987535dc9e02e39040/LICENSE)                            |
-| libhdfs3           | [Apacheライセンス2.0](https://github.com/ClickHouse-Extras/libhdfs3/blob/bd6505cbb0c130b0db695305b9a38546fa880e5a/LICENSE.txt)              |
-| libmetrohash       | [Apacheライセンス2.0](https://github.com/ClickHouse/ClickHouse/blob/master/contrib/libmetrohash/LICENSE)                                    |
-| libpcg-ランダム    | [Apacheライセンス2.0](https://github.com/ClickHouse/ClickHouse/blob/master/contrib/libpcg-random/LICENSE-APACHE.txt)                        |
-| libressl           | [OpenSSLライセンス](https://github.com/ClickHouse-Extras/ssl/blob/master/COPYING)                                                           |
-| リブドカフカ       | [BSD2条項ライセンス](https://github.com/edenhill/librdkafka/blob/363dcad5a23dc29381cc626620e68ae418b3af19/LICENSE)                          |
-| libwidechar_width | [CC0 1.0ユニバーサル](https://github.com/ClickHouse/ClickHouse/blob/master/libs/libwidechar_width/LICENSE)                                  |
-| llvm               | [BSD3条項ライセンス](https://github.com/ClickHouse-Extras/llvm/blob/163def217817c90fb982a6daf384744d8472b92b/llvm/LICENSE.TXT)              |
-| lz4                | [BSD2条項ライセンス](https://github.com/lz4/lz4/blob/c10863b98e1503af90616ae99725ecd120265dfb/LICENSE)                                      |
-| mariadb-コネクタ-c | [LGPL v2.1](https://github.com/ClickHouse-Extras/mariadb-connector-c/blob/3.1/COPYING.LIB)                                                  |
-| murmurhash         | [パブリック](https://github.com/ClickHouse/ClickHouse/blob/master/contrib/murmurhash/LICENSE)                                               |
-| pdqsort            | [Zlibライセンス](https://github.com/ClickHouse/ClickHouse/blob/master/contrib/pdqsort/license.txt)                                          |
-| ポコ               | [Boost Software License-バージョン1.0](https://github.com/ClickHouse-Extras/poco/blob/fe5505e56c27b6ecb0dcbc40c49dc2caf4e9637f/LICENSE)     |
-| プロトブフ         | [BSD3条項ライセンス](https://github.com/ClickHouse-Extras/protobuf/blob/12735370922a35f03999afff478e1c6d7aa917a4/LICENSE)                   |
-| re2                | [BSD3条項ライセンス](https://github.com/google/re2/blob/7cf8b88e8f70f97fd4926b56aa87e7f53b2717e0/LICENSE)                                   |
-| UnixODBC           | [LGPL v2.1](https://github.com/ClickHouse-Extras/UnixODBC/tree/b0ad30f7f6289c12b76f04bfb9d466374bb32168)                                    |
-| zlib-ng            | [Zlibライセンス](https://github.com/ClickHouse-Extras/zlib-ng/blob/develop/LICENSE.md)                                                      |
-| zstd               | [BSD3条項ライセンス](https://github.com/facebook/zstd/blob/dev/LICENSE)                                                                     |
+ClickHouseは、他のデータベースへの接続や、ディスクからデータをロード/保存する際のデコード/エンコード、特定の専門的なSQL関数の実装など、さまざまな目的でサードパーティライブラリを利用しています。ターゲットシステムに存在するライブラリに依存せずに済むように、各サードパーティライブラリはClickHouseのソースツリーにGitサブモジュールとしてインポートされ、ClickHouseと共にコンパイルおよびリンクされます。サードパーティライブラリとそのライセンスの一覧は、以下のクエリで取得できます。
+
+``` sql
+SELECT library_name, license_type, license_path FROM system.licenses ORDER BY library_name COLLATE 'en';
+```
+
+この一覧にあるライブラリは、ClickHouseリポジトリの`contrib/`ディレクトリに位置するものです。ビルドオプションによっては、いくつかのライブラリはコンパイルされておらず、その結果、実行時に機能が利用できない場合があります。
+
+[例](https://sql.clickhouse.com?query_id=478GCPU7LRTSZJBNY3EJT3)
+
+## サードパーティライブラリの追加と管理
+
+各サードパーティライブラリは、ClickHouseリポジトリの`contrib/`ディレクトリ下の専用ディレクトリに配置される必要があります。外部コードのコピーをライブラリディレクトリに直接投入するのは避けてください。代わりに、Gitサブモジュールを作成して、外部の上流リポジトリからサードパーティコードを取得します。
+
+ClickHouseが使用するすべてのサブモジュールは、`.gitmodule`ファイルに一覧されています。
+- ライブラリがそのまま使用できる場合（デフォルトの場合）、直接上流リポジトリを参照できます。
+- ライブラリにパッチを当てる必要がある場合、上流リポジトリを[GitHubのClickHouse組織](https://github.com/ClickHouse)にフォークしてください。
+
+後者の場合、カスタムパッチをできるだけ上流のコミットから分離することを目指します。そのため、目的のブランチやタグから`ClickHouse/`というプレフィックス付きのブランチを作成します。例えば、`ClickHouse/2024_2`（ブランチ`2024_2`の場合）または`ClickHouse/release/vX.Y.Z`（タグ`release/vX.Y.Z`の場合）です。上流の開発ブランチ`master`、`main`、`dev`（すなわちフォークリポジトリ内で`ClickHouse/master`、`ClickHouse/main`、`ClickHouse/dev`というプレフィックスが付いたブランチ）を追跡しないでください。これらのブランチは動的であり、適切なバージョン管理が困難です。プレフィックスブランチにより、フォークへの上流リポジトリからのプルはカスタム`ClickHouse/`ブランチに影響を与えません。`contrib/`内のサブモジュールは、フォークされたサードパーティリポジトリの`ClickHouse/`ブランチのみを追跡する必要があります。
+
+パッチは外部ライブラリの`ClickHouse/`ブランチに対してのみ適用されます。
+
+以下の2つの方法があります：
+- サニタイザ修正のような新しい修正をフォークリポジトリの`ClickHouse/`プレフィックスブランチに対して行いたい場合。その場合、修正を`ClickHouse/`プレフィックス付きのブランチとしてプッシュし、カスタム追跡ブランチに対してPRを作成し、マージします。例えば、`ClickHouse/2024_2 <-- ClickHouse/fix-sanitizer-disaster`。
+- サブモジュールを更新して、以前のパッチを再適用する必要がある場合。この場合、古いPRを再作成するのは過剰です。代わりに、以前のコミットを新しい`ClickHouse/`ブランチ（新しいバージョンに対応）に単にチェリーピックしてください。複数のコミットがあったPRのコミットをスクワッシュしても構いません。理想的には、カスタムパッチを上流に再貢献し、新しいバージョンでパッチを省略できるようにします。
+
+サブモジュールが更新されたら、フォーク内の新しいハッシュを指すようにClickHouse内でサブモジュールを更新します。
+
+公式リポジトリを念頭に置いてサードパーティライブラリのパッチを作成し、上流リポジトリへのパッチの再貢献を検討してください。これにより、他のユーザーもパッチの恩恵を受け、ClickHouseチームのメンテナンス負担を軽減できます。

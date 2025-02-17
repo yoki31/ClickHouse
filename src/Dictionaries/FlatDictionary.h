@@ -8,7 +8,7 @@
 #include <Common/HashTable/HashSet.h>
 #include <Common/Arena.h>
 #include <DataTypes/IDataType.h>
-#include <Core/Block.h>
+#include <Core/Block_fwd.h>
 
 #include "DictionaryStructure.h"
 #include "IDictionary.h"
@@ -27,6 +27,7 @@ public:
         size_t max_array_size;
         bool require_nonempty;
         DictionaryLifetime dict_lifetime;
+        bool use_async_executor = false;
     };
 
     FlatDictionary(
@@ -40,14 +41,14 @@ public:
 
     size_t getBytesAllocated() const override { return bytes_allocated; }
 
-    size_t getQueryCount() const override { return query_count.load(std::memory_order_relaxed); }
+    size_t getQueryCount() const override { return query_count.load(); }
 
     double getFoundRate() const override
     {
-        size_t queries = query_count.load(std::memory_order_relaxed);
+        size_t queries = query_count.load();
         if (!queries)
             return 0;
-        return static_cast<double>(found_count.load(std::memory_order_relaxed)) / queries;
+        return std::min(1.0, static_cast<double>(found_count.load()) / queries);
     }
 
     double getHitRate() const override { return 1.0; }
@@ -56,7 +57,7 @@ public:
 
     double getLoadFactor() const override { return static_cast<double>(element_count) / bucket_count; }
 
-    std::shared_ptr<const IExternalLoadable> clone() const override
+    std::shared_ptr<IExternalLoadable> clone() const override
     {
         return std::make_shared<FlatDictionary>(getDictionaryID(), dict_struct, source_ptr->clone(), configuration, update_field_loaded_block);
     }
@@ -75,11 +76,11 @@ public:
     DictionaryKeyType getKeyType() const override { return DictionaryKeyType::Simple; }
 
     ColumnPtr getColumn(
-        const std::string& attribute_name,
-        const DataTypePtr & result_type,
+        const std::string & attribute_name,
+        const DataTypePtr & attribute_type,
         const Columns & key_columns,
         const DataTypes & key_types,
-        const ColumnPtr & default_values_column) const override;
+        DefaultOrFilter default_or_filter) const override;
 
     ColumnUInt8::Ptr hasKeys(const Columns & key_columns, const DataTypes & key_types) const override;
 
@@ -92,10 +93,15 @@ public:
         ColumnPtr in_key_column,
         const DataTypePtr & key_type) const override;
 
+    DictionaryHierarchicalParentToChildIndexPtr getHierarchicalIndex() const override;
+
+    size_t getHierarchicalIndexBytesAllocated() const override { return hierarchical_index_bytes_allocated; }
+
     ColumnPtr getDescendants(
         ColumnPtr key_column,
         const DataTypePtr & key_type,
-        size_t level) const override;
+        size_t level,
+        DictionaryHierarchicalParentToChildIndexPtr parent_to_child_index) const override;
 
     Pipe read(const Names & column_names, size_t max_block_size, size_t num_streams) const override;
 
@@ -131,15 +137,22 @@ private:
             ContainerType<Float32>,
             ContainerType<Float64>,
             ContainerType<UUID>,
+            ContainerType<IPv4>,
+            ContainerType<IPv6>,
             ContainerType<StringRef>,
             ContainerType<Array>>
             container;
     };
 
     void createAttributes();
+
     void blockToAttributes(const Block & block);
+
     void updateData();
+
     void loadData();
+
+    void buildHierarchyParentToChildIndexIfNeeded();
 
     void calculateBytesAllocated();
 
@@ -151,6 +164,10 @@ private:
         const PaddedPODArray<UInt64> & keys,
         ValueSetter && set_value,
         DefaultValueExtractor & default_value_extractor) const;
+
+    template <typename AttributeType, bool is_nullable, typename ValueSetter>
+    void getItemsShortCircuitImpl(
+        const Attribute & attribute, const PaddedPODArray<UInt64> & keys, ValueSetter && set_value, IColumn::Filter & default_mask) const;
 
     template <typename T>
     void resize(Attribute & attribute, UInt64 key);
@@ -165,6 +182,7 @@ private:
     std::vector<bool> loaded_keys;
 
     size_t bytes_allocated = 0;
+    size_t hierarchical_index_bytes_allocated = 0;
     size_t element_count = 0;
     size_t bucket_count = 0;
     mutable std::atomic<size_t> query_count{0};
@@ -172,6 +190,7 @@ private:
 
     BlockPtr update_field_loaded_block;
     Arena string_arena;
+    DictionaryHierarchicalParentToChildIndexPtr hierarhical_index;
 };
 
 }

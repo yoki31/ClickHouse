@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config_core.h"
+#include "config.h"
 
 #if USE_SQLITE
 #include <Core/Names.h>
@@ -32,7 +32,7 @@ public:
 
     StoragePtr tryGetTable(const String & name, ContextPtr context) const override;
 
-    DatabaseTablesIteratorPtr getTablesIterator(ContextPtr context, const FilterByNameFunction & filter_by_table_name) const override;
+    DatabaseTablesIteratorPtr getTablesIterator(ContextPtr context, const FilterByNameFunction & filter_by_table_name, bool skip_not_loaded) const override;
 
     bool empty() const override;
 
@@ -50,13 +50,13 @@ private:
 
     mutable SQLitePtr sqlite_db;
 
-    Poco::Logger * log;
+    LoggerPtr log;
 
     bool checkSQLiteTable(const String & table_name) const;
 
-    NameSet fetchTablesList() const;
+    NameSet fetchTablesList() const TSA_REQUIRES(mutex);
 
-    StoragePtr fetchTable(const String & table_name, ContextPtr context, bool table_checked) const;
+    StoragePtr fetchTable(const String & table_name, ContextPtr context, bool table_checked) const TSA_REQUIRES(mutex);
 
 };
 

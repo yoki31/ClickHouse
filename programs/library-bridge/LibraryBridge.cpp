@@ -1,6 +1,7 @@
 #include "LibraryBridge.h"
 
-#pragma GCC diagnostic ignored "-Wmissing-declarations"
+#include <iostream>
+
 int mainEntryClickHouseLibraryBridge(int argc, char ** argv)
 {
     DB::LibraryBridge app;
@@ -12,6 +13,21 @@ int mainEntryClickHouseLibraryBridge(int argc, char ** argv)
     {
         std::cerr << DB::getCurrentExceptionMessage(true) << "\n";
         auto code = DB::getCurrentExceptionCode();
-        return code ? code : 1;
+        return static_cast<UInt8>(code) ? code : 1;
     }
+}
+
+namespace DB
+{
+
+std::string LibraryBridge::bridgeName() const
+{
+    return "LibraryBridge";
+}
+
+LibraryBridge::HandlerFactoryPtr LibraryBridge::getHandlerFactoryPtr(ContextPtr context) const
+{
+    return std::make_shared<LibraryBridgeHandlerFactory>("LibraryRequestHandlerFactory", context, libraries_paths);
+}
+
 }

@@ -9,11 +9,12 @@ namespace DB
 class ASTKillQueryQuery : public ASTQueryWithOutput, public ASTQueryWithOnCluster
 {
 public:
-    enum class Type
+    enum class Type : uint8_t
     {
         Query,      /// KILL QUERY
         Mutation,   /// KILL MUTATION
         PartMoveToShard, /// KILL PART_MOVE_TO_SHARD
+        Transaction,     /// KILL TRANSACTION
     };
 
     Type type = Type::Query;
@@ -35,12 +36,14 @@ public:
 
     String getID(char) const override;
 
-    void formatQueryImpl(const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
+    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
 
-    ASTPtr getRewrittenASTWithoutOnCluster(const std::string &) const override
+    ASTPtr getRewrittenASTWithoutOnCluster(const WithoutOnClusterASTRewriteParams &) const override
     {
         return removeOnCluster<ASTKillQueryQuery>(clone());
     }
+
+    QueryKind getQueryKind() const override { return QueryKind::KillQuery; }
 };
 
 }

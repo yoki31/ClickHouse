@@ -1,5 +1,6 @@
 ---
-toc_title: INTERSECT
+slug: /ru/sql-reference/statements/select/intersect
+sidebar_label: INTERSECT
 ---
 
 # Секция INTERSECT {#intersect-clause}
@@ -28,7 +29,7 @@ FROM table2
 Запрос:
 
 ``` sql
-SELECT number FROM numbers(1,10) INTERSECT SELECT number FROM numbers(3,6);
+SELECT number FROM numbers(1,10) INTERSECT SELECT number FROM numbers(3,8);
 ```
 
 Результат:

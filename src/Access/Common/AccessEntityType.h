@@ -7,7 +7,7 @@ namespace DB
 {
 
 /// Represents the type of an access entity (see the IAccessEntity class).
-enum class AccessEntityType
+enum class AccessEntityType : uint8_t
 {
     USER,
     ROLE,
@@ -35,6 +35,7 @@ struct AccessEntityTypeInfo
     String formatEntityNameWithType(const String & entity_name) const;
 
     static const AccessEntityTypeInfo & get(AccessEntityType type_);
+    static AccessEntityType parseType(const String & name_);
 };
 
 }

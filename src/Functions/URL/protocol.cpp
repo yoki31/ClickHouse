@@ -1,6 +1,6 @@
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionStringToString.h>
-#include "protocol.h"
+#include <Functions/URL/protocol.h>
 
 
 namespace DB
@@ -9,7 +9,7 @@ namespace DB
 struct NameProtocol { static constexpr auto name = "protocol"; };
 using FunctionProtocol = FunctionStringToString<ExtractSubstringImpl<ExtractProtocol>, NameProtocol>;
 
-void registerFunctionProtocol(FunctionFactory & factory)
+REGISTER_FUNCTION(Protocol)
 {
     factory.registerFunction<FunctionProtocol>();
 }

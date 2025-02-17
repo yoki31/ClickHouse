@@ -1,6 +1,7 @@
 ---
-toc_priority: 61
-toc_title: clickhouse-benchmark
+slug: /ru/operations/utilities/clickhouse-benchmark
+sidebar_position: 61
+sidebar_label: clickhouse-benchmark
 ---
 
 # clickhouse-benchmark {#clickhouse-benchmark}
@@ -49,7 +50,7 @@ clickhouse-benchmark [keys] < queries_file;
 -   `-r`, `--randomize` — использовать случайный порядок выполнения запросов при наличии более одного входного запроса.
 -   `-s`, `--secure` — используется `TLS` соединение.
 -   `-t N`, `--timelimit=N` — лимит по времени в секундах. `clickhouse-benchmark` перестает отправлять запросы при достижении лимита по времени. Значение по умолчанию: 0 (лимит отключен).
--   `--confidence=N` — уровень доверия для  T-критерия. Возможные значения: 0 (80%), 1 (90%), 2 (95%), 3 (98%), 4 (99%), 5 (99.5%). Значение по умолчанию: 5. В [режиме сравнения](#clickhouse-benchmark-comparison-mode) `clickhouse-benchmark` проверяет [двухвыборочный  t-критерий Стьюдента для независимых выборок](https://en.wikipedia.org/wiki/Student%27s_t-test#Independent_two-sample_t-test) чтобы определить, различны ли две выборки при выбранном уровне доверия.
+-   `--confidence=N` — уровень доверия для  T-критерия. Возможные значения: 0 (80%), 1 (90%), 2 (95%), 3 (98%), 4 (99%), 5 (99.5%). Значение по умолчанию: 5. В [режиме сравнения](#clickhouse-benchmark-comparison-mode) `clickhouse-benchmark` проверяет [двухвыборочный  t-критерий Стьюдента для независимых выборок](https://en.wikipedia.org/wiki/Student%27s_t-test#Independent_two-sample_t-test), чтобы определить, различны ли две выборки при выбранном уровне доверия.
 -   `--cumulative` — выводить статистику за все время работы, а не за последний временной интервал.
 -   `--database=DATABASE_NAME` — имя базы данных ClickHouse. Значение по умолчанию: `default`.
 -   `--json=FILEPATH` — дополнительный вывод в формате `JSON`. Когда этот ключ указан, `clickhouse-benchmark` выводит отчет в указанный JSON-файл.
@@ -159,4 +160,3 @@ localhost:9000, queries 10, QPS: 6.082, RPS: 121959604.568, MiB/s: 930.478, resu
 99.900%     0.172 sec.
 99.990%     0.172 sec.
 ```
-

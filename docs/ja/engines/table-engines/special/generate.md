@@ -1,41 +1,38 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 46
-toc_title: GenerateRandom
+slug: /ja/engines/table-engines/special/generate
+sidebar_position: 140
+sidebar_label: GenerateRandom
+title: "GenerateRandom テーブルエンジン"
 ---
 
-# Generaterandom {#table_engines-generate}
-
-のGenerateRandomテーブルエンジンの生産ランダムなデータが与えられたテーブルのスキーマ.
+GenerateRandomテーブルエンジンは、指定したテーブルスキーマに対してランダムなデータを生成します。
 
 使用例:
 
--   再現可能で大きいテーブルを移入するテストの使用。
--   ファジングテストのランダム入力を生成します。
+- テストで再現可能な大規模テーブルを生成する。
+- ファジングテストのためにランダムな入力を生成する。
 
-## ClickHouseサーバーでの使用状況 {#usage-in-clickhouse-server}
+## ClickHouseサーバーでの使用例 {#usage-in-clickhouse-server}
 
 ``` sql
-ENGINE = GenerateRandom(random_seed, max_string_length, max_array_length)
+ENGINE = GenerateRandom([random_seed [,max_string_length [,max_array_length]]])
 ```
 
-その `max_array_length` と `max_string_length` パラメータを指定し最大限の長さのすべて
-生成されたデータに対応する配列の列と文字列。
+`max_array_length`と`max_string_length`パラメータは、生成されたデータ内のすべての配列またはマップカラムと文字列の最大長をそれぞれ指定します。
 
-Generate table engineのサポートのみ `SELECT` クエリ。
+Generateテーブルエンジンは`SELECT`クエリのみをサポートします。
 
-それはすべて [データ型](../../../sql-reference/data-types/index.md) を除いてテーブルに格納することができます `LowCardinality` と `AggregateFunction`.
+表に格納できるすべての[データ型](../../../sql-reference/data-types/index.md)をサポートし、`AggregateFunction`を除きます。
 
-**例:**
+## 例 {#example}
 
-**1.** セットアップ `generate_engine_table` テーブル:
+**1.** `generate_engine_table` テーブルをセットアップする:
 
 ``` sql
 CREATE TABLE generate_engine_table (name String, value UInt32) ENGINE = GenerateRandom(1, 5, 3)
 ```
 
-**2.** データの照会:
+**2.** データをクエリする:
 
 ``` sql
 SELECT * FROM generate_engine_table LIMIT 3
@@ -49,13 +46,11 @@ SELECT * FROM generate_engine_table LIMIT 3
 └──────┴────────────┘
 ```
 
-## 実施内容 {#details-of-implementation}
+## 実装の詳細 {#details-of-implementation}
 
--   対応していません:
-    -   `ALTER`
-    -   `SELECT ... SAMPLE`
-    -   `INSERT`
-    -   指数
-    -   複製
-
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/generate/) <!--hide-->
+- サポートされていない機能:
+    - `ALTER`
+    - `SELECT ... SAMPLE`
+    - `INSERT`
+    - インデックス
+    - レプリケーション

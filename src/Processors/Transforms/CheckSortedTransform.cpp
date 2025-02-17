@@ -1,4 +1,5 @@
 #include <Processors/Transforms/CheckSortedTransform.h>
+#include <Columns/IColumn.h>
 #include <Common/FieldVisitorDump.h>
 #include <Common/quoteString.h>
 #include <Core/SortDescription.h>
@@ -12,32 +13,12 @@ namespace ErrorCodes
 extern const int LOGICAL_ERROR;
 }
 
-CheckSortedTransform::CheckSortedTransform(
-    const Block & header_,
-    const SortDescription & sort_description_)
-    : ISimpleTransform(header_, header_, false)
-    , sort_description_map(addPositionsToSortDescriptions(sort_description_))
+CheckSortedTransform::CheckSortedTransform(const Block & header, const SortDescription & sort_description)
+    : ISimpleTransform(header, header, false)
 {
+    for (const auto & column_description : sort_description)
+        sort_description_map.emplace_back(column_description, header.getPositionByName(column_description.column_name));
 }
-
-SortDescriptionsWithPositions
-CheckSortedTransform::addPositionsToSortDescriptions(const SortDescription & sort_description)
-{
-    SortDescriptionsWithPositions result;
-    result.reserve(sort_description.size());
-    const auto & header = getInputPort().getHeader();
-
-    for (SortColumnDescription description_copy : sort_description)
-    {
-        if (!description_copy.column_name.empty())
-            description_copy.column_number = header.getPositionByName(description_copy.column_name);
-
-        result.push_back(description_copy);
-    }
-
-    return result;
-}
-
 
 void CheckSortedTransform::transform(Chunk & chunk)
 {
@@ -54,28 +35,43 @@ void CheckSortedTransform::transform(Chunk & chunk)
             const IColumn * left_col = left[column_number].get();
             const IColumn * right_col = right[column_number].get();
 
-            int res = elem.direction * left_col->compareAt(left_index, right_index, *right_col, elem.nulls_direction);
+            int res = elem.base.direction * left_col->compareAt(left_index, right_index, *right_col, elem.base.nulls_direction);
             if (res < 0)
             {
                 return;
             }
-            else if (res > 0)
+            if (res > 0)
             {
-                throw Exception(ErrorCodes::LOGICAL_ERROR,
-                    "Sort order of blocks violated for column number {}, left: {}, right: {}.",
+                throw Exception(
+                    ErrorCodes::LOGICAL_ERROR,
+                    "Sort order of blocks violated for column number {}, left: {}, right: {}. Chunk {}, rows read {}.{}",
                     column_number,
                     applyVisitor(FieldVisitorDump(), (*left_col)[left_index]),
-                    applyVisitor(FieldVisitorDump(), (*right_col)[right_index]));
+                    applyVisitor(FieldVisitorDump(), (*right_col)[right_index]),
+                    chunk_num,
+                    rows_read,
+                    description.empty() ? String() : fmt::format(" ({})", description));
             }
         }
     };
 
+    /// ColumnVector tries to cast the rhs column to the same type (ColumnVector) in compareAt method.
+    /// And it doesn't care about the possible incompatibilities in data types
+    /// (for example in case when the right column is ColumnSparse)
+    convertToFullIfSparse(chunk);
+
     const auto & chunk_columns = chunk.getColumns();
+
+    ++rows_read;
+
     if (!last_row.empty())
         check(last_row, 0, chunk_columns, 0);
 
     for (size_t i = 1; i < num_rows; ++i)
+    {
+        ++rows_read;
         check(chunk_columns, i - 1, chunk_columns, i);
+    }
 
     last_row.clear();
     for (const auto & chunk_column : chunk_columns)
@@ -84,6 +80,8 @@ void CheckSortedTransform::transform(Chunk & chunk)
         column->insertFrom(*chunk_column, num_rows - 1);
         last_row.emplace_back(std::move(column));
     }
+
+    ++chunk_num;
 }
 
 }

@@ -1,12 +1,9 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 23
-toc_title: "ODBC\u30C9\u30E9\u30A4\u30D0"
+slug: /ja/interfaces/odbc
+sidebar_position: 23
+sidebar_label: ODBC ドライバー
 ---
 
-# ODBCドライバ {#odbc-driver}
+# ODBC ドライバー
 
--   [公式ドライバー](https://github.com/ClickHouse/clickhouse-odbc).
-
-[元の記事](https://clickhouse.com/docs/en/interfaces/odbc/) <!--hide-->
+ClickHouseをデータソースとして利用するには、[公式のODBCドライバー](https://github.com/ClickHouse/clickhouse-odbc)を使用します。

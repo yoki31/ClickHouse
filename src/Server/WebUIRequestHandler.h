@@ -9,15 +9,40 @@ namespace DB
 class IServer;
 
 /// Response with HTML page that allows to send queries and show results in browser.
-class WebUIRequestHandler : public HTTPRequestHandler
+
+class PlayWebUIRequestHandler : public HTTPRequestHandler
 {
-private:
-    IServer & server;
-    std::string resource_name;
 public:
-    WebUIRequestHandler(IServer & server_, std::string resource_name_);
-    void handleRequest(HTTPServerRequest & request, HTTPServerResponse & response) override;
+    explicit PlayWebUIRequestHandler(IServer &) {}
+    void handleRequest(HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event & write_event) override;
+};
+
+class DashboardWebUIRequestHandler : public HTTPRequestHandler
+{
+public:
+    explicit DashboardWebUIRequestHandler(IServer &) {}
+    void handleRequest(HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event & write_event) override;
+};
+
+class BinaryWebUIRequestHandler : public HTTPRequestHandler
+{
+public:
+    explicit BinaryWebUIRequestHandler(IServer &) {}
+    void handleRequest(HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event & write_event) override;
+};
+
+class MergesWebUIRequestHandler : public HTTPRequestHandler
+{
+public:
+    explicit MergesWebUIRequestHandler(IServer &) {}
+    void handleRequest(HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event & write_event) override;
+};
+
+class JavaScriptWebUIRequestHandler : public HTTPRequestHandler
+{
+public:
+    explicit JavaScriptWebUIRequestHandler(IServer &) {}
+    void handleRequest(HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event & write_event) override;
 };
 
 }
-

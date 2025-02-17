@@ -1,4 +1,6 @@
 #include <IO/ReadBufferFromFileBase.h>
+#include <IO/Progress.h>
+#include <Interpreters/Context.h>
 
 namespace DB
 {
@@ -18,5 +20,23 @@ ReadBufferFromFileBase::ReadBufferFromFileBase(
 }
 
 ReadBufferFromFileBase::~ReadBufferFromFileBase() = default;
+
+std::optional<size_t> ReadBufferFromFileBase::tryGetFileSize()
+{
+    return file_size;
+}
+
+void ReadBufferFromFileBase::setProgressCallback(ContextPtr context)
+{
+    auto file_progress_callback = context->getFileProgressCallback();
+
+    if (!file_progress_callback)
+        return;
+
+    setProfileCallback([file_progress_callback](const ProfileInfo & progress)
+    {
+       file_progress_callback(FileProgress(progress.bytes_read));
+    });
+}
 
 }

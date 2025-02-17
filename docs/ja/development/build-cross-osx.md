@@ -1,65 +1,63 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 66
-toc_title: "Mac OS X\u7528\u306ELinux\u4E0A\u3067ClickHouse\u3092\u69CB\u7BC9\u3059\
-  \u308B\u65B9\u6CD5"
+slug: /ja/development/build-cross-osx
+sidebar_position: 66
+title: Linux上でmacOS用ClickHouseをビルドする方法
+sidebar_label: Linux上でmacOS用にビルド
 ---
 
-# Mac OS X用のLinux上でClickHouseを構築する方法 {#how-to-build-clickhouse-on-linux-for-mac-os-x}
+これは、Linuxマシンを使用してOS Xで実行される`clickhouse`バイナリをビルドしたい場合の手順です。 これはLinuxサーバー上で実行される継続的なインテグレーションチェックを目的としています。 macOS上で直接ClickHouseをビルドしたい場合は、[別の手順](../development/build-osx.md)に進んでください。
 
-これは、Linuxマシンを使用してビルドする場合のためのものです `clickhouse` これは、Linuxサーバー上で実行される継続的な統合チェックを目的としています。 Mac OS X上でClickHouseを直接ビルドする場合は、次の手順に進みます [別の命令](../development/build-osx.md).
+macOS用のクロスビルドは、[ビルド手順](../development/build.md)に基づいていますので、最初にそれに従ってください。
 
-Mac OS X用のクロスビルドは [ビルド命令](../development/build.md) 先について来い
+以下のセクションでは、`x86_64` macOS用にClickHouseをビルドするための手順を説明します。ARMアーキテクチャを対象とする場合は、すべての`x86_64`を`aarch64`に置き換えてください。たとえば、手順内の`x86_64-apple-darwin`を`aarch64-apple-darwin`に置き換えます。
 
-# Clang-8をインストール {#install-clang-8}
+## clang-18をインストールする
 
-の指示に従ってくださいhttps://apt.llvm.org/あなたのUbuntuまたはDebianのセットアップ用。
-例えば、コマンドバイオニックのような:
+UbuntuまたはDebianセットアップに合ったhttps://apt.llvm.org/の指示に従ってください。 たとえば、Bionicのコマンドは以下のようになります:
 
-``` bash
-sudo echo "deb [trusted=yes] http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main" >> /etc/apt/sources.list
-sudo apt-get install clang-8
+```bash
+sudo echo "deb [trusted=yes] http://apt.llvm.org/bionic/ llvm-toolchain-bionic-17 main" >> /etc/apt/sources.list
+sudo apt-get install clang-18
 ```
 
-# クロスコンパイルツールセット {#install-cross-compilation-toolset}
+## クロスコンパイルツールセットをインストールする {#install-cross-compilation-toolset}
 
-インストール先のパスを覚えてみましょう `cctools` として${CCTOOLS}
+`cctools`をインストールするパスを${CCTOOLS}として記憶しておきましょう
 
-``` bash
-mkdir ${CCTOOLS}
+```bash
+mkdir ~/cctools
+export CCTOOLS=$(cd ~/cctools && pwd)
+cd ${CCTOOLS}
 
 git clone https://github.com/tpoechtrager/apple-libtapi.git
 cd apple-libtapi
+git checkout 15dfc2a8c9a2a89d06ff227560a69f5265b692f9
 INSTALLPREFIX=${CCTOOLS} ./build.sh
 ./install.sh
 cd ..
 
 git clone https://github.com/tpoechtrager/cctools-port.git
 cd cctools-port/cctools
-./configure --prefix=${CCTOOLS} --with-libtapi=${CCTOOLS} --target=x86_64-apple-darwin
+git checkout 2a3e1c2a6ff54a30f898b70cfb9ba1692a55fad7
+./configure --prefix=$(readlink -f ${CCTOOLS}) --with-libtapi=$(readlink -f ${CCTOOLS}) --target=x86_64-apple-darwin
 make install
 ```
 
-また、作業ツリーにmacOS X SDKをダウンロードする必要があります。
+また、macOS X SDKを作業ツリーにダウンロードする必要があります。
 
-``` bash
-cd ClickHouse
-wget 'https://github.com/phracker/MacOSX-SDKs/releases/download/10.15/MacOSX10.15.sdk.tar.xz'
-mkdir -p build-darwin/cmake/toolchain/darwin-x86_64
-tar xJf MacOSX10.15.sdk.tar.xz -C build-darwin/cmake/toolchain/darwin-x86_64 --strip-components=1
+```bash
+cd ClickHouse/cmake/toolchain/darwin-x86_64
+curl -L 'https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX11.0.sdk.tar.xz' | tar xJ --strip-components=1
 ```
 
-# ビルドClickHouse {#build-clickhouse}
+## ClickHouseをビルドする {#build-clickhouse}
 
-``` bash
+```bash
 cd ClickHouse
-mkdir build-osx
-CC=clang-8 CXX=clang++-8 cmake . -Bbuild-osx -DCMAKE_TOOLCHAIN_FILE=cmake/darwin/toolchain-x86_64.cmake \
-    -DCMAKE_AR:FILEPATH=${CCTOOLS}/bin/x86_64-apple-darwin-ar \
-    -DCMAKE_RANLIB:FILEPATH=${CCTOOLS}/bin/x86_64-apple-darwin-ranlib \
-    -DLINKER_NAME=${CCTOOLS}/bin/x86_64-apple-darwin-ld
-ninja -C build-osx
+mkdir build-darwin
+cd build-darwin
+CC=clang-18 CXX=clang++-18 cmake -DCMAKE_AR:FILEPATH=${CCTOOLS}/bin/x86_64-apple-darwin-ar -DCMAKE_INSTALL_NAME_TOOL=${CCTOOLS}/bin/x86_64-apple-darwin-install_name_tool -DCMAKE_RANLIB:FILEPATH=${CCTOOLS}/bin/x86_64-apple-darwin-ranlib -DLINKER_NAME=${CCTOOLS}/bin/x86_64-apple-darwin-ld -DCMAKE_TOOLCHAIN_FILE=cmake/darwin/toolchain-x86_64.cmake ..
+ninja
 ```
 
-結果のバイナリはmach-O実行可能フォーマットを持ち、Linux上で実行することはできません。
+生成されるバイナリはMach-O実行形式で、Linux上では実行できません。

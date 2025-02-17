@@ -1,5 +1,7 @@
 #include <Processors/LimitTransform.h>
 
+#include <Columns/IColumn.h>
+#include <Processors/Port.h>
 
 namespace DB
 {
@@ -19,7 +21,7 @@ LimitTransform::LimitTransform(
     , with_ties(with_ties_), description(std::move(description_))
 {
     if (num_streams != 1 && with_ties)
-        throw Exception("Cannot use LimitTransform with multiple ports and ties.", ErrorCodes::LOGICAL_ERROR);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot use LimitTransform with multiple ports and ties");
 
     ports_data.resize(num_streams);
 
@@ -38,12 +40,7 @@ LimitTransform::LimitTransform(
     }
 
     for (const auto & desc : description)
-    {
-        if (!desc.column_name.empty())
-            sort_column_positions.push_back(header_.getPositionByName(desc.column_name));
-        else
-            sort_column_positions.push_back(desc.column_number);
-    }
+        sort_column_positions.push_back(header_.getPositionByName(desc.column_name));
 }
 
 Chunk LimitTransform::makeChunkWithPreviousRow(const Chunk & chunk, UInt64 row) const
@@ -91,8 +88,7 @@ IProcessor::Status LimitTransform::prepare(
                 return;
             default:
                 throw Exception(
-                        "Unexpected status for LimitTransform::preparePair : " + IProcessor::statusToName(status),
-                        ErrorCodes::LOGICAL_ERROR);
+                    ErrorCodes::LOGICAL_ERROR, "Unexpected status for LimitTransform::preparePair : {}", IProcessor::statusToName(status));
         }
     };
 
@@ -131,8 +127,7 @@ IProcessor::Status LimitTransform::prepare(
 LimitTransform::Status LimitTransform::prepare()
 {
     if (ports_data.size() != 1)
-        throw Exception("prepare without arguments is not supported for multi-port LimitTransform.",
-                        ErrorCodes::LOGICAL_ERROR);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "prepare without arguments is not supported for multi-port LimitTransform");
 
     return prepare({0}, {0});
 }
@@ -190,7 +185,7 @@ LimitTransform::Status LimitTransform::preparePair(PortsData & data)
 
     auto rows = data.current_chunk.getNumRows();
 
-    if (rows_before_limit_at_least)
+    if (rows_before_limit_at_least && !data.input_port_has_counter)
         rows_before_limit_at_least->add(rows);
 
     /// Skip block (for 'always_read_till_end' case).
@@ -324,8 +319,9 @@ void LimitTransform::splitChunk(PortsData & data)
             length = offset + limit - (rows_read - num_rows) - start;
     }
 
-    /// check if other rows in current block equals to last one in limit
-    if (with_ties && length)
+    /// Check if other rows in current block equals to last one in limit
+    /// when rows read >= offset + limit.
+    if (with_ties && offset + limit <= rows_read && length)
     {
         UInt64 current_row_num = start + length;
         previous_row_chunk = makeChunkWithPreviousRow(data.current_chunk, current_row_num - 1);

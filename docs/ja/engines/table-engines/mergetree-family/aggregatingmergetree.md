@@ -1,22 +1,21 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 35
-toc_title: AggregatingMergeTree
+slug: /ja/engines/table-engines/mergetree-family/aggregatingmergetree
+sidebar_position: 60
+sidebar_label: AggregatingMergeTree
 ---
 
-# Aggregatingmergetree {#aggregatingmergetree}
+# AggregatingMergeTree
 
-エンジンはから継承します [メルゲツリー](mergetree.md#table_engines-mergetree)、データ部分のマージのロジックを変更する。 ClickHouseは、すべての行を同じ主キー（またはより正確には同じキー）で置き換えます [ソートキー](mergetree.md)）集計関数の状態の組み合わせを格納する単一の行（一つのデータ部分内）を持つ。
+このエンジンは、データパーツのマージロジックを変更した[MergeTree](../../../engines/table-engines/mergetree-family/mergetree.md#table_engines-mergetree)から継承しています。ClickHouseでは、同じ主キー（より正確には、同じ[ソートキー](../../../engines/table-engines/mergetree-family/mergetree.md)）を持つすべての行を、そのキーを持つすべての行の結合状態を保存する単一の行に置き換えます（同一のデータパーツ内で）。
 
-以下を使用できます `AggregatingMergeTree` 集計されたマテリアライズドビューを含む、増分データ集計用の表。
+`AggregatingMergeTree`テーブルは、集計されたマテリアライズドビューを含む増分データ集計に使用できます。
 
-エンジンは、次の型のすべての列を処理します:
+このエンジンは、以下の型のすべてのカラムを処理します：
 
--   [AggregateFunction](../../../sql-reference/data-types/aggregatefunction.md)
--   [SimpleAggregateFunction](../../../sql-reference/data-types/simpleaggregatefunction.md)
+## [AggregateFunction](../../../sql-reference/data-types/aggregatefunction.md)
+## [SimpleAggregateFunction](../../../sql-reference/data-types/simpleaggregatefunction.md)
 
-使用することは適切です `AggregatingMergeTree` 注文によって行数を減らす場合。
+`AggregatingMergeTree`を使用するのが適切なのは、行数を何桁も削減できる場合です。
 
 ## テーブルの作成 {#creating-a-table}
 
@@ -34,18 +33,19 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 [SETTINGS name=value, ...]
 ```
 
-説明リクエストパラメータの参照 [要求の説明](../../../sql-reference/statements/create.md).
+リクエストパラメータの説明については、[リクエストの説明](../../../sql-reference/statements/create/table.md)を参照してください。
 
 **クエリ句**
 
-を作成するとき `AggregatingMergeTree` 同じテーブル [句](mergetree.md) を作成するときのように必要です。 `MergeTree` テーブル。
+`AggregatingMergeTree`テーブルを作成するときには、`MergeTree`テーブルを作成するときと同じ[句](../../../engines/table-engines/mergetree-family/mergetree.md)が必要です。
 
 <details markdown="1">
 
-<summary>推奨されていません法テーブルを作成する</summary>
+<summary>非推奨のテーブル作成メソッド</summary>
 
-!!! attention "注意"
-    可能であれば、古いプロジェクトを上記の方法に切り替えてください。
+:::note
+新しいプロジェクトではこの方法を使用せず、可能であれば古いプロジェクトを上記の方法に切り替えてください。
+:::
 
 ``` sql
 CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
@@ -56,50 +56,106 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 ) ENGINE [=] AggregatingMergeTree(date-column [, sampling_expression], (primary, key), index_granularity)
 ```
 
-すべてのパラメータは、inと同じ意味を持ちます `MergeTree`.
+すべてのパラメータは、`MergeTree`と同じ意味を持ちます。
 </details>
 
-## 選択と挿入 {#select-and-insert}
+## SELECTとINSERT {#select-and-insert}
 
-データを挿入するには、 [INSERT SELECT](../../../sql-reference/statements/insert-into.md) aggregate-State-functionsを使用したクエリ。
-データを選択するとき `AggregatingMergeTree` テーブル、使用 `GROUP BY` データを挿入するときと同じ集計関数ですが、 `-Merge` 接尾辞。
+データを挿入するには、集計-State-関数を使用して[INSERT SELECT](../../../sql-reference/statements/insert-into.md)クエリを使用します。
+`AggregatingMergeTree`テーブルからデータを選択する際には、`GROUP BY`句と挿入時に使用したものと同じ集計関数を、`-Merge`サフィックスをつけて使用します。
 
-の結果 `SELECT` クエリ、の値 `AggregateFunction` typeは、すべてのClickHouse出力形式に対して実装固有のバイナリ表現を持ちます。 たとえば、データをダンプする場合, `TabSeparated` フォーマット `SELECT` 次に、このダンプを次のようにロードします `INSERT` クエリ。
+`SELECT`クエリの結果において、`AggregateFunction`タイプの値は、すべてのClickHouse出力フォーマットに対して実装依存のバイナリ表現を持ちます。たとえば、`TabSeparated`フォーマットで`SELECT`クエリによってデータをダンプする場合、このダンプは`INSERT`クエリを使用して再ロードできます。
 
-## 集約マテリアライズドビューの例 {#example-of-an-aggregated-materialized-view}
+## 集計マテリアライズドビューの例 {#example-of-an-aggregated-materialized-view}
 
-`AggregatingMergeTree` これは、 `test.visits` テーブル:
+以下の例では、`test`という名前のデータベースがすでにあると仮定していますので、まだ存在しない場合は作成してください：
+
+```sql
+CREATE DATABASE test;
+```
+
+次に、生データを含むテーブル`test.visits`を作成します：
 
 ``` sql
-CREATE MATERIALIZED VIEW test.basic
-ENGINE = AggregatingMergeTree() PARTITION BY toYYYYMM(StartDate) ORDER BY (CounterID, StartDate)
+CREATE TABLE test.visits
+ (
+    StartDate DateTime64 NOT NULL,
+    CounterID UInt64,
+    Sign Nullable(Int32),
+    UserID Nullable(Int32)
+) ENGINE = MergeTree ORDER BY (StartDate, CounterID);
+```
+
+次に、総訪問数と一意のユーザー数を追跡する`AggregationFunction`を格納する`AggregatingMergeTree`テーブルが必要です。
+
+`test.visits`テーブルを監視し、`AggregateFunction`タイプを使用する`AggregatingMergeTree`マテリアライズドビューを作成します：
+
+``` sql
+CREATE TABLE test.agg_visits (
+    StartDate DateTime64 NOT NULL,
+    CounterID UInt64,
+    Visits AggregateFunction(sum, Nullable(Int32)),
+    Users AggregateFunction(uniq, Nullable(Int32))
+)
+ENGINE = AggregatingMergeTree() ORDER BY (StartDate, CounterID);
+```
+
+`test.visits`から`test.agg_visits`にデータを入力するマテリアライズドビューを作成します：
+
+```sql
+CREATE MATERIALIZED VIEW test.visits_mv TO test.agg_visits
 AS SELECT
-    CounterID,
     StartDate,
-    sumState(Sign)    AS Visits,
+    CounterID,
+    sumState(Sign) AS Visits,
     uniqState(UserID) AS Users
 FROM test.visits
-GROUP BY CounterID, StartDate;
+GROUP BY StartDate, CounterID;
 ```
 
-にデータを挿入する `test.visits` テーブル。
+`test.visits`テーブルにデータを挿入します：
 
 ``` sql
-INSERT INTO test.visits ...
+INSERT INTO test.visits (StartDate, CounterID, Sign, UserID)
+ VALUES (1667446031000, 1, 3, 4), (1667446031000, 1, 6, 3);
 ```
 
-データはテーブルとビューの両方に挿入されます `test.basic` それは集計を実行します。
+データは`test.visits`と`test.agg_visits`の両方に挿入されます。
 
-集計データを取得するには、次のようなクエリを実行する必要があります `SELECT ... GROUP BY ...` ビューから `test.basic`:
+集計されたデータを取得するには、`SELECT ... GROUP BY ...`クエリをマテリアライズドビュー`test.mv_visits`から実行します：
 
-``` sql
+```sql
 SELECT
     StartDate,
     sumMerge(Visits) AS Visits,
     uniqMerge(Users) AS Users
-FROM test.basic
+FROM test.agg_visits
 GROUP BY StartDate
 ORDER BY StartDate;
 ```
 
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/aggregatingmergetree/) <!--hide-->
+```text
+┌───────────────StartDate─┬─Visits─┬─Users─┐
+│ 2022-11-03 03:27:11.000 │      9 │     2 │
+└─────────────────────────┴────────┴───────┘
+```
+
+`test.visits`にさらに2つのレコードを追加しますが、今回は1つのレコードに異なるタイムスタンプを使用してみます：
+
+```sql
+INSERT INTO test.visits (StartDate, CounterID, Sign, UserID)
+ VALUES (1669446031000, 2, 5, 10), (1667446031000, 3, 7, 5);
+```
+
+再び`SELECT`クエリを実行すると、以下の出力が返されます：
+
+```text
+┌───────────────StartDate─┬─Visits─┬─Users─┐
+│ 2022-11-03 03:27:11.000 │     16 │     3 │
+│ 2022-11-26 07:00:31.000 │      5 │     1 │
+└─────────────────────────┴────────┴───────┘
+```
+
+## 関連コンテンツ
+
+- ブログ: [Using Aggregate Combinators in ClickHouse](https://clickhouse.com/blog/aggregate-functions-combinators-in-clickhouse-for-arrays-maps-and-states)

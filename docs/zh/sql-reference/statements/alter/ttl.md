@@ -1,6 +1,7 @@
 ---
-toc_priority: 44
-toc_title: TTL
+slug: /zh/sql-reference/statements/alter/ttl
+sidebar_position: 44
+sidebar_label: TTL
 ---
 
 # 表的 TTL 操作 {#manipulations-with-table-ttl}
@@ -34,7 +35,7 @@ CREATE TABLE table_with_ttl
 )
 ENGINE MergeTree()
 ORDER BY tuple()
-TTL event_time + INTERVAL 3 MONTH;
+TTL event_time + INTERVAL 3 MONTH
 SETTINGS min_bytes_for_wide_part = 0;
 
 INSERT INTO table_with_ttl VALUES (now(), 1, 'username1');
@@ -81,5 +82,5 @@ SELECT * FROM table_with_ttl FORMAT PrettyCompact;
 
 **更多参考**
 
-- 关于 [TTL 表达式](../../../sql-reference/statements/create/table.md#ttl-expression).
-- 修改列 [with TTL](../../../sql-reference/statements/alter/column.md#alter_modify-column).
+- 关于 [TTL 表达式](../../../sql-reference/statements/create/table.mdx#ttl-expression).
+- 修改列 [with TTL](../../../sql-reference/statements/alter/column.mdx#alter_modify-column).

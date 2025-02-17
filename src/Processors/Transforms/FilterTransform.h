@@ -20,20 +20,18 @@ class FilterTransform : public ISimpleTransform
 public:
     FilterTransform(
         const Block & header_, ExpressionActionsPtr expression_, String filter_column_name_,
-        bool remove_filter_column_, bool on_totals_ = false);
+        bool remove_filter_column_, bool on_totals_ = false, std::shared_ptr<std::atomic<size_t>> rows_filtered_ = nullptr);
 
-    static Block transformHeader(
-            Block header,
-            const ActionsDAG & expression,
-            const String & filter_column_name,
-            bool remove_filter_column);
+    static Block
+    transformHeader(const Block & header, const ActionsDAG * expression, const String & filter_column_name, bool remove_filter_column);
 
     String getName() const override { return "FilterTransform"; }
 
     Status prepare() override;
 
-protected:
     void transform(Chunk & chunk) override;
+
+    static bool canUseType(const DataTypePtr & type);
 
 private:
     ExpressionActionsPtr expression;
@@ -44,12 +42,15 @@ private:
     ConstantFilterDescription constant_filter_description;
     size_t filter_column_position = 0;
 
+    std::shared_ptr<std::atomic<size_t>> rows_filtered;
+
     /// Header after expression, but before removing filter column.
     Block transformed_header;
 
     bool are_prepared_sets_initialized = false;
 
-    void removeFilterIfNeed(Chunk & chunk) const;
+    void doTransform(Chunk & chunk);
+    void removeFilterIfNeed(Columns & columns) const;
 };
 
 }

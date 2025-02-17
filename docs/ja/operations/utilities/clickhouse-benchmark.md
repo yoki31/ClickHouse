@@ -1,15 +1,20 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 61
-toc_title: "clickhouse-\u30D9\u30F3\u30C1\u30DE\u30FC\u30AF"
+slug: /ja/operations/utilities/clickhouse-benchmark
+sidebar_position: 61
+sidebar_label: clickhouse-benchmark
 ---
 
-# clickhouse-ベンチマーク {#clickhouse-benchmark}
+# clickhouse-benchmark 
 
-ClickHouseサーバーに接続し、指定したクエリを繰り返し送信します。
+ClickHouseサーバーに接続し、指定されたクエリを繰り返し送信します。
 
-構文:
+**構文**
+
+``` bash
+$ clickhouse-benchmark --query ["single query"] [keys]
+```
+
+または
 
 ``` bash
 $ echo "single query" | clickhouse-benchmark [keys]
@@ -21,46 +26,46 @@ $ echo "single query" | clickhouse-benchmark [keys]
 $ clickhouse-benchmark [keys] <<< "single query"
 ```
 
-一連のクエリを送信する場合は、テキストファイルを作成し、各クエリをこのファイル内の個々の文字列に配置します。 例えば:
+クエリのセットを送信したい場合は、テキストファイルを作成し、このファイルに各クエリを個別の行として配置します。例：
 
 ``` sql
-SELECT * FROM system.numbers LIMIT 10000000
-SELECT 1
+SELECT * FROM system.numbers LIMIT 10000000;
+SELECT 1;
 ```
 
-次に、このファイルを標準入力に渡します。 `clickhouse-benchmark`.
+次に、このファイルを`clickhouse-benchmark`の標準入力に渡します：
 
 ``` bash
-clickhouse-benchmark [keys] < queries_file
+clickhouse-benchmark [keys] < queries_file;
 ```
 
 ## キー {#clickhouse-benchmark-keys}
 
--   `-c N`, `--concurrency=N` — Number of queries that `clickhouse-benchmark` 同時に送信します。 デフォルト値:1。
--   `-d N`, `--delay=N` — Interval in seconds between intermediate reports (set 0 to disable reports). Default value: 1.
--   `-h WORD`, `--host=WORD` — Server host. Default value: `localhost`. のために [比較モード](#clickhouse-benchmark-comparison-mode) 複数を使用できます `-h` 鍵だ
--   `-p N`, `--port=N` — Server port. Default value: 9000. For the [比較モード](#clickhouse-benchmark-comparison-mode) 複数を使用できます `-p` 鍵だ
--   `-i N`, `--iterations=N` — Total number of queries. Default value: 0.
--   `-r`, `--randomize` — Random order of queries execution if there is more then one input query.
--   `-s`, `--secure` — Using TLS connection.
--   `-t N`, `--timelimit=N` — Time limit in seconds. `clickhouse-benchmark` 指定された時間制限に達すると、クエリの送信を停止します。 デフォルト値:0(制限時間無効)。
--   `--confidence=N` — Level of confidence for T-test. Possible values: 0 (80%), 1 (90%), 2 (95%), 3 (98%), 4 (99%), 5 (99.5%). Default value: 5. In the [比較モード](#clickhouse-benchmark-comparison-mode) `clickhouse-benchmark` を実行します。 [独立した二つのサンプル学生のtテスト](https://en.wikipedia.org/wiki/Student%27s_t-test#Independent_two-sample_t-test) これらの分布が選択された信頼度と異ならないかどうかを判定します。
--   `--cumulative` — Printing cumulative data instead of data per interval.
--   `--database=DATABASE_NAME` — ClickHouse database name. Default value: `default`.
--   `--json=FILEPATH` — JSON output. When the key is set, `clickhouse-benchmark` 指定されたJSONファイルにレポートを出力します。
--   `--user=USERNAME` — ClickHouse user name. Default value: `default`.
--   `--password=PSWD` — ClickHouse user password. Default value: empty string.
--   `--stacktrace` — Stack traces output. When the key is set, `clickhouse-bencmark` 出力スタックトレースの例外をスローしました。
--   `--stage=WORD` — Query processing stage at server. ClickHouse stops query processing and returns answer to `clickhouse-benchmark` 指定された段階で。 可能な値: `complete`, `fetch_columns`, `with_mergeable_state`. デフォルト値: `complete`.
--   `--help` — Shows the help message.
+- `--query=QUERY` — 実行するクエリ。このパラメーターが渡されない場合、`clickhouse-benchmark`は標準入力からクエリを読み取ります。
+- `-c N`, `--concurrency=N` — `clickhouse-benchmark`が同時に送信するクエリの数。デフォルト値: 1。
+- `-d N`, `--delay=N` — 中間レポート間の秒単位の間隔（レポートを無効にするには0を設定）。デフォルト値: 1。
+- `-h HOST`, `--host=HOST` — サーバーホスト。デフォルト値: `localhost`。[比較モード](#clickhouse-benchmark-comparison-mode)では複数の`-h`キーを使用できます。
+- `-i N`, `--iterations=N` — 総クエリ数。デフォルト値: 0（無限に繰り返す）。
+- `-r`, `--randomize` — 複数の入力クエリがある場合、クエリ実行の順序をランダムにします。
+- `-s`, `--secure` — `TLS`接続の使用。
+- `-t N`, `--timelimit=N` — 秒単位の時間制限。指定された時間制限に達すると`clickhouse-benchmark`はクエリの送信を停止します。デフォルト値: 0（時間制限なし）。
+- `--port=N` — サーバーポート。デフォルト値: 9000。[比較モード](#clickhouse-benchmark-comparison-mode)では複数の`--port`キーを使用できます。
+- `--confidence=N` — T検定の信頼レベル。可能な値: 0 (80%), 1 (90%), 2 (95%), 3 (98%), 4 (99%), 5 (99.5%)。デフォルト値: 5。[比較モード](#clickhouse-benchmark-comparison-mode)では、`clickhouse-benchmark`は指定された信頼レベルで[独立二標本のスチューデントのt検定](https://en.wikipedia.org/wiki/Student%27s_t-test#Independent_two-sample_t-test)を実行して、2つの分布に違いがないかを判断します。
+- `--cumulative` — 各間隔のデータの代わりに累積データを表示します。
+- `--database=DATABASE_NAME` — ClickHouseデータベース名。デフォルト値: `default`。
+- `--user=USERNAME` — ClickHouseユーザー名。デフォルト値: `default`。
+- `--password=PSWD` — ClickHouseユーザーパスワード。デフォルト値: 空文字列。
+- `--stacktrace` — スタックトレースの出力。このキーが設定されている場合、`clickhouse-benchmark`は例外のスタックトレースを出力します。
+- `--stage=WORD` — サーバーでのクエリ処理段階。ClickHouseは指定された段階でクエリ処理を停止し、`clickhouse-benchmark`に回答を返します。可能な値: `complete`, `fetch_columns`, `with_mergeable_state`。デフォルト値: `complete`。
+- `--help` — ヘルプメッセージを表示します。
 
-あなたはいくつかを適用したい場合 [設定](../../operations/settings/index.md) クエリの場合は、キーとして渡します `--<session setting name>= SETTING_VALUE`. 例えば, `--max_memory_usage=1048576`.
+クエリにいくつかの[設定](../../operations/settings/index.md)を適用したい場合は、`--<session setting name>=SETTING_VALUE`というキーとしてそれらを渡します。例えば、`--max_memory_usage=1048576`。
 
 ## 出力 {#clickhouse-benchmark-output}
 
-既定では, `clickhouse-benchmark` 各レポート `--delay` インターバル
+デフォルトでは、`clickhouse-benchmark`は各`--delay`インターバルのレポートを表示します。
 
-レポートの例:
+レポートの例：
 
 ``` text
 Queries executed: 10.
@@ -83,74 +88,56 @@ localhost:9000, queries 10, QPS: 6.772, RPS: 67904487.440, MiB/s: 518.070, resul
 99.990%     0.150 sec.
 ```
 
-このレポートでは:
+レポートでは以下が確認できます：
 
--   クエリの数 `Queries executed:` フィールド
+- `Queries executed:`フィールドにおけるクエリ数。
 
--   ステータス文字列を含む(順):
+- ステータス文字列には以下の情報が含まれます（順番に）：
 
-    -   ClickHouseサーバーのエンドポイント。
-    -   処理されたクエリの数。
-    -   QPS:QPS:で指定された期間に毎秒実行されるクエリサーバーの数 `--delay` 引数。
-    -   RPS:サーバーが指定された期間に毎秒読み取った行数 `--delay` 引数。
-    -   MiB/s:指定された期間に毎秒読み取られるmebibytesサーバーの数 `--delay` 引数。
-    -   結果RPS:サーバーによって指定された期間内にクエリの結果に対して毎秒どのくらいの行が配置されますか `--delay` 引数。
-    -   クエリの結果に対してサーバによって指定された期間内に秒あたりのメビバイト数 `--delay` 引数。
+    - ClickHouseサーバーのエンドポイント。
+    - 処理されたクエリの数。
+    - QPS: `--delay`引数で指定された期間中、サーバーが1秒あたりに実行したクエリ数。
+    - RPS: `--delay`引数で指定された期間中、サーバーが1秒あたりに読み取った行数。
+    - MiB/s: `--delay`引数で指定された期間中、サーバーが1秒あたりに読み取ったMebibytes数。
+    - result RPS: `--delay`引数で指定された期間中、サーバーがクエリの結果に1秒あたりに配置した行数。
+    - result MiB/s: `--delay`引数で指定された期間中、サーバーがクエリの結果に1秒あたりに配置したMebibytes数。
 
--   クエリの実行時間の百分位数。
+- クエリ実行時間のパーセンタイル。
 
 ## 比較モード {#clickhouse-benchmark-comparison-mode}
 
-`clickhouse-benchmark` ﾂつｨﾂ姪"ﾂつ"ﾂ債ﾂづｭﾂつｹ
+`clickhouse-benchmark`は2つの稼働中のClickHouseサーバーのパフォーマンスを比較できます。
 
-比較モードを使用するには、両方のサーバーのエンドポイントを `--host`, `--port` 鍵だ 引数リスト内の位置によって一致するキーは、最初の `--host` 最初のものと一致します `--port` など。 `clickhouse-benchmark` 両方のサーバーへの接続を確立し、クエリを送信します。 ランダムに選択されたサーバー宛の各クエリ。 結果は、各サーバーごとに個別に表示されます。
+比較モードを使用するには、両方のサーバーのエンドポイントを`--host`、`--port`キーの2組で指定します。キーは引数リスト内での位置によって組み合わされます。最初の`--host`は最初の`--port`と組み合わされる、というように。`clickhouse-benchmark`は両方のサーバーに接続を確立し、クエリを送信します。各クエリはランダムに選ばれたサーバーに送信されます。結果は表として表示されます。
 
 ## 例 {#clickhouse-benchmark-example}
 
 ``` bash
-$ echo "SELECT * FROM system.numbers LIMIT 10000000 OFFSET 10000000" | clickhouse-benchmark -i 10
+$ echo "SELECT * FROM system.numbers LIMIT 10000000 OFFSET 10000000" | clickhouse-benchmark --host=localhost --port=9001 --host=localhost --port=9000 -i 10
 ```
 
 ``` text
 Loaded 1 queries.
 
-Queries executed: 6.
+Queries executed: 5.
 
-localhost:9000, queries 6, QPS: 6.153, RPS: 123398340.957, MiB/s: 941.455, result RPS: 61532982.200, result MiB/s: 469.459.
+localhost:9001, queries 2, QPS: 3.764, RPS: 75446929.370, MiB/s: 575.614, result RPS: 37639659.982, result MiB/s: 287.168.
+localhost:9000, queries 3, QPS: 3.815, RPS: 76466659.385, MiB/s: 583.394, result RPS: 38148392.297, result MiB/s: 291.049.
 
-0.000%      0.159 sec.
-10.000%     0.159 sec.
-20.000%     0.159 sec.
-30.000%     0.160 sec.
-40.000%     0.160 sec.
-50.000%     0.162 sec.
-60.000%     0.164 sec.
-70.000%     0.165 sec.
-80.000%     0.166 sec.
-90.000%     0.166 sec.
-95.000%     0.167 sec.
-99.000%     0.167 sec.
-99.900%     0.167 sec.
-99.990%     0.167 sec.
+0.000%          0.258 sec.      0.250 sec.
+10.000%         0.258 sec.      0.250 sec.
+20.000%         0.258 sec.      0.250 sec.
+30.000%         0.258 sec.      0.267 sec.
+40.000%         0.258 sec.      0.267 sec.
+50.000%         0.273 sec.      0.267 sec.
+60.000%         0.273 sec.      0.267 sec.
+70.000%         0.273 sec.      0.267 sec.
+80.000%         0.273 sec.      0.269 sec.
+90.000%         0.273 sec.      0.269 sec.
+95.000%         0.273 sec.      0.269 sec.
+99.000%         0.273 sec.      0.269 sec.
+99.900%         0.273 sec.      0.269 sec.
+99.990%         0.273 sec.      0.269 sec.
 
-
-
-Queries executed: 10.
-
-localhost:9000, queries 10, QPS: 6.082, RPS: 121959604.568, MiB/s: 930.478, result RPS: 60815551.642, result MiB/s: 463.986.
-
-0.000%      0.159 sec.
-10.000%     0.159 sec.
-20.000%     0.160 sec.
-30.000%     0.163 sec.
-40.000%     0.164 sec.
-50.000%     0.165 sec.
-60.000%     0.166 sec.
-70.000%     0.166 sec.
-80.000%     0.167 sec.
-90.000%     0.167 sec.
-95.000%     0.170 sec.
-99.000%     0.172 sec.
-99.900%     0.172 sec.
-99.990%     0.172 sec.
+No difference proven at 99.5% confidence
 ```

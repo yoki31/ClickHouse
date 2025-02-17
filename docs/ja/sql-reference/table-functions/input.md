@@ -1,33 +1,26 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 46
-toc_title: "\u5165\u529B"
+slug: /ja/sql-reference/table-functions/input
+sidebar_position: 95
+sidebar_label: input
 ---
 
-# 入力 {#input}
+# input
 
-`input(structure)` -に送られるデータを効果的に変え、挿入することを可能にする表機能
-別の構造を持つテーブルに指定された構造を持つサーバー。
+`input(structure)` - 指定された構造でサーバーに送信されたデータを別の構造のテーブルに効率的に変換し、挿入するためのテーブル関数です。
 
-`structure` -以下の形式でサーバーに送信されるデータの構造 `'column1_name column1_type, column2_name column2_type, ...'`.
-例えば, `'id UInt32, name String'`.
+`structure` - サーバーに送信されるデータの構造を次の形式で指定します: `'column1_name column1_type, column2_name column2_type, ...'`。
+例えば、`'id UInt32, name String'`。
 
-この関数は、次の場合にのみ使用できます `INSERT SELECT` それ以外の場合は通常の表関数のように動作します
-（例えば、サブクエリなどで使用できます。).
+この関数は`INSERT SELECT`クエリでのみ使用でき、一度しか使用できませんが、それ以外は通常のテーブル関数のように動作します
+（例えば、サブクエリで使用することができます）。
 
-データは通常のような方法で送信することができます `INSERT` クエリと任意の利用可能に渡されます [形式](../../interfaces/formats.md#formats)
-クエリの最後に指定する必要があります(通常とは異なります `INSERT SELECT`).
+データは通常の`INSERT`クエリのように任意の方法で送信でき、クエリの最後に指定する必要がある任意の利用可能な[形式](../../interfaces/formats.md#formats)で渡すことができます（通常の`INSERT SELECT`とは異なります）。
 
-この機能の主な特徴は、サーバがクライアントからデータを受信すると同時に変換することです
-の式のリストに従って `SELECT` 節とターゲットテーブルへの挿入。 一時テーブル
-転送されたすべてのデータは作成されません。
+この関数の主な機能は、サーバーがクライアントからデータを受信すると、`SELECT`句の式リストに従って同時に変換し、ターゲットテーブルに挿入することです。すべての転送データを格納する一時テーブルは作成されません。
 
 **例**
 
--   は、 `test` 表の構造は次のとおりです `(a String, b String)`
-    そしてデータ `data.csv` 異なる構造を持っています `(col1 String, col2 Date, col3 Int32)`. 挿入のクエリ
-    からのデータ `data.csv` に `test` 同時変換のテーブルは次のようになります:
+- `test`テーブルが次の構造`(a String, b String)`を持ち、`data.csv`のデータが異なる構造`(col1 String, col2 Date, col3 Int32)`を持っているとします。この場合、`data.csv`から`test`テーブルにデータを同時に変換して挿入するクエリは次のようになります:
 
 <!-- -->
 
@@ -35,7 +28,7 @@ toc_title: "\u5165\u529B"
 $ cat data.csv | clickhouse-client --query="INSERT INTO test SELECT lower(col1), col3 * col3 FROM input('col1 String, col2 Date, col3 Int32') FORMAT CSV";
 ```
 
--   もし `data.csv` 同じ構造のデータを含む `test_structure` 表として `test` そしてこれら二つのクエリが等しい:
+- `data.csv`にテーブル`test`と同じ構造`test_structure`のデータが含まれている場合、これら二つのクエリは同等です:
 
 <!-- -->
 
@@ -43,5 +36,3 @@ $ cat data.csv | clickhouse-client --query="INSERT INTO test SELECT lower(col1),
 $ cat data.csv | clickhouse-client --query="INSERT INTO test FORMAT CSV"
 $ cat data.csv | clickhouse-client --query="INSERT INTO test SELECT * FROM input('test_structure') FORMAT CSV"
 ```
-
-[元の記事](https://clickhouse.com/docs/en/query_language/table_functions/input/) <!--hide-->

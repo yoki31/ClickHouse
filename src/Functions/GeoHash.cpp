@@ -39,7 +39,7 @@ const uint8_t geohash_base32_decode_lookup_table[256] = {
 
 const size_t BITS_PER_SYMBOL = 5;
 const size_t MAX_PRECISION = 12;
-const size_t MAX_BITS = MAX_PRECISION * BITS_PER_SYMBOL * 1.5;
+const size_t MAX_BITS = (MAX_PRECISION * BITS_PER_SYMBOL * 3) / 2;
 const Float64 LON_MIN = -180;
 const Float64 LON_MAX = 180;
 const Float64 LAT_MIN = -90;
@@ -114,7 +114,7 @@ inline Encoded merge(const Encoded & encodedLon, const Encoded & encodedLat, uin
     Encoded result;
     result.fill(0);
 
-    const auto bits = (precision * BITS_PER_SYMBOL) / 2;
+    uint8_t bits = (precision * BITS_PER_SYMBOL) / 2;
     assert(bits < 255);
     uint8_t i = 0;
     for (; i < bits; ++i)
@@ -133,7 +133,8 @@ inline Encoded merge(const Encoded & encodedLon, const Encoded & encodedLat, uin
 
 inline std::tuple<Encoded, Encoded> split(const Encoded & combined, uint8_t precision)
 {
-    Encoded lat, lon;
+    Encoded lat;
+    Encoded lon;
     lat.fill(0);
     lon.fill(0);
 
@@ -253,7 +254,8 @@ void geohashDecode(const char * encoded_string, size_t encoded_len, Float64 * lo
         return;
     }
 
-    Encoded lat_encoded, lon_encoded;
+    Encoded lat_encoded;
+    Encoded lon_encoded;
     std::tie(lon_encoded, lat_encoded) = split(base32Decode(encoded_string, precision), precision);
 
     *longitude = decodeCoordinate(lon_encoded, LON_MIN, LON_MAX, singleCoordBitsPrecision(precision, LONGITUDE));
@@ -301,12 +303,12 @@ GeohashesInBoxPreparedArgs geohashesInBoxPrepare(
     Float64 lon_max = ceil(longitude_max / lon_step) * lon_step;
     Float64 lat_max = ceil(latitude_max / lat_step) * lat_step;
 
-    UInt32 lon_items = (lon_max - lon_min) / lon_step;
-    UInt32 lat_items = (lat_max - lat_min) / lat_step;
+    UInt32 lon_items = static_cast<UInt32>((lon_max - lon_min) / lon_step);
+    UInt32 lat_items = static_cast<UInt32>((lat_max - lat_min) / lat_step);
 
     return GeohashesInBoxPreparedArgs
     {
-        std::max<UInt64>(1, UInt64(lon_items) * lat_items),
+        std::max<UInt64>(1, static_cast<UInt64>(lon_items) * lat_items),
         lon_items,
         lat_items,
         lon_min,

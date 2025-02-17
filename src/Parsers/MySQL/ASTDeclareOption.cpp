@@ -23,7 +23,7 @@ bool ParserDeclareOptionImpl<recursive>::parseImpl(Pos & pos, ASTPtr & node, Exp
     {
         auto iterator = usage_parsers_cached.find(usage_name);
         if (iterator == usage_parsers_cached.end())
-            iterator = usage_parsers_cached.insert(std::make_pair(usage_name, std::make_shared<ParserKeyword>(usage_name))).first;
+            iterator = usage_parsers_cached.insert(std::make_pair(usage_name, ParserKeyword::createDeprecatedPtr(usage_name))).first;
 
         return iterator->second;
     };
@@ -85,13 +85,13 @@ ASTPtr ASTDeclareOptions::clone() const
 
 bool ParserAlwaysTrue::parseImpl(IParser::Pos & /*pos*/, ASTPtr & node, Expected & /*expected*/)
 {
-    node = std::make_shared<ASTLiteral>(Field(UInt64(1)));
+    node = std::make_shared<ASTLiteral>(Field(static_cast<UInt64>(1)));
     return true;
 }
 
 bool ParserAlwaysFalse::parseImpl(IParser::Pos & /*pos*/, ASTPtr & node, Expected & /*expected*/)
 {
-    node = std::make_shared<ASTLiteral>(Field(UInt64(0)));
+    node = std::make_shared<ASTLiteral>(Field(static_cast<UInt64>(0)));
     return true;
 }
 
@@ -102,15 +102,14 @@ bool ParserCharsetOrCollateName::parseImpl(IParser::Pos & pos, ASTPtr & node, Ex
 
     if (p_identifier.parse(pos, node, expected))
         return true;
-    else
+
+    if (p_string_literal.parse(pos, node, expected))
     {
-        if (p_string_literal.parse(pos, node, expected))
-        {
-            const auto & string_value = node->as<ASTLiteral>()->value.safeGet<String>();
-            node = std::make_shared<ASTIdentifier>(string_value);
-            return true;
-        }
+        const auto & string_value = node->as<ASTLiteral>()->value.safeGet<String>();
+        node = std::make_shared<ASTIdentifier>(string_value);
+        return true;
     }
+
 
     return false;
 }

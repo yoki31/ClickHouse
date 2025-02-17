@@ -1,21 +1,26 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_folder_title: "\u30C7\u30FC\u30BF\u30D9\u30FC\u30B9"
+slug: /ja/engines/database-engines/
+toc_folder_title: データベースエンジン
 toc_priority: 27
-toc_title: "\u306F\u3058\u3081\u306B"
+toc_title: はじめに
 ---
 
-# データベース {#database-engines}
+# データベースエンジン
 
-データベースエ
+データベースエンジンを使用すると、テーブルを操作できます。デフォルトでは、ClickHouse は [Atomic](../../engines/database-engines/atomic.md) データベースエンジンを使用し、これにより設定可能な[テーブルエンジン](../../engines/table-engines/index.md)や[SQL 方言](../../sql-reference/syntax.md)を提供します。
 
-既定では、ClickHouseはネイティブのデータベースエンジンを使用します。 [表エンジン](../../engines/table-engines/index.md) そして [SQL方言](../../sql-reference/syntax.md).
+以下は利用可能なデータベースエンジンの完全なリストです。詳細はリンク先をご参照ください:
 
-次のデータベースエンジンも使用できます:
+- [Atomic](../../engines/database-engines/atomic.md)
 
--   [MySQL](mysql.md)
+- [Lazy](../../engines/database-engines/lazy.md)
 
--   [怠け者](lazy.md)
+- [MaterializedPostgreSQL](../../engines/database-engines/materialized-postgresql.md)
 
-[元の記事](https://clickhouse.com/docs/en/database_engines/) <!--hide-->
+- [MySQL](../../engines/database-engines/mysql.md)
+
+- [PostgreSQL](../../engines/database-engines/postgresql.md)
+
+- [Replicated](../../engines/database-engines/replicated.md)
+
+- [SQLite](../../engines/database-engines/sqlite.md)

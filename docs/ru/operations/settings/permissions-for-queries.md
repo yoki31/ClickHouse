@@ -1,6 +1,7 @@
 ---
-toc_priority: 58
-toc_title: "Разрешения для запросов"
+slug: /ru/operations/settings/permissions-for-queries
+sidebar_position: 58
+sidebar_label: "Разрешения для запросов"
 ---
 
 # Разрешения для запросов {#permissions_for_queries}
@@ -24,7 +25,7 @@ toc_title: "Разрешения для запросов"
 
 Ограничивает разрешения для запросов на чтение данных, запись данных и изменение параметров.
 
-Разделение запросов по типам смотрите по тексту [выше](#permissions_for_queries) по тексту.
+Разделение запросов по типам смотрите по тексту [выше](/docs/ru/operations/settings/permissions-for-queries) по тексту.
 
 **Возможные значения**
 
@@ -46,7 +47,7 @@ toc_title: "Разрешения для запросов"
 
 Разрешает/запрещает [DDL](https://ru.wikipedia.org/wiki/Data_Definition_Language) запросы.
 
-Разделение запросов по типам смотрите по тексту [выше](#permissions_for_queries) по тексту.
+Разделение запросов по типам смотрите по тексту [выше](/docs/ru/operations/settings/permissions-for-queries) по тексту.
 
 **Возможные значения**
 
@@ -58,4 +59,3 @@ toc_title: "Разрешения для запросов"
 **Значение по умолчанию**
 
 1
-

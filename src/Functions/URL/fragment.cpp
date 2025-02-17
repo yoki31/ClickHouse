@@ -1,6 +1,6 @@
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionStringToString.h>
-#include "fragment.h"
+#include <Functions/URL/fragment.h>
 
 namespace DB
 {
@@ -8,7 +8,7 @@ namespace DB
 struct NameFragment { static constexpr auto name = "fragment"; };
 using FunctionFragment = FunctionStringToString<ExtractSubstringImpl<ExtractFragment<true>>, NameFragment>;
 
-void registerFunctionFragment(FunctionFactory & factory)
+REGISTER_FUNCTION(Fragment)
 {
     factory.registerFunction<FunctionFragment>();
 }

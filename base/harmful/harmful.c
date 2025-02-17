@@ -6,11 +6,7 @@
 /// It is only enabled in debug build (its intended use is for CI checks).
 #if !defined(NDEBUG)
 
-#if defined(__clang__)
-    #pragma clang diagnostic ignored "-Wincompatible-library-redeclaration"
-#else
-    #pragma GCC diagnostic ignored "-Wbuiltin-declaration-mismatch"
-#endif
+#pragma clang diagnostic ignored "-Wincompatible-library-redeclaration"
 
 /// We cannot use libc headers here.
 long write(int, const void *, unsigned long);
@@ -31,7 +27,8 @@ TRAP(argp_state_help)
 TRAP(argp_usage)
 TRAP(asctime)
 TRAP(clearenv)
-TRAP(crypt)
+// Redefined at contrib/libbcrypt/crypt_blowfish/wrapper.c:186
+// TRAP(crypt)
 TRAP(ctime)
 TRAP(cuserid)
 TRAP(drand48)
@@ -68,14 +65,11 @@ TRAP(gethostbyaddr)
 TRAP(gethostbyname)
 TRAP(gethostbyname2)
 TRAP(gethostent)
-TRAP(getlogin)
-TRAP(getmntent)
 TRAP(getnetbyaddr)
 TRAP(getnetbyname)
 TRAP(getnetent)
 TRAP(getnetgrent)
 TRAP(getnetgrent_r)
-TRAP(getopt)
 TRAP(getopt_long)
 TRAP(getopt_long_only)
 TRAP(getpass)
@@ -136,7 +130,6 @@ TRAP(nrand48)
 TRAP(__ppc_get_timebase_freq)
 TRAP(ptsname)
 TRAP(putchar_unlocked)
-TRAP(putenv)
 TRAP(pututline)
 TRAP(pututxline)
 TRAP(putwchar_unlocked)
@@ -151,7 +144,6 @@ TRAP(sethostent)
 TRAP(sethostid)
 TRAP(setkey)
 //TRAP(setlocale) // Used by replxx at startup
-TRAP(setlogmask)
 TRAP(setnetent)
 TRAP(setnetgrent)
 TRAP(setprotoent)
@@ -206,7 +198,6 @@ TRAP(lgammal)
 TRAP(nftw)
 TRAP(nl_langinfo)
 TRAP(putc_unlocked)
-TRAP(rand)
 /** In  the current POSIX.1 specification (POSIX.1-2008), readdir() is not required to be thread-safe.  However, in modern
   * implementations (including the glibc implementation), concurrent calls to readdir() that specify different directory streams
   * are thread-safe.  In cases where multiple threads must read from the same directory stream, using readdir() with external
@@ -259,5 +250,47 @@ TRAP(mq_timedreceive)
 /// These functions are also unused by ClickHouse.
 TRAP(wordexp)
 TRAP(wordfree)
+
+/// C11 threading primitives are not supported by ThreadSanitizer.
+/// Also we should avoid using them for compatibility with old libc.
+TRAP(thrd_create)
+TRAP(thrd_equal)
+TRAP(thrd_current)
+TRAP(thrd_sleep)
+TRAP(thrd_yield)
+TRAP(thrd_exit)
+TRAP(thrd_detach)
+TRAP(thrd_join)
+
+TRAP(mtx_init)
+TRAP(mtx_lock)
+TRAP(mtx_timedlock)
+TRAP(mtx_trylock)
+TRAP(mtx_unlock)
+TRAP(mtx_destroy)
+TRAP(call_once)
+
+TRAP(cnd_init)
+TRAP(cnd_signal)
+TRAP(cnd_broadcast)
+TRAP(cnd_wait)
+TRAP(cnd_timedwait)
+TRAP(cnd_destroy)
+
+TRAP(tss_create)
+TRAP(tss_get)
+TRAP(tss_set)
+TRAP(tss_delete)
+
+#ifndef USE_MUSL
+/// These produce duplicate symbol errors when statically linking with musl.
+/// Maybe we can remove them from the musl fork.
+TRAP(getopt)
+TRAP(putenv)
+TRAP(setlogmask)
+TRAP(rand)
+TRAP(getmntent)
+TRAP(getlogin)
+#endif
 
 #endif

@@ -1,80 +1,73 @@
 #pragma once
 
-#include <Common/config.h>
+#include <IO/HTTPHeaderEntries.h>
+#include <IO/S3/Client.h>
+#include <base/types.h>
+#include <Common/Exception.h>
+
+#include "config.h"
 
 #if USE_AWS_S3
 
-#include <base/types.h>
+#include <IO/S3/URI.h>
+#include <IO/S3/Credentials.h>
 #include <aws/core/Aws.h>
-#include <aws/core/client/ClientConfiguration.h>
-#include <IO/S3/PocoHTTPClient.h>
-#include <Poco/URI.h>
-
-namespace Aws::S3
-{
-    class S3Client;
-}
+#include <aws/s3/S3Errors.h>
 
 namespace DB
 {
-    class RemoteHostFilter;
-    struct HttpHeader;
-    using HeaderCollection = std::vector<HttpHeader>;
+
+namespace ErrorCodes
+{
+    extern const int S3_ERROR;
 }
 
-namespace DB::S3
-{
-class ClientFactory
+struct Settings;
+
+class S3Exception : public Exception
 {
 public:
-    ~ClientFactory();
 
-    static ClientFactory & instance();
+    // Format message with fmt::format, like the logging functions.
+    template <typename... Args>
+    S3Exception(Aws::S3::S3Errors code_, FormatStringHelper<Args...> fmt, Args &&... args)
+        : Exception(PreformattedMessage{fmt.format(std::forward<Args>(args)...)}, ErrorCodes::S3_ERROR), code(code_)
+    {
+    }
 
-    std::shared_ptr<Aws::S3::S3Client> create(
-        const PocoHTTPClientConfiguration & cfg,
-        bool is_virtual_hosted_style,
-        const String & access_key_id,
-        const String & secret_access_key,
-        const String & server_side_encryption_customer_key_base64,
-        HeaderCollection headers,
-        bool use_environment_credentials,
-        bool use_insecure_imds_request);
+    S3Exception(const std::string & msg, Aws::S3::S3Errors code_)
+        : Exception(msg, ErrorCodes::S3_ERROR)
+        , code(code_)
+    {}
 
-    PocoHTTPClientConfiguration createClientConfiguration(
-        const String & force_region,
-        const RemoteHostFilter & remote_host_filter,
-        unsigned int s3_max_redirects);
+    Aws::S3::S3Errors getS3ErrorCode() const
+    {
+        return code;
+    }
+
+    bool isRetryableError() const;
 
 private:
-    ClientFactory();
-
-    Aws::SDKOptions aws_options;
+    Aws::S3::S3Errors code;
 };
-
-/**
- * Represents S3 URI.
- *
- * The following patterns are allowed:
- * s3://bucket/key
- * http(s)://endpoint/bucket/key
- */
-struct URI
-{
-    Poco::URI uri;
-    // Custom endpoint if URI scheme is not S3.
-    String endpoint;
-    String bucket;
-    String key;
-    String storage_name;
-
-    bool is_virtual_hosted_style;
-
-    explicit URI(const Poco::URI & uri_);
-
-    static void validateBucket(const String & bucket, const Poco::URI & uri);
-};
-
 }
 
 #endif
+
+namespace Poco::Util
+{
+    class AbstractConfiguration;
+};
+
+namespace DB
+{
+struct ProxyConfigurationResolver;
+
+namespace S3
+{
+
+HTTPHeaderEntries getHTTPHeaders(const std::string & config_elem, const Poco::Util::AbstractConfiguration & config, std::string header_key = "header");
+ServerSideEncryptionKMSConfig getSSEKMSConfig(const std::string & config_elem, const Poco::Util::AbstractConfiguration & config);
+
+}
+}

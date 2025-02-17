@@ -11,17 +11,16 @@ class Context;
 /** Implements system.warnings table that contains warnings about server configuration
   * to be displayed in clickhouse-client.
   */
-class StorageSystemWarnings final : public shared_ptr_helper<StorageSystemWarnings>,
-                                public IStorageSystemOneBlock<StorageSystemWarnings> {
+class StorageSystemWarnings final : public IStorageSystemOneBlock
+{
 public:
     std::string getName() const override { return "SystemWarnings"; }
 
-    static NamesAndTypesList getNamesAndTypes();
+    static ColumnsDescription getColumnsDescription();
 
 protected:
-    friend struct shared_ptr_helper<StorageSystemWarnings>;
     using IStorageSystemOneBlock::IStorageSystemOneBlock;
 
-    void fillData(MutableColumns & res_columns, ContextPtr, const SelectQueryInfo &) const override;
+    void fillData(MutableColumns & res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const override;
 };
 }

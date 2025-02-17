@@ -1,20 +1,22 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_folder_title: "SQL\u30EA\u30D5\u30A1\u30EC\u30F3\u30B9"
-toc_hidden: true
-toc_priority: 28
-toc_title: "\u96A0\u3057"
+keywords: [clickhouse, docs, sqlリファレンス, sqlステートメント, sql, 構文]
+title: SQLリファレンス
 ---
 
-# SQLリファレンス {#sql-reference}
+import { TwoColumnList } from '/src/components/two_column_list'
+import { ClickableSquare } from '/src/components/clickable_square'
+import { HorizontalDivide } from '/src/components/horizontal_divide'
+import { ViewAllLink } from '/src/components/view_all_link'
+import { VideoContainer } from '/src/components/video_container'
 
-ClickHouseは次の種類のクエリをサポートします:
+import LinksDeployment from './sql-reference-links.json'
 
--   [SELECT](statements/select/index.md)
--   [INSERT INTO](statements/insert-into.md)
--   [CREATE](statements/create.md)
--   [ALTER](statements/alter.md#query_language_queries_alter)
--   [その他の種類のクエリ](statements/misc.md)
+# ClickHouse SQLリファレンス
 
-[元の記事](https://clickhouse.com/docs/en/sql-reference/) <!--hide-->
+ClickHouseは、多くの場合にANSI SQL標準と同一のSQLに基づく宣言型クエリ言語をサポートしています。
+
+サポートされているクエリには、GROUP BY、ORDER BY、FROM内のサブクエリ、JOIN句、IN演算子、ウィンドウ関数、スカラーサブクエリが含まれます。
+
+<HorizontalDivide />
+
+<TwoColumnList items={LinksDeployment} />

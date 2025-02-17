@@ -14,6 +14,14 @@
 
 #include <city.h>
 
+#if (defined(__PPC64__) || defined(__powerpc64__)) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#include "vec_crc32.h"
+#endif
+
+#if defined(__s390x__) && __BYTE_ORDER__==__ORDER_BIG_ENDIAN__
+#include <crc32-s390x.h>
+#endif
+
 namespace DB
 {
 
@@ -35,42 +43,58 @@ struct Hash
 #ifdef __SSE4_2__
         return _mm_crc32_u64(crc, val);
 #elif defined(__aarch64__) && defined(__ARM_FEATURE_CRC32)
-        return __crc32cd(crc, val);
+        return __crc32cd(static_cast<UInt32>(crc), val);
+#elif (defined(__PPC64__) || defined(__powerpc64__)) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        return crc32_ppc(crc, reinterpret_cast<const unsigned char *>(&val), sizeof(val));
+#elif defined(__s390x__) && __BYTE_ORDER__==__ORDER_BIG_ENDIAN__
+        return crc32c_le(static_cast<UInt32>(crc), reinterpret_cast<unsigned char *>(&val), sizeof(val));
 #else
-        throw Exception("String hash is not implemented without sse4.2 support", ErrorCodes::NOT_IMPLEMENTED);
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "String hash is not implemented without sse4.2 support");
 #endif
     }
 
-    static UInt64 crc32u32(UInt64 crc [[maybe_unused]], UInt32 val [[maybe_unused]])
+    static UInt64 crc32u32(UInt32 crc [[maybe_unused]], UInt32 val [[maybe_unused]])
     {
 #ifdef __SSE4_2__
         return _mm_crc32_u32(crc, val);
 #elif defined(__aarch64__) && defined(__ARM_FEATURE_CRC32)
         return __crc32cw(crc, val);
+#elif (defined(__PPC64__) || defined(__powerpc64__)) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        return crc32_ppc(crc, reinterpret_cast<const unsigned char *>(&val), sizeof(val));
+#elif defined(__s390x__) && __BYTE_ORDER__==__ORDER_BIG_ENDIAN__
+        return crc32c_le(static_cast<UInt32>(crc), reinterpret_cast<unsigned char *>(&val), sizeof(val));
 #else
-        throw Exception("String hash is not implemented without sse4.2 support", ErrorCodes::NOT_IMPLEMENTED);
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "String hash is not implemented without sse4.2 support");
 #endif
     }
 
-    static UInt64 crc32u16(UInt64 crc [[maybe_unused]], UInt16 val [[maybe_unused]])
+    static UInt64 crc32u16(UInt32 crc [[maybe_unused]], UInt16 val [[maybe_unused]])
     {
 #ifdef __SSE4_2__
         return _mm_crc32_u16(crc, val);
 #elif defined(__aarch64__) && defined(__ARM_FEATURE_CRC32)
         return __crc32ch(crc, val);
+#elif (defined(__PPC64__) || defined(__powerpc64__)) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        return crc32_ppc(crc, reinterpret_cast<const unsigned char *>(&val), sizeof(val));
+#elif defined(__s390x__) && __BYTE_ORDER__==__ORDER_BIG_ENDIAN__
+        return crc32c_le(static_cast<UInt32>(crc), reinterpret_cast<unsigned char *>(&val), sizeof(val));
 #else
-        throw Exception("String hash is not implemented without sse4.2 support", ErrorCodes::NOT_IMPLEMENTED);
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "String hash is not implemented without sse4.2 support");
 #endif
     }
 
-    static UInt64 crc32u8(UInt64 crc [[maybe_unused]], UInt8 val [[maybe_unused]])
+    static UInt64 crc32u8(UInt32 crc [[maybe_unused]], UInt8 val [[maybe_unused]])
     {
 #ifdef __SSE4_2__
         return _mm_crc32_u8(crc, val);
 #elif defined(__aarch64__) && defined(__ARM_FEATURE_CRC32)
         return __crc32cb(crc, val);
+#elif (defined(__PPC64__) || defined(__powerpc64__)) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        return crc32_ppc(crc, reinterpret_cast<const unsigned char *>(&val), sizeof(val));
+#elif defined(__s390x__) && __BYTE_ORDER__==__ORDER_BIG_ENDIAN__
+        return crc32c_le(static_cast<UInt32>(crc), reinterpret_cast<unsigned char *>(&val), sizeof(val));
 #else
-        throw Exception("String hash is not implemented without sse4.2 support", ErrorCodes::NOT_IMPLEMENTED);
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "String hash is not implemented without sse4.2 support");
 #endif
     }
 
@@ -84,7 +108,7 @@ struct Hash
             if constexpr (CaseInsensitive)
                 x |= 0x20u; /// see toLowerIfAlphaASCII from StringUtils.h
 
-            crc = crc32u8(crc, x);
+            crc = crc32u8(static_cast<UInt32>(crc), x);
             --size;
             ++start;
         }
@@ -96,7 +120,7 @@ struct Hash
             if constexpr (CaseInsensitive)
                 x |= 0x2020u;
 
-            crc = crc32u16(crc, x);
+            crc = crc32u16(static_cast<UInt32>(crc), x);
             size -= 2;
             start += 2;
         }
@@ -108,7 +132,7 @@ struct Hash
             if constexpr (CaseInsensitive)
                 x |= 0x20202020u;
 
-            crc = crc32u32(crc, x);
+            crc = crc32u32(static_cast<UInt32>(crc), x);
             size -= 4;
             start += 4;
         }
@@ -272,8 +296,8 @@ struct SimHashImpl
                 continue;
 
             // we need to store the new word hash value to the oldest location.
-            // for example, N = 5, array |a0|a1|a2|a3|a4|, now , a0 is the oldest location,
-            // so we need to store new word hash into location of a0, then ,this array become
+            // for example, N = 5, array |a0|a1|a2|a3|a4|, now, a0 is the oldest location,
+            // so we need to store new word hash into location of a0, then this array become
             // |a5|a1|a2|a3|a4|, next time, a1 become the oldest location, we need to store new
             // word hash value into location of a1, then array become |a5|a6|a2|a3|a4|
             words[offset] = BytesRef{word_start, length};
@@ -291,9 +315,9 @@ struct SimHashImpl
         return getSimHash(finger_vec);
     }
 
-    static void apply(const ColumnString::Chars & data, const ColumnString::Offsets & offsets, size_t shingle_size, PaddedPODArray<UInt64> & res)
+    static void apply(const ColumnString::Chars & data, const ColumnString::Offsets & offsets, size_t shingle_size, PaddedPODArray<UInt64> & res, size_t input_rows_count)
     {
-        for (size_t i = 0; i < offsets.size(); ++i)
+        for (size_t i = 0; i < input_rows_count; ++i)
         {
             const UInt8 * one_data = &data[offsets[i - 1]];
             const size_t data_size = offsets[i] - offsets[i - 1] - 1;
@@ -333,7 +357,7 @@ struct MinHashImpl
     {
         void update(UInt64 hash, BytesRef ref, size_t limit)
         {
-            if (values.count(hash))
+            if (values.contains(hash))
                 return;
 
             values[hash] = ref;
@@ -373,8 +397,8 @@ struct MinHashImpl
         std::map<UInt64, BytesRef, Comp> values;
     };
 
-    using MaxHeap = Heap<std::less<size_t>>;
-    using MinHeap = Heap<std::greater<size_t>>;
+    using MaxHeap = Heap<std::less<>>;
+    using MinHeap = Heap<std::greater<>>;
 
     static ALWAYS_INLINE inline void ngramHashASCII(
         MinHeap & min_heap,
@@ -519,12 +543,13 @@ struct MinHashImpl
         PaddedPODArray<UInt64> * res1,
         PaddedPODArray<UInt64> * res2,
         ColumnTuple * res1_strings,
-        ColumnTuple * res2_strings)
+        ColumnTuple * res2_strings,
+        size_t input_rows_count)
     {
         MinHeap min_heap;
         MaxHeap max_heap;
 
-        for (size_t i = 0; i < offsets.size(); ++i)
+        for (size_t i = 0; i < input_rows_count; ++i)
         {
             const UInt8 * one_data = &data[offsets[i - 1]];
             const size_t data_size = offsets[i] - offsets[i - 1] - 1;
@@ -743,7 +768,7 @@ using FunctionWordShingleMinHashArgUTF8
 using FunctionWordShingleMinHashArgCaseInsensitiveUTF8
 = FunctionsStringHash<MinHashImpl<true, false, true>, NameWordShingleMinHashArgCaseInsensitiveUTF8, false, true>;
 
-void registerFunctionsStringHash(FunctionFactory & factory)
+REGISTER_FUNCTION(StringHash)
 {
     factory.registerFunction<FunctionNgramSimHash>();
     factory.registerFunction<FunctionNgramSimHashCaseInsensitive>();
@@ -773,4 +798,3 @@ void registerFunctionsStringHash(FunctionFactory & factory)
     factory.registerFunction<FunctionWordShingleMinHashArgCaseInsensitiveUTF8>();
 }
 }
-

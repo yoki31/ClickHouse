@@ -6,7 +6,7 @@
 namespace DB
 {
 /** Parses a string like this:
-  * {variable [= value] [MIN [=] min_value] [MAX [=] max_value] [READONLY|WRITABLE]} | PROFILE 'profile_name'
+  * {variable [= value] [MIN [=] min_value] [MAX [=] max_value] [CONST|READONLY|WRITABLE|CHANGEABLE_IN_READONLY]} | PROFILE 'profile_name'
   */
 class ParserSettingsProfileElement : public IParserBase
 {
@@ -36,6 +36,20 @@ protected:
 
 private:
     bool id_mode = false;
+    bool use_inherit_keyword = false;
+};
+
+
+class ParserAlterSettingsProfileElements : public IParserBase
+{
+public:
+    ParserAlterSettingsProfileElements & useInheritKeyword(bool use_inherit_keyword_ = true) { use_inherit_keyword = use_inherit_keyword_; return *this; }
+
+protected:
+    const char * getName() const override { return "AlterSettingsProfileElements"; }
+    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
+
+private:
     bool use_inherit_keyword = false;
 };
 

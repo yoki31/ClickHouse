@@ -1,6 +1,6 @@
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionStringToString.h>
-#include "queryStringAndFragment.h"
+#include <Functions/URL/queryStringAndFragment.h>
 
 namespace DB
 {
@@ -8,7 +8,7 @@ namespace DB
 struct NameQueryStringAndFragment { static constexpr auto name = "queryStringAndFragment"; };
 using FunctionQueryStringAndFragment = FunctionStringToString<ExtractSubstringImpl<ExtractQueryStringAndFragment<true>>, NameQueryStringAndFragment>;
 
-void registerFunctionQueryStringAndFragment(FunctionFactory & factory)
+REGISTER_FUNCTION(QueryStringAndFragment)
 {
     factory.registerFunction<FunctionQueryStringAndFragment>();
 }

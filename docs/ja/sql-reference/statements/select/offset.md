@@ -1,44 +1,46 @@
 ---
-toc_title: OFFSET
+slug: /ja/sql-reference/statements/select/offset
+sidebar_label: OFFSET
+title: "OFFSET FETCH 句"
 ---
 
-# OFFSET FETCH Clause {#offset-fetch}
-
-`OFFSET` and `FETCH` allow you to retrieve data by portions. They specify a row block which you want to get by a single query.
+`OFFSET` と `FETCH` はデータを部分ごとに取得することを可能にします。これは、単一のクエリによって取得したい行のブロックを指定します。
 
 ``` sql
 OFFSET offset_row_count {ROW | ROWS}] [FETCH {FIRST | NEXT} fetch_row_count {ROW | ROWS} {ONLY | WITH TIES}]
 ```
 
-The `offset_row_count` or `fetch_row_count` value can be a number or a literal constant. You can omit `fetch_row_count`; by default, it equals to 1.
+`offset_row_count` や `fetch_row_count` の値は、数値またはリテラル定数にすることができます。`fetch_row_count` を省略することもでき、その場合、デフォルトは1です。
 
-`OFFSET` specifies the number of rows to skip before starting to return rows from the query result set.
+`OFFSET` は、クエリ結果セットから行を返し始める前にスキップする行数を指定します。
 
-The `FETCH` specifies the maximum number of rows that can be in the result of a query.
+`FETCH` は、クエリ結果の行数の最大値を指定します。
 
-The `ONLY` option is used to return rows that immediately follow the rows omitted by the `OFFSET`. In this case the `FETCH` is an alternative to the [LIMIT](../../../sql-reference/statements/select/limit.md) clause. For example, the following query
+`ONLY` オプションは、`OFFSET` によって省略された行に続く行を返すために使用されます。この場合、`FETCH` は [LIMIT](../../../sql-reference/statements/select/limit.md) 句の代替となります。例えば、次のクエリは
 
 ``` sql
 SELECT * FROM test_fetch ORDER BY a OFFSET 1 ROW FETCH FIRST 3 ROWS ONLY;
 ```
 
-is identical to the query
+次のクエリと同一です:
 
 ``` sql
 SELECT * FROM test_fetch ORDER BY a LIMIT 3 OFFSET 1;
 ```
 
-The `WITH TIES` option is used to return any additional rows that tie for the last place in the result set according to the `ORDER BY` clause. For example, if `fetch_row_count` is set to 5 but two additional rows match the values of the `ORDER BY` columns in the fifth row, the result set will contain seven rows.
+`WITH TIES` オプションは、`ORDER BY` 句に従って結果セットの最終位置と同着となる追加の行を返すために使用されます。例えば、`fetch_row_count` が5の場合で、2つの追加の行が5行目の `ORDER BY` カラムの値と一致するなら、結果セットには7行が含まれることになります。
 
-!!! note "Note"
-    According to the standard, the `OFFSET` clause must come before the `FETCH` clause if both are present.
+:::note    
+標準に従えば、`OFFSET` 句は `FETCH` 句がある場合、その前に記述する必要があります。
+:::
 
-!!! note "Note"
-    The real offset can also depend on the [offset](../../../operations/settings/settings.md#offset) setting.
+:::note    
+実際のオフセットは、[offset](../../../operations/settings/settings.md#offset) 設定にも依存することがあります。
+:::
 
-## Examples {#examples}
+## 例
 
-Input table:
+入力テーブル:
 
 ``` text
 ┌─a─┬─b─┐
@@ -52,13 +54,13 @@ Input table:
 └───┴───┘
 ```
 
-Usage of the `ONLY` option:
+`ONLY` オプションの使用例:
 
 ``` sql
 SELECT * FROM test_fetch ORDER BY a OFFSET 3 ROW FETCH FIRST 3 ROWS ONLY;
 ```
 
-Result:
+結果:
 
 ``` text
 ┌─a─┬─b─┐
@@ -68,13 +70,13 @@ Result:
 └───┴───┘
 ```
 
-Usage of the `WITH TIES` option:
+`WITH TIES` オプションの使用例:
 
 ``` sql
 SELECT * FROM test_fetch ORDER BY a OFFSET 3 ROW FETCH FIRST 3 ROWS WITH TIES;
 ```
 
-Result:
+結果:
 
 ``` text
 ┌─a─┬─b─┐

@@ -1,46 +1,43 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 29
-toc_title: "\u30D7\u30ED\u30AD\u30B7"
+slug: /ja/interfaces/third-party/proxy
+sidebar_position: 29
+sidebar_label: プロキシ
 ---
 
-# サードパーテ {#proxy-servers-from-third-party-developers}
+# サードパーティ開発者によるプロキシサーバー
 
 ## chproxy {#chproxy}
 
-[chproxy](https://github.com/Vertamedia/chproxy),は、ClickHouseデータベース用のHTTPプロキシとロードバランサです。
+[chproxy](https://github.com/Vertamedia/chproxy) は、ClickHouseデータベース用のHTTPプロキシおよびロードバランサです。
 
 特徴:
 
--   ユーザーごとのルーティ
--   適用範囲が広い限界。
--   SSL証明書の自動renewal。
+- ユーザーごとのルーティングとレスポンスキャッシュ。
+- 柔軟な制限。
+- 自動SSL証明書の更新。
 
-Goで実装。
+Goで実装されています。
 
-## キッテンハウス {#kittenhouse}
+## KittenHouse {#kittenhouse}
 
-[キッテンハウス](https://github.com/VKCOM/kittenhouse) することが重要である現地代理人とClickHouse、アプリケーションサーバの場合でもバッファに挿入データとお客様側です。
-
-特徴:
-
--   メモリ内およびディスク上のデータバッファリング。
--   テーブル単位のルーティング。
--   負荷分散と正常性チェック。
-
-Goで実装。
-
-## クリックハウス-バルク {#clickhouse-bulk}
-
-[クリックハウス-バルク](https://github.com/nikepan/clickhouse-bulk) 単純なClickHouse挿入コレクターです。
+[KittenHouse](https://github.com/VKCOM/kittenhouse) は、アプリケーション側でINSERTデータをバッファリングすることが不可能または不便な場合に、ClickHouseとアプリケーションサーバー間のローカルプロキシとして設計されています。
 
 特徴:
 
--   グループの要求送信によるしきい値または間隔で出ています。
--   複数のリモートサーバー。
--   基本認証。
+- メモリ内およびディスク上でのデータバッファリング。
+- テーブルごとのルーティング。
+- ロードバランシングとヘルスチェック。
 
-Goで実装。
+Goで実装されています。
 
-[元の記事](https://clickhouse.com/docs/en/interfaces/third-party/proxy/) <!--hide-->
+## ClickHouse-Bulk {#clickhouse-bulk}
+
+[ClickHouse-Bulk](https://github.com/nikepan/clickhouse-bulk) は、シンプルなClickHouseインサートコレクターです。
+
+特徴:
+
+- リクエストをグループ化し、しきい値または間隔で送信。
+- 複数のリモートサーバー。
+- 基本認証。
+
+Goで実装されています。

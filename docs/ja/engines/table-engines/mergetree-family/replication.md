@@ -1,110 +1,189 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 31
-toc_title: "\u30C7\u30FC\u30BF\u8907\u88FD"
+slug: /ja/engines/table-engines/mergetree-family/replication
+sidebar_position: 20
+sidebar_label: Data Replication
 ---
 
-# データ複製 {#table_engines-replication}
+# データレプリケーション
 
-複製がサポートされる唯一のためのテーブルのMergeTree家族:
+:::note
+ClickHouse Cloudでは、レプリケーションは自動で管理されます。テーブルを作成する際、引数を追加せずに行ってください。例えば、以下の例では次のように置き換えてください：
 
--   複製マージツリー
--   複製されたサミングマージツリー
--   レプリケートリプレースマージツリー
--   複製された集合マージツリー
--   レプリケートコラプシングマージツリー
--   ReplicatedVersionedCollapsingMergeTree
--   レプリケートグラフィティマージツリー
+```sql
+ENGINE = ReplicatedMergeTree(
+    '/clickhouse/tables/{shard}/table_name',
+    '{replica}',
+    ver
+)
+```
 
-複製の作品のレベルを個別のテーブルではなく、全体のサーバーです。 サーバーでの店舗も複製、非複製のテーブルでも同時に行います。
+次のように：
 
-複製はシャーディングに依存しません。 各シャードには、独自の独立した複製があります。
+```sql
+ENGINE = ReplicatedMergeTree
+```
+:::
 
-圧縮されたデータ `INSERT` と `ALTER` クエリを複製(詳細については、ドキュメンテーションに [ALTER](../../../sql-reference/statements/alter.md#query_language_queries_alter)).
+レプリケーションは、MergeTreeファミリーのテーブルでのみサポートされています：
 
-`CREATE`, `DROP`, `ATTACH`, `DETACH` と `RENAME` クエリは単一サーバーで実行され、レプリケートされません:
+- ReplicatedMergeTree
+- ReplicatedSummingMergeTree
+- ReplicatedReplacingMergeTree
+- ReplicatedAggregatingMergeTree
+- ReplicatedCollapsingMergeTree
+- ReplicatedVersionedCollapsingMergeTree
+- ReplicatedGraphiteMergeTree
 
--   その `CREATE TABLE` クエリは、クエリが実行されるサーバー上に新しい複製可能テーブルを作成します。 このテーブルが既にあるその他のサーバーを加え新たなレプリカ.
--   その `DROP TABLE` クエリは、クエリが実行されるサーバー上にあるレプリカを削除します。
--   その `RENAME` queryは、レプリカのいずれかのテーブルの名前を変更します。 つまり、複製のテーブルでの異なる名称の異なるレプリカ.
+レプリケーションは、サーバ全体ではなく、個別のテーブルレベルで動作します。1つのサーバは、レプリケートテーブルと非レプリケートテーブルの両方を同時に保存できます。
 
-ClickHouseの使用 [アパッチの飼育係](https://zookeeper.apache.org) レプリカのメタ情報を格納するため。 ZooKeeperバージョン3.4.5以降を使用します。
+レプリケーションはシャードには依存しません。各シャードは独自のレプリケーションを持っています。
 
-レプリケーションを使用するには、 [飼育係](../../../operations/server-configuration-parameters/settings.md#server-settings_zookeeper) サーバー構成セクション。
+`INSERT` や `ALTER` クエリの圧縮データはレプリケートされます（詳細は、[ALTER](/docs/ja/sql-reference/statements/alter/index.md#query_language_queries_alter)のドキュメントを参照してください）。
 
-!!! attention "注意"
-    セキュリティ設定を無視しないでください クリックハウスは `digest` [ACLスキーム](https://zookeeper.apache.org/doc/current/zookeeperProgrammers.html#sc_ZooKeeperAccessControl) ZooKeeperセキュリティサブシステムの。
+`CREATE`、`DROP`、`ATTACH`、`DETACH`、`RENAME` クエリは単一のサーバで実行され、レプリケートされません：
 
-ZooKeeperクラスタのアドレスを設定する例:
+- `CREATE TABLE` クエリは、クエリを実行するサーバ上に新しいレプリケート可能なテーブルを作成します。このテーブルが他のサーバ上に既に存在する場合、新しいレプリカを追加します。
+- `DROP TABLE` クエリは、クエリを実行するサーバ上にあるレプリカを削除します。
+- `RENAME` クエリは、レプリカの1つ上でテーブル名を変更します。言い換えれば、レプリケートテーブルは異なるレプリカに異なる名前を持つことができます。
+
+ClickHouseは、レプリカのメタ情報を保存するために [ClickHouse Keeper](/docs/ja/guides/sre/keeper/index.md) を使用します。ZooKeeperバージョン3.4.5以降の利用も可能ですが、ClickHouse Keeperの使用が推奨されます。
+
+レプリケーションを使用するには、[zookeeper](/docs/ja/operations/server-configuration-parameters/settings.md/#server-settings_zookeeper)のサーバ設定セクションでパラメータを設定してください。
+
+:::note
+セキュリティ設定を軽視しないでください。ClickHouseはZooKeeperセキュリティサブシステムの `digest` [ACLスキーム](https://zookeeper.apache.org/doc/current/zookeeperProgrammers.html#sc_ZooKeeperAccessControl)をサポートしています。
+:::
+
+ClickHouse Keeperクラスタのアドレス設定例：
 
 ``` xml
 <zookeeper>
-    <node index="1">
+    <node>
         <host>example1</host>
         <port>2181</port>
     </node>
-    <node index="2">
+    <node>
         <host>example2</host>
         <port>2181</port>
     </node>
-    <node index="3">
+    <node>
         <host>example3</host>
         <port>2181</port>
     </node>
 </zookeeper>
 ```
 
-既存のZooKeeperクラスタを指定すると、システムはそのクラスタ上のディレクトリを独自のデータとして使用します(複製可能なテーブルを作成するときに
+ClickHouseはまた、補助ZooKeeperクラスタにレプリカのメタ情報を保存することをサポートしています。エンジンの引数としてZooKeeperクラスタ名とパスを提供することでこれを行います。言い換えれば、異なるテーブルのメタデータを異なるZooKeeperクラスタに保存することをサポートしています。
 
-場合飼育係な設定コンフィグファイルを創り上げられないんで再現しテーブル、および既存の複製のテーブル読み取り専用になります。
+補助ZooKeeperクラスタのアドレス設定例：
 
-飼育係はで使用されていません `SELECT` レプリケーションのパフォーマン `SELECT` また、クエリは非レプリケートテーブルの場合と同様に高速に実行されます。 時の照会に配布再現し、テーブルClickHouse行動制御の設定 [max_replica_delay_for_distributed_queries](../../../operations/settings/settings.md#settings-max_replica_delay_for_distributed_queries) と [フォールバック_to_stale_replicas_for_distributed_queries](../../../operations/settings/settings.md#settings-fallback_to_stale_replicas_for_distributed_queries).
+``` xml
+<auxiliary_zookeepers>
+    <zookeeper2>
+        <node>
+            <host>example_2_1</host>
+            <port>2181</port>
+        </node>
+        <node>
+            <host>example_2_2</host>
+            <port>2181</port>
+        </node>
+        <node>
+            <host>example_2_3</host>
+            <port>2181</port>
+        </node>
+    </zookeeper2>
+    <zookeeper3>
+        <node>
+            <host>example_3_1</host>
+            <port>2181</port>
+        </node>
+    </zookeeper3>
+</auxiliary_zookeepers>
+```
 
-それぞれのため `INSERT` クエリー、契約時に応募を追加飼育係を務取引等 （より正確には、これは挿入されたデータの各ブロックに対するものです。 `max_insert_block_size = 1048576` 行。)これは、 `INSERT` 非レプリケートテーブルと比較します。 しかし、推奨事項に従ってデータを複数のバッチで挿入する場合 `INSERT` 毎秒、それは問題を作成しません。 一つのZooKeeperクラスターを調整するために使用されるClickHouseクラスター全体の合計は数百です `INSERTs` 毎秒 データ挿入のスループット(秒あたりの行数)は、レプリケートされていないデータの場合と同じくらい高くなります。
+デフォルトのZooKeeperクラスタの代わりに補助ZooKeeperクラスタにテーブルメタデータを保存するには、次のように SQL を使って ReplicatedMergeTree エンジンでテーブルを作成することができます：
 
-非常に大きなクラスタの場合、異なるシャードに異なるZooKeeperクラスタを使用できます。 しかし、これはYandexの上で必要な証明されていません。メトリカクラスタ（約300台）。
+```sql
+CREATE TABLE table_name ( ... ) ENGINE = ReplicatedMergeTree('zookeeper_name_configured_in_auxiliary_zookeepers:path', 'replica_name') ...
+```
+既存のZooKeeperクラスタを指定することで、システムはそこで自分のデータ用のディレクトリを使います（レプリケート可能なテーブルを作成する際にディレクトリが指定されます）。
 
-複製は非同期でマルチマスターです。 `INSERT` クエリ(および `ALTER`）利用可能な任意のサーバに送信することができます。 データは、クエリが実行されるサーバーに挿入され、他のサーバーにコピーされます。 ですので非同期であるため、最近では挿入されデータが表示され、その他のレプリカとの待ち時間をゼロにすることに レプリカの一部が使用できない場合、データは使用可能になったときに書き込まれます。 レプリカが使用可能な場合、待機時間は、圧縮されたデータのブロックをネットワーク経由で転送するのにかかる時間です。
+ZooKeeperが設定ファイルに設定されていない場合、レプリケートテーブルを作成することはできず、既存のレプリケートテーブルは読み取り専用になります。
 
-既定では、挿入クエリは、単一のレプリカからのデータの書き込みの確認を待機します。 データが得られない場合には成功した記述につのレプリカのサーバーのこのレプリカが消滅し、保存したデータは失われます。 複数のレプリカからのデータ書き込みの確認の取得を有効にするには、 `insert_quorum` オプション
+`SELECT` クエリではZooKeeperは使用されません。レプリケーションは `SELECT` のパフォーマンスに影響を与えず、非レプリケーションテーブルと同じ速さでクエリが実行されます。分散レプリケートテーブルをクエリする際、ClickHouseの動作は[max_replica_delay_for_distributed_queries](/docs/ja/operations/settings/settings.md/#max_replica_delay_for_distributed_queries)および[fallback_to_stale_replicas_for_distributed_queries](/docs/ja/operations/settings/settings.md/#fallback_to_stale_replicas_for_distributed_queries)の設定で制御されます。
 
-データの各ブロックは原子的に書き込まれます。 挿入クエリは、次のブロックに分割されます `max_insert_block_size = 1048576` 行。 言い換えれば、 `INSERT` クエリには1048576行未満があり、アトミックに作成されます。
+各 `INSERT` クエリごとに、およそ10件のエントリが複数のトランザクションを介してZooKeeperに追加されます。（より正確にはこれは、データの挿入された各ブロックごとです。`INSERT` クエリは一つのブロック、または `max_insert_block_size = 1048576` 行ごとに一つのブロックを含みます。）これは、非レプリケートテーブルと比較して `INSERT` の遅延をわずかに長くします。ただし、1秒あたり1つの `INSERT` を超えないバッチでデータを挿入するという推奨事項に従うと問題はありません。1つのZooKeeperクラスタで調整されるClickHouseクラスタ全体で、1秒あたり数百の `INSERT` が行われます。データ挿入のスループット（1秒あたりの行数）は、非レプリケートデータの場合と同じくらい高いです。
 
-データブロックは重複排除されます。 同じデータブロック（同じ順序で同じ行を含む同じサイズのデータブロック）の複数の書き込みの場合、ブロックは一度だけ書き込まれます。 この理由は、クライアントアプリケーションがデータがDBに書き込まれたかどうかを知らないときにネットワーク障害が発生した場合です。 `INSERT` クエリーするだけで簡単に繰り返します。 どのレプリカ挿入が同一のデータで送信されたかは関係ありません。 `INSERTs` 冪等である。 重複排除圧縮パラメータの制御 [merge_tree](../../../operations/server-configuration-parameters/settings.md#server_configuration_parameters-merge_tree) サーバー設定。
+非常に大きなクラスタの場合、異なるシャードで異なるZooKeeperクラスタを使用することができます。しかし、これまでの経験上、これは約300サーバの本番クラスタで必要であるとは証明されていません。
 
-複製時に、元のデータの挿入には転送されます。 さらなるデータ変換(マージ)は、すべてのレプリカで同じ方法で調整され、実行されます。 つまり、レプリカが異なるデータセンターに存在する場合、レプリケーションは適切に機能します。 レプリケーションの主な目的は、異なるデータセンターでデータを複製することです。)
+レプリケーションは非同期でマルチマスターです。`INSERT` クエリ（および `ALTER`）は利用可能な任意のサーバに送信できます。データはクエリが実行されたサーバに挿入され、次に他のサーバにコピーされます。非同期であるため、新たに挿入されたデータが他のレプリカに表示されるにはいくらかの遅延があります。一部のレプリカが利用不可の場合、データは利用可能になった際に書き込まれます。レプリカが利用可能な場合、遅延は圧縮されたデータブロックをネットワーク越しに転送するのにかかる時間です。レプリケートテーブルにおいてバックグラウンドタスクを実行するためのスレッド数は、[background_schedule_pool_size](/docs/ja/operations/server-configuration-parameters/settings.md/#background_schedule_pool_size)設定で設定できます。
 
-同じデータの任意の数のレプリカを持つことができます。 Yandex.Metricaは本番環境で二重複製を使用します。 各サーバーはRAID-5またはRAID-6を使用し、場合によってはRAID-10を使用します。 これは比較的信頼性が高く便利な解決策です。
+`ReplicatedMergeTree` エンジンは、レプリケートフェッチ用に別のスレッドプールを使用します。プールのサイズはサーバを再起動して調整可能な[background_fetches_pool_size](/docs/ja/operations/settings/settings.md/#background_fetches_pool_size)設定によって制限されます。
 
-システムは、レプリカのデータ同期を監視し、障害発生後に回復することができます。 フェールオーバーは、自動(データのわずかな違いの場合)または半自動(データの異なりが多すぎる場合、構成エラーを示す可能性があります)です。
+デフォルトでは、`INSERT` クエリは1つのレプリカからのデータ書き込み確認を待ちます。もしデータが1つのレプリカにのみ正常に書き込まれ、そのレプリカのあるサーバが消失した場合、保存されたデータは失われます。複数のレプリカからのデータ書き込み確認を得るには、`insert_quorum` オプションを使用します。
 
-## 複製テーブルの作成 {#creating-replicated-tables}
+各データブロックは原子的に書き込まれます。`INSERT` クエリは`max_insert_block_size = 1048576` 行までのブロックに分けられます。言い換えれば、`INSERT` クエリが1048576行未満の場合、それは原子的に行われます。
 
-その `Replicated` テーブルエンジン名に接頭辞が追加されます。 例えば:`ReplicatedMergeTree`.
+データブロックは重複削除されます。同じデータブロックの複数回の書き込み（同じ行が同じ順序で含まれる同じサイズのデータブロック）では、ブロックは1回だけ書き込まれます。これは、ネットワーク障害が発生した場合にクライアントアプリケーションがデータがDBに書き込まれたかどうか不明なときに、`INSERT` クエリを単に再実行できるようにするためです。同じデータの `INSERT` はどのレプリカに送信されても問題ありません。`INSERT` は冪等です。重複削除のパラメータは[merge_tree](/docs/ja/operations/server-configuration-parameters/settings.md/#merge_tree)サーバ設定で制御されます。
 
-**複製\*MergeTreeパラメータ**
+レプリケーション中には挿入する元データのみがネットワーク越しに転送されます。データのさらなる変換（マージ）は、すべてのレプリカで同様に調整され、実行されます。これによりネットワーク使用が最小限に抑えられ、レプリカが異なるデータセンターに存在する場合でもレプリケーションがうまく機能します。（異なるデータセンターでのデータの複製がレプリケーションの主な目的であることに注意してください。）
 
--   `zoo_path` — The path to the table in ZooKeeper.
--   `replica_name` — The replica name in ZooKeeper.
+同じデータのレプリカを任意の数だけ持つことができます。我々の経験上では、比較的信頼性があり便利な解決策は、各サーバにRAID-5またはRAID-6（場合によってはRAID-10）を使用して、本番環境で二重レプリケーションを使用することです。
 
-例:
+システムはレプリカ上のデータの同期性を監視し、障害後のリカバリが可能です。フェイルオーバーは自動（データの小さな差の場合）または半自動（データが非常に異なる場合、これは設定エラーを示す可能性があります）です。
+
+## レプリケートテーブルの作成 {#creating-replicated-tables}
+
+:::note
+ClickHouse Cloudでは、レプリケーションは自動で管理されます。テーブルを作成する際、引数を追加せずに作成してください。例えば、以下の例では次のように置き換えてください：
+```
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/table_name', '{replica}', ver)
+```
+次のように：
+```
+ENGINE = ReplicatedMergeTree
+```
+:::
+
+テーブルエンジン名のプレフィックスに `Replicated` を追加します。例えば：`ReplicatedMergeTree`。
+
+:::tip
+ClickHouse Cloudでは、すべてのテーブルがレプリケートされているため、`Replicated` を追加する必要はありません。
+:::
+
+### Replicated\*MergeTree パラメータ
+
+#### zoo_path
+
+`zoo_path` — ClickHouse Keeper内のテーブルへのパス。
+
+#### replica_name
+
+`replica_name` — ClickHouse Keeper内のレプリカ名。
+
+#### other_parameters
+
+`other_parameters` — レプリケートバージョンを作成するために使用されるエンジンのパラメータ。例えば、`ReplacingMergeTree` 内のバージョンなど。
+
+例：
 
 ``` sql
 CREATE TABLE table_name
 (
     EventDate DateTime,
     CounterID UInt32,
-    UserID UInt32
-) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{layer}-{shard}/table_name', '{replica}')
+    UserID UInt32,
+    ver UInt16
+) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{layer}-{shard}/table_name', '{replica}', ver)
 PARTITION BY toYYYYMM(EventDate)
 ORDER BY (CounterID, EventDate, intHash32(UserID))
-SAMPLE BY intHash32(UserID)
+SAMPLE BY intHash32(UserID);
 ```
 
 <details markdown="1">
 
-<summary>非推奨の構文の例</summary>
+<summary>旧構文の例</summary>
 
 ``` sql
 CREATE TABLE table_name
@@ -112,107 +191,159 @@ CREATE TABLE table_name
     EventDate DateTime,
     CounterID UInt32,
     UserID UInt32
-) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{layer}-{shard}/table_name', '{replica}', EventDate, intHash32(UserID), (CounterID, EventDate, intHash32(UserID), EventTime), 8192)
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/table_name', '{replica}', EventDate, intHash32(UserID), (CounterID, EventDate, intHash32(UserID), EventTime), 8192);
 ```
 
 </details>
 
-その例としては、これらのパラメータを含むことができ換巻きていただけるボディーです。 置き換えられた値は、 ‘macros’ 設定ファイルのセクション。 例:
+例に示したように、これらのパラメータは波括弧で囲まれた置換を含めることができます。置換された値は、設定ファイルの[macros](/docs/ja/operations/server-configuration-parameters/settings.md/#macros)セクションから取得されます。
+
+例：
 
 ``` xml
 <macros>
-    <layer>05</layer>
     <shard>02</shard>
-    <replica>example05-02-1.yandex.ru</replica>
+    <replica>example05-02-1</replica>
 </macros>
 ```
 
-の表の飼育係るべきで機能していませんが将来的には再現します。 テーブルの異なる資料は異なる。
-この場合、パスは次の部分で構成されます:
+ClickHouse Keeper内でのテーブルへのパスは、各レプリケートテーブルごとにユニークである必要があります。異なるシャードのテーブルは異なるパスを持つ必要があります。この場合、パスは次の部分で構成されています：
 
-`/clickhouse/tables/` 共通の接頭辞です。 の使用をお勧めしまうことです。
+`/clickhouse/tables/` は共通のプレフィックスです。これとまったく同じものを使用することをお勧めします。
 
-`{layer}-{shard}` シャード識別子です。 この例では、Yandexので、二つの部分で構成されています。Metricaクラスターの使用インターネット上のファイル転送sharding. ほとんどのタスクでは、{shard}置換だけを残すことができます。
+`{shard}` はシャード識別子に展開されます。
 
-`table_name` ZooKeeper内のテーブルのノード名です。 テーブル名と同じにすることをお勧めします。 これは、テーブル名とは対照的に、名前変更クエリの後に変更されないため、明示的に定義されています。
-*HINT*：データベース名を追加することができます `table_name` 同様に。 例えば `db_name.table_name`
+`table_name` は、ClickHouse Keeper内のテーブル用ノードの名前です。これはテーブル名と同じにするのが良い考えです。これは明示的に定義されており、RENAMEクエリ後にテーブル名が変わらないためです。
+*ヒント*: `table_name` の前にデータベース名を追加することもできます。例：`db_name.table_name`
 
-のレプリカの名前を識別のレプリカと同じ。 これには、例のようにサーバー名を使用できます。 名前は、各シャード内で一意である必要があります。
+組み込みの置換 `{database}` および `{table}` を使用することができ、これらはそれぞれテーブル名とデータベース名に展開されます（これらのマクロが `macros` セクションで定義されている場合を除く）。したがって、zookeeperのパスは `'/clickhouse/tables/{shard}/{database}/{table}'` と指定できます。
+これらの組み込みの置換を使用する際には、テーブルの名前変更に注意してください。ClickHouse Keeper内のパスは変更できず、テーブルが名前を変更すると、マクロは異なるパスに展開され、テーブルはClickHouse Keeperに存在しないパスを示し、読み取り専用モードになります。
 
-置換を使用する代わりに、パラメーターを明示的に定義できます。 これは、テストや小さなクラスターの構成に便利です。 ただし、分散DDLクエリは使用できません (`ON CLUSTER`）この場合。
+レプリカ名は同じテーブルの異なるレプリカを識別します。この例ではサーバ名を使用しています。この名前は各シャード内でユニークである必要があります。
 
-大規模なクラスターで作業する場合は、エラーの可能性を減らすため、置換を使用することをお勧めします。
+小規模なクラスタの構成やテストには、置換を使用せずにパラメータを明示的に定義することもできます。ですが、この場合、分散DDLクエリ（`ON CLUSTER`）を使用することはできません。
 
-実行 `CREATE TABLE` 各レプリカのクエリ。 このクエリを複製テーブルを追加し、新たなレプリカは、既存します。
+大規模クラスタで作業する場合、誤りの可能性を減らすために置換の使用をお勧めします。
 
-テーブルに他のレプリカのデータがすでに含まれている後に新しいレプリカを追加すると、クエリの実行後にデータが他のレプリカから新しいレプリカ つまり、新しいレプリカは他のレプリカと同期します。
+サーバ設定ファイルで `Replicated` テーブルエンジンのデフォルト引数を指定できます。例えば：
 
-レプリカを削除するには、 `DROP TABLE`. However, only one replica is deleted – the one that resides on the server where you run the query.
+```xml
+<default_replica_path>/clickhouse/tables/{shard}/{database}/{table}</default_replica_path>
+<default_replica_name>{replica}</default_replica_name>
+```
 
-## 障害後の回復 {#recovery-after-failures}
+この場合、テーブルの作成時に引数を省略できます：
 
-場合飼育係が不可の場合、サーバは、複製のテーブルスイッチ読み取り専用モードになります。 システムは定期的にZooKeeperへの接続を試みます。
+``` sql
+CREATE TABLE table_name (
+    x UInt32
+) ENGINE = ReplicatedMergeTree
+ORDER BY x;
+```
 
-飼育係が中に使用できない場合 `INSERT`、またはZooKeeperとの対話時にエラーが発生すると、例外がスローされます。
+これは次と同等です：
 
-ZooKeeperに接続すると、ローカルファイルシステム内のデータセットが予想されるデータセットと一致するかどうかがチェックされます(ZooKeeperはこの情報を格納し がある場合は軽微な不整合の解消による同期データのレプリカ.
+``` sql
+CREATE TABLE table_name (
+    x UInt32
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/{database}/table_name', '{replica}')
+ORDER BY x;
+```
 
-システムが壊れたデータ部分(ファイルのサイズが間違っている)または認識できない部分(ファイルシステムに書き込まれているが、ZooKeeperに記録されて `detached` サブディレクトリ(削除されません)。 他の部分がコピーからのレプリカ.
+`CREATE TABLE` クエリを各レプリカで実行します。このクエリは新しいレプリケートテーブルを作成するか、既存のテーブルに新しいレプリカを追加します。
 
-ClickHouseは、大量のデータを自動的に削除するなどの破壊的な操作は実行しません。
+他のレプリカ上に既にデータが含まれているテーブルに新しいレプリカを追加する場合は、クエリを実行した後、このテーブルからデータが新しいレプリカにコピーされます。言い換えれば、新しいレプリカは他のレプリカと同期されます。
 
-サーバが起動時に表示されます(または新たに設立し、セッションとの飼育係）でのみチェックの量やサイズのすべてのファイルです。 ファイルサイズは一致するが、途中でバイトが変更された場合、これはすぐには検出されず、データを読み取ろうとしたときにのみ検出されます。 `SELECT` クエリ。 クエリが例外をスローしつつ、非マッチングのチェックサムはサイズに圧縮されたブロックです。 この場合、データパーツは検証キューに追加され、必要に応じてレプリカからコピーされます。
+レプリカを削除するには、`DROP TABLE` を実行します。ただし、削除されるのはクエリを実行したサーバ上のレプリカだけです。
 
-場合には地元のデータセットが異なりすぎとられ、安全機構を起動します。 サーバーはこれをログに入力し、起動を拒否します。 この理由は、シャード上のレプリカが別のシャード上のレプリカのように誤って構成された場合など、このケースが構成エラーを示す可能性があるためです。 しかし、しきい値をこの機構の設定かなり低く、こうした状況が起こる中で、失敗を回復しました。 この場合、データは半自動的に復元されます。 “pushing a button”.
+## 障害後のリカバリ {#recovery-after-failures}
 
-回復を開始するには、ノードを作成します `/path_to_table/replica_name/flags/force_restore_data` で飼育係とコンテンツ、またはコマンドを実行し復元すべての複製のテーブル:
+ClickHouse Keeperが利用できない場合、レプリケートテーブルは読み取り専用モードに切り替わります。システムは定期的にClickHouse Keeperへの接続を試みます。
+
+`INSERT` 中にClickHouse Keeperが利用できない場合、またはClickHouse Keeperとのインタラクション中にエラーが発生した場合、例外がスローされます。
+
+ClickHouse Keeperとの接続後、システムはローカルファイルシステム内のデータセットが期待されるデータセット（ClickHouse Keeperがこの情報を保存しています）と一致するかどうかを確認します。小さな不一致がある場合、システムはそれらをレプリカと同期させて解決します。
+
+システムが破損したデータ部分（ファイルのサイズが間違っているもの）や未確認の部分（ファイルシステムに書き込まれたがClickHouse Keeperには記録されていない部分）を検出した場合、それらを `detached` サブディレクトリに移動します（削除はされません）。不明な部分はレプリカからコピーされます。
+
+ClickHouseは大量のデータ削除を自動で行うような破壊的な操作を行いません。
+
+サーバが起動する際（またはClickHouse Keeperとの新しいセッションを確立する際）、ファイルの量とサイズのみがチェックされます。ファイルサイズが一致していても中間のバイトが変更されている場合、これはすぐには検出されず、`SELECT` クエリでデータを読む際に非一致のチェックサムや圧縮ブロックのサイズについての例外が発生します。この場合、データ部分は検証キューに追加され、必要であればレプリカからコピーされます。
+
+ローカルのデータセットが期待値と大きく異なる場合、安全機構が作動します。サーバはこれをログに記録し、起動を拒否します。この理由は、この場合が設定エラーを示す可能性があるためです。たとえば、あるシャードのレプリカが誤って異なるシャードとして設定された場合です。しかし、このメカニズムのしきい値はかなり低く設定されており、通常の障害復旧中にこの状況が発生することがあります。この場合、データは半自動的に、すなわち「ボタンを押す」という手段で復旧されます。
+
+復旧を開始するには、ClickHouse Keeperに以下のノードを任意の内容で作成するか、すべてのレプリケートテーブルを復元するコマンドを実行してください：
 
 ``` bash
 sudo -u clickhouse touch /var/lib/clickhouse/flags/force_restore_data
 ```
 
-次に、サーバーを再起動します。 起動時に、サーバーはこれらのフラグを削除し、回復を開始します。
+その後、サーバを再起動します。起動後、サーバはこれらのフラグを削除し、復旧を開始します。
 
-## 完全なデータ損失の後の回復 {#recovery-after-complete-data-loss}
+## データの完全消失後の復旧 {#recovery-after-complete-data-loss}
 
-すべてのデータやメタデータ消えたらサーバには、次の手順に従ってください復興:
+あるサーバからすべてのデータとメタデータが消失した場合、次のステップで復旧を行います：
 
-1.  ClickHouseをサーバにインストールします。 シャード識別子とレプリカを使用する場合は、設定ファイルで置換を正しく定義します。
-2.  サーバー上で手動で複製する必要がある未複製のテーブルがある場合は、レプリカからデータをコピーします(ディレクトリ内)。 `/var/lib/clickhouse/data/db_name/table_name/`).
-3.  テーブル定義のコピー `/var/lib/clickhouse/metadata/` レプリカから。 シャード識別子またはレプリカ識別子がテーブル定義で明示的に定義されている場合は、このレプリカに対応するように修正します。 (または、サーバーを起動し、すべての `ATTACH TABLE` にあったはずのクエリ.sqlファイル `/var/lib/clickhouse/metadata/`.)
-4.  回復を開始するには、ZooKeeperノードを作成します `/path_to_table/replica_name/flags/force_restore_data` コマンドを実行してレプリケートされたテーブルをすべて復元します: `sudo -u clickhouse touch /var/lib/clickhouse/flags/force_restore_data`
+1. ClickHouseをサーバにインストールします。シャード識別子とレプリカが使用されている場合、それらが置換されるように設定ファイルを正しく定義します。
+2. サーバに手動で複製された非レプリケートテーブルがあった場合、それらのデータをコピーします（ここで、レプリカのディレクトリは `/var/lib/clickhouse/data/db_name/table_name/` です）。
+3. メタデータディレクトリ内の `/var/lib/clickhouse/metadata/` ファイルからテーブル定義をコピーします。シャードまたはレプリカ識別子がテーブル定義内で明示的に定義されている場合は、これをこのレプリカに対応するように修正します。（あるいは、サーバを開始して、/var/lib/clickhouse/metadata/ 内の.sqlファイルに含まれるべき`ATTACH TABLE` クエリをすべて実行します。）
+4. 復旧を開始するには、ClickHouse Keeperに以下のノードを任意の内容で作成するか、すべてのレプリケートテーブルを復元するコマンドを実行してください： `sudo -u clickhouse touch /var/lib/clickhouse/flags/force_restore_data`
 
-次に、サーバーを起動します（すでに実行されている場合は再起動します）。 データダウンロードからのレプリカ.
+その後、サーバを開始（既に実行中の場合は再起動）します。データはレプリカからダウンロードされます。
 
-代替の回復オプションは削除に関する情報は失われたレプリカから飼育係 (`/path_to_table/replica_name`)で説明したように、レプリカを再度作成します “[複製テーブルの作成](#creating-replicated-tables)”.
+別の復旧オプションとして、失われたレプリカについての情報をClickHouse Keeperから削除（`/path_to_table/replica_name`）、次に "[レプリケートテーブルの作成](#creating-replicated-tables)"で記述されているようにレプリカを再作成することができます。
 
-復旧時のネットワーク帯域幅に制限はありません。 一度に多数のレプリカを復元する場合は、この点に注意してください。
+復旧中にはネットワーク帯域幅の制限はありません。多くのレプリカを一度に復旧している場合にはこれに注意してください。
 
 ## MergeTreeからReplicatedMergeTreeへの変換 {#converting-from-mergetree-to-replicatedmergetree}
 
-我々はこの用語を使用する `MergeTree` すべてのテーブルエンジンを参照するには `MergeTree family` の場合と同じです。 `ReplicatedMergeTree`.
+`MergeTree` は、すべての `MergeTree ファミリー` テーブルエンジンを指すために使用されます。ReplicatedMergeTreeについても同様です。
 
-あなたが持っていた場合 `MergeTree` 手動で複製されたテーブルは、複製されたテーブルに変換することができます。 すでに大量のデータを収集している場合は、これを行う必要があるかもしれません。 `MergeTree` レプリケーションを有効にします。
+手動でレプリケートされた`MergeTree` テーブルがあった場合、レプリケートテーブルに変換できます。これは大量のデータが既に `MergeTree` テーブルに集められていてレプリケーションを有効にしたい場合に必要なことかもしれません。
 
-さまざまなレプリカでデータが異なる場合は、最初に同期するか、このデータを除くすべてのレプリカで削除します。
+`MergeTree` テーブルは、テーブルデータディレクトリの `convert_to_replicated` フラグが設定されている場合、サーバの再起動時に自動的に変換されます（`Atomic` データベースの場合は `/store/xxx/xxxyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy/`）。
+空の `convert_to_replicated` ファイルを作成すると、次回サーバの再起動時にテーブルはレプリケートされたものとして読み込まれます。
 
-既存のMergeTreeテーブルの名前を変更し、次に `ReplicatedMergeTree` 古い名前のテーブル。
-データを古いテーブルから `detached` サブディレクトリ内のディレクトリを新しいテーブルデータ (`/var/lib/clickhouse/data/db_name/table_name/`).
-その後、実行 `ALTER TABLE ATTACH PARTITION` これらのデータパーツを作業セットに追加するレプリカのいずれかで。
+このクエリはテーブルのデータパスを取得するために使用できます。テーブルに多くのデータパスがある場合、最初のものを使用する必要があります。
+
+```sql
+SELECT data_paths FROM system.tables WHERE table = 'table_name' AND database = 'database_name';
+```
+
+`ReplicatedMergeTree` テーブルは `default_replica_path` と `default_replica_name` の設定値で作成されます。他のレプリカで変換テーブルを作成するには、そのテーブルのパスを `ReplicatedMergeTree` エンジンの最初の引数に明示的に指定する必要があります。次のクエリを使ってそのパスを取得できます。
+
+```sql
+SELECT zookeeper_path FROM system.replicas WHERE table = 'table_name';
+```
+
+サーバ再起動なしに手動で行う方法もあります。
+
+データが様々なレプリカで異なる場合、まずそれを同期するか、あるレプリカのデータを削除します。
+
+既存の MergeTree テーブルの名前を変更し、その古い名前で `ReplicatedMergeTree` テーブルを作成します。
+古いテーブルから新しいテーブルのデータディレクトリの `detached` サブディレクトリにデータを移動します（ここで、パスは `/var/lib/clickhouse/data/db_name/table_name/` です）。
+その後、1つのレプリカで `ALTER TABLE ATTACH PARTITION` を実行して、これらのデータ部分を作業セットに追加します。
 
 ## ReplicatedMergeTreeからMergeTreeへの変換 {#converting-from-replicatedmergetree-to-mergetree}
 
-別の名前のMergeTreeテーブルを作成します。 ディレクトリからすべてのデータを移動します。 `ReplicatedMergeTree` テーブルデータを新しいテーブルのデータディレクトリです。 その後、削除 `ReplicatedMergeTree` サーバーを表にして再起動します。
+異なる名前でMergeTreeテーブルを作成します。`ReplicatedMergeTree` テーブルデータのディレクトリからすべてのデータを新しいテーブルのデータディレクトリに移動します。その後、`ReplicatedMergeTree` テーブルを削除し、サーバーを再起動します。
 
-あなたが取り除きたい場合は、 `ReplicatedMergeTree` サーバーを起動しないテーブル:
+`ReplicatedMergeTree` テーブルをサーバーの起動なしに削除したい場合：
 
--   対応するものを削除する `.sql` ファイルのメタデータディレクトリ (`/var/lib/clickhouse/metadata/`).
--   ZooKeeperで対応するパスを削除します (`/path_to_table/replica_name`).
+- メタデータディレクトリの対応する `.sql` ファイルを削除します（ `/var/lib/clickhouse/metadata/`）。
+- ClickHouse Keeperで対応するパスを削除します（ `/path_to_table/replica_name`）。
 
-この後、サーバーを起動し、 `MergeTree` データをそのディレクトリに移動し、サーバーを再起動します。
+その後、サーバーを起動し、`MergeTree` テーブルを作成し、データをそのディレクトリに移動し、サーバーを再起動します。
 
-## Zookeeperクラスター内のメタデータが紛失または破損した場合の復旧 {#recovery-when-metadata-in-the-zookeeper-cluster-is-lost-or-damaged}
+## ClickHouse Keeper クラスタ内のメタデータが破損・消失した場合のリカバリ {#recovery-when-metadata-in-the-zookeeper-cluster-is-lost-or-damaged}
 
-ZooKeeperのデータが紛失または破損している場合は、上記のように再生されていないテーブルに移動することでデータを保存できます。
+ClickHouse Keeper内のデータが失われたか破損した場合、上述の方法に従い、データを非レプリケートテーブルに移動することでデータを保管することができます。
 
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/replication/) <!--hide-->
+**関連項目**
+
+- [background_schedule_pool_size](/docs/ja/operations/server-configuration-parameters/settings.md/#background_schedule_pool_size)
+- [background_fetches_pool_size](/docs/ja/operations/server-configuration-parameters/settings.md/#background_fetches_pool_size)
+- [execute_merges_on_single_replica_time_threshold](/docs/ja/operations/settings/settings.md/#execute-merges-on-single-replica-time-threshold)
+- [max_replicated_fetches_network_bandwidth](/docs/ja/operations/settings/merge-tree-settings.md/#max_replicated_fetches_network_bandwidth)
+- [max_replicated_sends_network_bandwidth](/docs/ja/operations/settings/merge-tree-settings.md/#max_replicated_sends_network_bandwidth)
+

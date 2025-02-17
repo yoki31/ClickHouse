@@ -1,8 +1,9 @@
 ---
-toc_priority: 111
+slug: /en/sql-reference/aggregate-functions/reference/groupuniqarray
+sidebar_position: 154
 ---
 
-# groupUniqArray {#groupuniqarray}
+# groupUniqArray
 
 Syntax: `groupUniqArray(x)` or `groupUniqArray(max_size)(x)`
 

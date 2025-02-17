@@ -1,21 +1,19 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 37
-toc_title: "\u30D0\u30FC\u30B8\u30E7\u30CB\u30F3\u30B0\u30B3\u30E9\u30D7\u30B7\u30F3\
-  \u30B0\u30DE\u30FC\u30B2\u30C3\u30C8\u30EA\u30FC"
+slug: /ja/engines/table-engines/mergetree-family/versionedcollapsingmergetree
+sidebar_position: 80
+sidebar_label: VersionedCollapsingMergeTree
 ---
 
-# バージョニングコラプシングマーゲットリー {#versionedcollapsingmergetree}
+# VersionedCollapsingMergeTree
 
-このエンジン:
+このエンジンは以下を提供します:
 
--   では迅速書き込みオブジェクトとは常に変化しています。
--   削除古いオブジェクト状態の背景になります。 これにより、保管量が大幅に削減されます。
+- 常に変化するオブジェクト状態を迅速に記録することができます。
+- 古いオブジェクト状態をバックグラウンドで削除します。これによりストレージ容量を大幅に削減します。
 
-セクションを参照 [崩壊](#table_engines_versionedcollapsingmergetree) 詳細については.
+詳細については[Collapsing](#table_engines_versionedcollapsingmergetree)セクションを参照してください。
 
-エンジンはから継承します [メルゲツリー](mergetree.md#table_engines-mergetree) 追加した論理崩壊行のアルゴリズムのための統合データ部品です。 `VersionedCollapsingMergeTree` と同じ目的を果たしています [折りたたみマージツリー](collapsingmergetree.md) が異なる崩壊のアルゴリズムを挿入し、データを任意の順番で複数のスレッド）。 特に、 `Version` 列は、間違った順序で挿入されても、行を適切に折りたたむのに役立ちます。 対照的に, `CollapsingMergeTree` 厳密に連続した挿入のみを許可します。
+このエンジンは[MergeTree](../../../engines/table-engines/mergetree-family/mergetree.md#table_engines-mergetree)から継承され、データパーツのマージアルゴリズムに行を折りたたむロジックを追加します。`VersionedCollapsingMergeTree`は[CollapsingMergeTree](../../../engines/table-engines/mergetree-family/collapsingmergetree.md)と同じ目的を果たしますが、異なる折りたたみアルゴリズムを使用して、複数のスレッドで任意の順序でデータを挿入することができます。特に、`Version`カラムを使用することで、誤った順序で挿入されたとしても行を適切に折りたたむことができます。これに対し、`CollapsingMergeTree`は、厳密に連続した挿入のみを許容します。
 
 ## テーブルの作成 {#creating-a-table}
 
@@ -32,32 +30,37 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 [SETTINGS name=value, ...]
 ```
 
-クエリパラメータの説明については、 [クエリの説明](../../../sql-reference/statements/create.md).
+クエリパラメータの説明については、[クエリの説明](../../../sql-reference/statements/create/table.md)を参照してください。
 
-**エンジン変数**
+### エンジンのパラメータ
 
 ``` sql
 VersionedCollapsingMergeTree(sign, version)
 ```
 
--   `sign` — Name of the column with the type of row: `1` は “state” 行, `-1` は “cancel” ロウ
+#### sign
 
-    列のデータ型は次のとおりです `Int8`.
+`sign` — 行のタイプを示すカラムの名前: `1` は「状態」行、 `-1` は「キャンセル」行を示します。
 
--   `version` — Name of the column with the version of the object state.
+カラムのデータ型は`Int8`である必要があります。
 
-    列のデータ型は次のとおりです `UInt*`.
+#### version
 
-**クエリ句**
+`version` — オブジェクト状態のバージョンを示すカラムの名前。
 
-を作成するとき `VersionedCollapsingMergeTree` テーブル、同じ [句](mergetree.md) を作成するときに必要です。 `MergeTree` テーブル。
+カラムのデータ型は`UInt*`である必要があります。
+
+### クエリ節
+
+`VersionedCollapsingMergeTree`テーブルを作成する際には、`MergeTree`テーブルを作成する際と同じ[節](../../../engines/table-engines/mergetree-family/mergetree.md)が必要です。
 
 <details markdown="1">
 
-<summary>推奨されていません法テーブルを作成する</summary>
+<summary>非推奨のテーブル作成方法</summary>
 
-!!! attention "注意"
-    用途では使用しないでください方法で新規プロジェクト. 可能であれば、古いプロジェクトを上記の方法に切り替えます。
+:::note
+新しいプロジェクトではこの方法を使用しないでください。可能であれば、古いプロジェクトを上記の方法に切り替えてください。
+:::
 
 ``` sql
 CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
@@ -68,27 +71,27 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 ) ENGINE [=] VersionedCollapsingMergeTree(date-column [, samp#table_engines_versionedcollapsingmergetreeling_expression], (primary, key), index_granularity, sign, version)
 ```
 
-以下を除くすべてのパラメータ `sign` と `version` と同じ意味を持つ `MergeTree`.
+`sign`および`version`以外のすべてのパラメータは`MergeTree`と同じ意味を持ちます。
 
--   `sign` — Name of the column with the type of row: `1` は “state” 行, `-1` は “cancel” ロウ
+- `sign` — 行のタイプを示すカラムの名前: `1` は「状態」行、 `-1` は「キャンセル」行を示します。
 
-    Column Data Type — `Int8`.
+    カラムのデータ型 — `Int8`。
 
--   `version` — Name of the column with the version of the object state.
+- `version` — オブジェクト状態のバージョンを示すカラムの名前。
 
-    列のデータ型は次のとおりです `UInt*`.
+    カラムのデータ型は`UInt*`である必要があります。
 
 </details>
 
-## 崩壊 {#table_engines_versionedcollapsingmergetree}
+## Collapsing {#table_engines_versionedcollapsingmergetree}
 
 ### データ {#data}
 
-うな状況を考える必要がある場合の保存継続的に変化するデータのオブジェクトです。 オブジェクトに対して一つの行を持ち、変更があるたびにその行を更新するのが妥当です。 ただし、DBMSではストレージ内のデータを書き換える必要があるため、更新操作はコストがかかり、時間がかかります。 更新はできませんが必要な場合は書き込みデータはすでに書き込み、変更オブジェクトの順にしております。
+あるオブジェクトの継続的に変わるデータを保存する必要がある状況を考えてみましょう。オブジェクトにつき1行を持ち、変更があるたびに行を更新するのが理にかなっています。しかし、更新操作はDBMSにとってデータをストレージに書き換える必要があるため高価で遅いです。データを迅速に書き込む必要がある場合には更新は受け入れられませんが、以下のようにオブジェクトへの変更を順次書き込むことができます。
 
-使用する `Sign` 行を書き込むときの列。 もし `Sign = 1` これは、行がオブジェクトの状態であることを意味します（ “state” 行）。 もし `Sign = -1` これは、同じ属性を持つオブジェクトの状態の取り消しを示します（ “cancel” 行）。 また、 `Version` オブジェクトの各状態を個別の番号で識別する必要があります。
+行を書き込む際には`Sign`カラムを使用します。`Sign = 1`であれば、行はオブジェクトの状態を示します（これを「状態」行と呼びます）。`Sign = -1`を指定すると、同じ属性を持つオブジェクトの状態がキャンセルされたことを示します（これを「キャンセル」行と呼びます）。また、各オブジェクトの状態を別々の番号で識別するために`Version`カラムを使用します。
 
-たとえば、ユーザーがいくつのサイトにアクセスしたのか、どのくらいの時間があったのかを計算します。 ある時点で、次の行をユーザーアクティビティの状態で記述します:
+たとえば、あるサイトでユーザーが訪れたページ数と滞在時間を計算したいとします。ある時点で、以下のユーザー活動状態の行を記録します。
 
 ``` text
 ┌──────────────UserID─┬─PageViews─┬─Duration─┬─Sign─┬─Version─┐
@@ -96,7 +99,7 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 └─────────────────────┴───────────┴──────────┴──────┴─────────┘
 ```
 
-後のある時点で、ユーザーアクティビティの変更を登録し、次の二つの行でそれを書きます。
+しばらくして、ユーザー活動の変更を記録し、以下の2行を書き込みます。
 
 ``` text
 ┌──────────────UserID─┬─PageViews─┬─Duration─┬─Sign─┬─Version─┐
@@ -105,11 +108,11 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 └─────────────────────┴───────────┴──────────┴──────┴─────────┘
 ```
 
-最初の行は、オブジェクト(ユーザー)の以前の状態を取り消します。 キャンセルされた状態のすべてのフィールドをコピーします。 `Sign`.
+最初の行はオブジェクト（ユーザー）の以前の状態をキャンセルします。キャンセルされた状態のすべてのフィールドを`Sign`を除いてコピーする必要があります。
 
-次の行には現在の状態が含まれます。
+2行目には現在の状態が含まれています。
 
-ユーザーアクティビティの最後の状態だけが必要なので、行
+ユーザー活動の最後の状態だけを必要とするため、
 
 ``` text
 ┌──────────────UserID─┬─PageViews─┬─Duration─┬─Sign─┬─Version─┐
@@ -118,35 +121,35 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 └─────────────────────┴───────────┴──────────┴──────┴─────────┘
 ```
 
-オブジェクトの無効な（古い）状態を折りたたんで、削除することができます。 `VersionedCollapsingMergeTree` このことを融合させたデータの部品です。
+という行は、オブジェクトの無効な（古い）状態を折りたたむことができ、`VersionedCollapsingMergeTree`はデータパーツのマージ中にこれを行います。
 
-変更ごとに二つの行が必要な理由については、以下を参照してください [アルゴリズ](#table_engines-versionedcollapsingmergetree-algorithm).
+なぜ各変更に2行必要かについては、[アルゴリズム](#table_engines-versionedcollapsingmergetree-algorithm)を参照してください。
 
 **使用上の注意**
 
-1.  プログラムを書き込み、データ意のオブジェクトを解除します。 その “cancel” のコピーでなければなりません。 “state” 反対の文字列 `Sign`. この増加の初期サイズでの保存が可能なデータを書き込む。
-2.  列の長い成長配列は、書き込みの負荷のためにエンジンの効率を低下させる。 より簡単なデータ、より良い効率。
-3.  `SELECT` 結果は、オブジェクト変更の履歴の一貫性に強く依存します。 挿入のためのデータを準備するときは正確です。 セッションの深さなど、負でない指標の負の値など、不整合なデータで予測不可能な結果を得ることができます。
+1. データを書き込むプログラムは、オブジェクトの状態を覚えておき、それをキャンセルできるようにする必要があります。「キャンセル」文字列は、主キーのフィールドと「状態」文字列のバージョンおよび反対の`Sign`を含む必要があります。これにより初期のストレージサイズが増加しますが、データを迅速に書き込むことができます。
+2. カラム内の長い配列の成長は、書き込み時の負荷のためにエンジンの効率性を低下させます。データがシンプルであるほど効率性は高まります。
+3. `SELECT`の結果は、オブジェクト変更の履歴の一貫性に強く依存します。データを挿入する準備をする際に注意してください。不整合なデータでは、セッションの深さのような非負のメトリクスに負の値が発生するなど、予測不可能な結果を得ることがあります。
 
-### アルゴリズ {#table_engines-versionedcollapsingmergetree-algorithm}
+### アルゴリズム {#table_engines-versionedcollapsingmergetree-algorithm}
 
-ClickHouseは、データパーツをマージするときに、同じ主キーとバージョンと異なる行の各ペアを削除します `Sign`. 行の順序は重要ではありません。
+ClickHouseがデータパーツをマージするとき、同じ主キーとバージョンをもち、`Sign`が異なる行のペアを削除します。行の順序は関係ありません。
 
-ClickHouseはデータを挿入するとき、主キーによって行を並べ替えます。 もし `Version` 列が主キーにない場合、ClickHouseはそれを最後のフィールドとして暗黙的に主キーに追加し、順序付けに使用します。
+ClickHouseがデータを挿入するとき、行を主キーで順序付けます。もし`Version`カラムが主キーに含まれていない場合、ClickHouseはこのカラムを最後のフィールドとして主キーに暗黙的に追加し、順序付けに使用します。
 
 ## データの選択 {#selecting-data}
 
-ClickHouseは、同じ主キーを持つすべての行が同じ結果のデータ部分または同じ物理サーバー上にあることを保証するものではありません。 これは、データの書き込みとその後のデータ部分のマージの両方に当てはまります。 さらに、ClickHouseプロセス `SELECT` 複数のスレッドを使用してクエリを実行し、結果の行の順序を予測することはできません。 これは、完全に取得する必要がある場合に集約が必要であることを意味します “collapsed” aからのデータ `VersionedCollapsingMergeTree` テーブル。
+ClickHouseは、同じ主キーを持つすべての行が同じ結果データパーツまたは同じ物理サーバーに存在することを保証しません。これはデータを書き込む際と後続のデータパーツのマージの両方で当てはまります。さらに、ClickHouseは`SELECT`クエリを複数のスレッドで処理し、結果の行の順序を予測できません。このため、`VersionedCollapsingMergeTree`テーブルから完全に「折りたたまれた」データを取得する必要がある場合には集計が必要です。
 
-折りたたみを終了するには、 `GROUP BY` 符号を説明する句および集計関数。 たとえば、数量を計算するには、次を使用します `sum(Sign)` 代わりに `count()`. 何かの合計を計算するには、次のようにします `sum(Sign * x)` 代わりに `sum(x)` を追加します。 `HAVING sum(Sign) > 0`.
+折りたたみを完了するには、`GROUP BY`句と`Sign`を考慮した集計関数を使用したクエリを記述します。たとえば、数量を計算するには`count()`の代わりに`sum(Sign)`を使用します。何かの合計を計算するには、`sum(x)`の代わりに`sum(Sign * x)`を使用し、`HAVING sum(Sign) > 0`を追加します。
 
-集計 `count`, `sum` と `avg` この方法で計算できます。 集計 `uniq` オブジェクトが少なくとも一つの非折りたたみ状態を持つ場合に計算できます。 集計 `min` と `max` 計算できないのは `VersionedCollapsingMergeTree` 折りたたまれた状態の値の履歴は保存されません。
+`count`、`sum`、`avg`といった集計はこの方法で計算できます。オブジェクトが少なくとも1つの非折りたたまれた状態を持っている場合、`uniq`も計算できます。`min`および`max`は計算できません。なぜなら`VersionedCollapsingMergeTree`は折りたたまれた状態の値の履歴を保存しないからです。
 
-データを抽出する必要がある場合は “collapsing” な集計（例えば、確認列が存在する最新の値に一致条件)を使用できます `FINAL` モディファイア `FROM` 句。 このアプローチは非効率で利用すべきではありませんの大きます。
+折りたたみを施すが集計を行わないデータを抽出したい場合（たとえば最新の値が特定の条件に一致する行が存在するかを確認するために）、`FROM`句に`FINAL`修飾子を使用できます。この方法は効率が悪く、大きなテーブルには使用すべきではありません。
 
 ## 使用例 {#example-of-use}
 
-データ例:
+サンプルデータ:
 
 ``` text
 ┌──────────────UserID─┬─PageViews─┬─Duration─┬─Sign─┬─Version─┐
@@ -181,7 +184,7 @@ INSERT INTO UAct VALUES (4324182021466249494, 5, 146, 1, 1)
 INSERT INTO UAct VALUES (4324182021466249494, 5, 146, -1, 1),(4324182021466249494, 6, 185, 1, 2)
 ```
 
-我々は二つを使用します `INSERT` 二つの異なるデータ部分を作成するクエリ。 単一のクエリでデータを挿入すると、ClickHouseは一つのデータパーツを作成し、マージを実行することはありません。
+異なるデータパーツを作成するために2つの`INSERT`クエリを使用します。1つのクエリでデータを挿入すると、ClickHouseは1つのデータパーツを作成し、一度もマージを行いません。
 
 データの取得:
 
@@ -199,11 +202,11 @@ SELECT * FROM UAct
 └─────────────────────┴───────────┴──────────┴──────┴─────────┘
 ```
 
-私たちはここで何を見て、崩壊した部分はどこにありますか？
-二つのデータパーツを作成しました `INSERT` クエリ。 その `SELECT` クエリは二つのスレッドで実行され、結果は行のランダムな順序です。
-崩壊の発生はありませんので、データのパーツがなされております。 ClickHouseは、予測できない未知の時点でデータパーツをマージします。
+ここで私たちが見ているものと折りたたまれた部分はどこにあるのでしょうか？
+2つの`INSERT`クエリを使用して2つのデータパーツを作成しました。`SELECT`クエリは2つのスレッドで実行され、結果は行のランダムな順序になっています。
+折りたたみが発生しなかったのは、データパーツがまだマージされていないためです。ClickHouseはデータパーツを予測できない時点でマージします。
 
-これが集約が必要な理由です:
+このため、集計が必要です:
 
 ``` sql
 SELECT
@@ -222,7 +225,7 @@ HAVING sum(Sign) > 0
 └─────────────────────┴───────────┴──────────┴─────────┘
 ```
 
-集約を必要とせず、強制的に折りたたみたいなら、以下を使うことができます `FINAL` モディファイア `FROM` 句。
+集計が不要で折りたたみを強制したい場合は、`FROM`句に`FINAL`修飾子を使用できます。
 
 ``` sql
 SELECT * FROM UAct FINAL
@@ -234,6 +237,4 @@ SELECT * FROM UAct FINAL
 └─────────────────────┴───────────┴──────────┴──────┴─────────┘
 ```
 
-これは、データを選択する非常に非効率的な方法です。 大きなテーブルには使用しないでください。
-
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/versionedcollapsingmergetree/) <!--hide-->
+これはデータを選択する際の非常に非効率的な方法です。大きなテーブルでは使用しないでください。

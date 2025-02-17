@@ -1,4 +1,8 @@
+---
+slug: /zh/faq/terms_translation_zh
+---
 # 术语翻译约定
+
 本文档用来维护从英文翻译成中文的术语集。
 
 
@@ -6,7 +10,7 @@
 ## 保持英文，不译
 Parquet
 
-## 英文   <->         中文
+## 英文   &lt;->         中文
 Integer             整数
 floating-point      浮点数
 Fitting             拟合
@@ -34,5 +38,3 @@ Arguments           参数
 ```
 
 3. See also         参见
-
-

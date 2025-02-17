@@ -12,12 +12,11 @@ public:
     WriteBufferFromNuraftBuffer();
 
     nuraft::ptr<nuraft::buffer> getBuffer();
-    bool isFinished() const { return finalized; }
 
     ~WriteBufferFromNuraftBuffer() override;
 
 private:
-    void finalizeImpl() override final;
+    void finalizeImpl() final;
 
     void nextImpl() override;
 

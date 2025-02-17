@@ -1,21 +1,24 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 30
-toc_title: MySQL
+slug: /ja/engines/database-engines/mysql
+sidebar_position: 50
+sidebar_label: MySQL
 ---
 
-# MySQL {#mysql}
+import CloudNotSupportedBadge from '@theme/badges/CloudNotSupportedBadge';
 
-で接続するデータベースのリモートMySQLサーバを実行 `INSERT` と `SELECT` ClickHouseとMySQLの間でデータを交換するためのクエリ。
+# MySQL データベースエンジン
 
-その `MySQL` データベースエンジ `SHOW TABLES` または `SHOW CREATE TABLE`.
+<CloudNotSupportedBadge />
 
-次のクエリは実行できません:
+リモートの MySQL サーバー上のデータベースに接続し、`INSERT` および `SELECT` クエリを実行して ClickHouse と MySQL 間でデータを交換することができます。
 
--   `RENAME`
--   `CREATE TABLE`
--   `ALTER`
+`MySQL` データベースエンジンはクエリを MySQL サーバーに翻訳するため、`SHOW TABLES` や `SHOW CREATE TABLE` のような操作を実行することができます。
+
+以下のクエリは実行できません：
+
+- `RENAME`
+- `CREATE TABLE`
+- `ALTER`
 
 ## データベースの作成 {#creating-a-database}
 
@@ -24,16 +27,16 @@ CREATE DATABASE [IF NOT EXISTS] db_name [ON CLUSTER cluster]
 ENGINE = MySQL('host:port', ['database' | database], 'user', 'password')
 ```
 
-**エンジン変数**
+**エンジンパラメータ**
 
--   `host:port` — MySQL server address.
--   `database` — Remote database name.
--   `user` — MySQL user.
--   `password` — User password.
+- `host:port` — MySQL サーバーアドレス。
+- `database` — リモートデータベース名。
+- `user` — MySQL ユーザー。
+- `password` — ユーザーパスワード。
 
-## データ型のサポート {#data_types-support}
+## データ型サポート {#data_types-support}
 
-| MySQL                            | クリックハウス                                               |
+| MySQL                            | ClickHouse                                                   |
 |----------------------------------|--------------------------------------------------------------|
 | UNSIGNED TINYINT                 | [UInt8](../../sql-reference/data-types/int-uint.md)          |
 | TINYINT                          | [Int8](../../sql-reference/data-types/int-uint.md)           |
@@ -45,17 +48,35 @@ ENGINE = MySQL('host:port', ['database' | database], 'user', 'password')
 | BIGINT                           | [Int64](../../sql-reference/data-types/int-uint.md)          |
 | FLOAT                            | [Float32](../../sql-reference/data-types/float.md)           |
 | DOUBLE                           | [Float64](../../sql-reference/data-types/float.md)           |
-| DATE                             | [日付](../../sql-reference/data-types/date.md)               |
+| DATE                             | [Date](../../sql-reference/data-types/date.md)               |
 | DATETIME, TIMESTAMP              | [DateTime](../../sql-reference/data-types/datetime.md)       |
 | BINARY                           | [FixedString](../../sql-reference/data-types/fixedstring.md) |
 
-他のすべてのMySQLデータ型に変換され [文字列](../../sql-reference/data-types/string.md).
+その他のすべての MySQL データ型は [String](../../sql-reference/data-types/string.md) に変換されます。
 
-[Null可能](../../sql-reference/data-types/nullable.md) サポートされます。
+[Nullable](../../sql-reference/data-types/nullable.md) がサポートされています。
+
+## グローバル変数サポート {#global-variables-support}
+
+より高い互換性のために、MySQL スタイルで `@@identifier` としてグローバル変数を使用できます。
+
+これらの変数がサポートされています：
+- `version`
+- `max_allowed_packet`
+
+:::note
+現時点では、これらの変数はスタブであり、何かに対応しているわけではありません。
+:::
+
+例：
+
+``` sql
+SELECT @@version;
+```
 
 ## 使用例 {#examples-of-use}
 
-MySQLのテーブル:
+MySQL のテーブル：
 
 ``` text
 mysql> USE test;
@@ -79,10 +100,10 @@ mysql> select * from mysql_table;
 1 row in set (0,00 sec)
 ```
 
-ClickHouseのデータベース、MySQLサーバとのデータ交換:
+MySQL サーバーとデータを交換する ClickHouse のデータベース：
 
 ``` sql
-CREATE DATABASE mysql_db ENGINE = MySQL('localhost:3306', 'test', 'my_user', 'user_password')
+CREATE DATABASE mysql_db ENGINE = MySQL('localhost:3306', 'test', 'my_user', 'user_password') SETTINGS read_write_timeout=10000, connect_timeout=100;
 ```
 
 ``` sql
@@ -131,5 +152,3 @@ SELECT * FROM mysql_db.mysql_table
 │      3 │     4 │
 └────────┴───────┘
 ```
-
-[元の記事](https://clickhouse.com/docs/en/database_engines/mysql/) <!--hide-->

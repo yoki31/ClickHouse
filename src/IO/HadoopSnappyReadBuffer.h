@@ -1,12 +1,12 @@
 #pragma once
 
-#include <Common/config.h>
+#include "config.h"
 
 #if USE_SNAPPY
 
 #include <memory>
 #include <IO/ReadBuffer.h>
-#include <IO/BufferWithOwnMemory.h>
+#include <IO/CompressedReadBufferWrapper.h>
 
 namespace DB
 {
@@ -23,12 +23,13 @@ namespace DB
 class HadoopSnappyDecoder
 {
 public:
-    enum class Status : int
+    enum class Status : uint8_t
     {
         OK = 0,
         INVALID_INPUT = 1,
         BUFFER_TOO_SMALL = 2,
         NEEDS_MORE_INPUT = 3,
+        TOO_LARGE_COMPRESSED_BLOCK = 4,
     };
 
     HadoopSnappyDecoder() = default;
@@ -36,7 +37,7 @@ public:
 
     Status readBlock(size_t * avail_in, const char ** next_in, size_t * avail_out, char ** next_out);
 
-    inline void reset()
+    void reset()
     {
         buffer_length = 0;
         block_length = -1;
@@ -67,12 +68,12 @@ private:
 };
 
 /// HadoopSnappyReadBuffer implements read buffer for data compressed with hadoop-snappy format.
-class HadoopSnappyReadBuffer : public BufferWithOwnMemory<ReadBuffer>
+class HadoopSnappyReadBuffer : public CompressedReadBufferWrapper
 {
 public:
     using Status = HadoopSnappyDecoder::Status;
 
-    inline static String statusToString(Status status)
+    static String statusToString(Status status)
     {
         switch (status)
         {
@@ -84,8 +85,9 @@ public:
                 return "BUFFER_TOO_SMALL";
             case Status::NEEDS_MORE_INPUT:
                 return "NEEDS_MORE_INPUT";
+            case Status::TOO_LARGE_COMPRESSED_BLOCK:
+                return "TOO_LARGE_COMPRESSED_BLOCK";
         }
-        __builtin_unreachable();
     }
 
     explicit HadoopSnappyReadBuffer(
@@ -99,7 +101,6 @@ public:
 private:
     bool nextImpl() override;
 
-    std::unique_ptr<ReadBuffer> in;
     std::unique_ptr<HadoopSnappyDecoder> decoder;
 
     size_t in_available;

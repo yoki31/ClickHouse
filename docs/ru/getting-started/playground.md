@@ -1,57 +1,44 @@
 ---
-toc_priority: 14
-toc_title: Playground
+slug: /ru/getting-started/playground
+sidebar_position: 14
+sidebar_label: Playground
 ---
 
 # ClickHouse Playground {#clickhouse-playground}
 
-!!! warning "Warning"
-    This service is deprecated and will be replaced in foreseeable future.
+[ClickHouse Playground](https://sql.clickhouse.com) позволяет пользователям экспериментировать с ClickHouse, выполняя запросы мгновенно, без необходимости настройки сервера или кластера.
+В Playground доступны несколько примеров наборов данных.
 
-[ClickHouse Playground](https://play.clickhouse.com) позволяет пользователям экспериментировать с ClickHouse, мгновенно выполняя запросы без настройки своего сервера или кластера.
-В Playground доступны несколько тестовых массивов данных, а также примеры запросов, которые показывают возможности ClickHouse. Кроме того, вы можете выбрать LTS релиз ClickHouse, который хотите протестировать.
+Вы можете выполнять запросы к Playground, используя любой HTTP-клиент, например [curl](https://curl.haxx.se) или [wget](https://www.gnu.org/software/wget/), или настроить соединение, используя драйверы [JDBC](../interfaces/jdbc.md) или [ODBC](../interfaces/odbc.md). Дополнительную информацию о программных продуктах, поддерживающих ClickHouse, можно найти [здесь](../interfaces/index.md).
 
-Вы можете отправлять запросы к Playground с помощью любого HTTP-клиента, например [curl](https://curl.haxx.se) или [wget](https://www.gnu.org/software/wget/), также можно установить соединение с помощью драйверов [JDBC](../interfaces/jdbc.md) или [ODBC](../interfaces/odbc.md). Более подробная информация о программных продуктах, поддерживающих ClickHouse, доступна [здесь](../interfaces/index.md).
+## Учетные данные {#credentials}
 
-## Параметры доступа {#credentials}
-
-| Параметр            | Значение                                |
-|:--------------------|:----------------------------------------|
-| Конечная точка HTTPS| `https://play-api.clickhouse.com:8443` |
-| Конечная точка TCP  | `play-api.clickhouse.com:9440`         |
-| Пользователь        | `playground`                            |
-| Пароль              | `clickhouse`                            |
-
-Также можно подключаться к ClickHouse определённых релизов, чтобы протестировать их различия (порты и пользователь / пароль остаются неизменными):
-
--   20.3 LTS: `play-api-v20-3.clickhouse.com`
--   19.14 LTS: `play-api-v19-14.clickhouse.com`
-
-!!! note "Примечание"
-    Для всех этих конечных точек требуется безопасное соединение TLS.
+| Параметр            | Значение                           |
+|:--------------------|:-----------------------------------|
+| HTTPS-адрес         | `https://play.clickhouse.com:443/` |
+| TCP-адрес           | `play.clickhouse.com:9440`         |
+| Пользователь        | `explorer` или `play`              |
+| Пароль              | (пусто)                            |
 
 ## Ограничения {#limitations}
 
-Запросы выполняются под пользователем с правами `readonly`, для которого есть следующие ограничения:
-- запрещены DDL запросы
-- запрещены INSERT запросы
+Запросы выполняются от имени пользователя с правами только на чтение. Это предполагает некоторые ограничения:
 
-Также установлены следующие опции:
-- [max_result_bytes=10485760](../operations/settings/query-complexity.md#max-result-bytes)
-- [max_result_rows=2000](../operations/settings/query-complexity.md#setting-max_result_rows)
-- [result_overflow_mode=break](../operations/settings/query-complexity.md#result-overflow-mode)
-- [max_execution_time=60000](../operations/settings/query-complexity.md#max-execution-time)
+-   DDL-запросы не разрешены
+-   INSERT-запросы не разрешены
+
+Сервис также имеет квоты на использование.
 
 ## Примеры {#examples}
 
-Пример конечной точки HTTPS с `curl`:
+Пример использования HTTPS-адреса с `curl`:
 
-``` bash
-curl "https://play-api.clickhouse.com:8443/?query=SELECT+'Play+ClickHouse\!';&user=playground&password=clickhouse&database=datasets"
+```bash
+curl "https://play.clickhouse.com/?user=explorer" --data-binary "SELECT 'Play ClickHouse'"
 ```
 
-Пример конечной точки TCP с [CLI](../interfaces/cli.md):
+Пример использования TCP-адреса с [CLI](../interfaces/cli.md):
 
 ``` bash
-clickhouse client --secure -h play-api.clickhouse.com --port 9440 -u playground --password clickhouse -q "SELECT 'Play ClickHouse\!'"
+clickhouse client --secure --host play.clickhouse.com --user explorer
 ```

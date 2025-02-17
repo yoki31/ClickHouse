@@ -14,13 +14,18 @@ String ASTShowGrantsQuery::getID(char) const
 
 ASTPtr ASTShowGrantsQuery::clone() const
 {
-    return std::make_shared<ASTShowGrantsQuery>(*this);
+    auto res = std::make_shared<ASTShowGrantsQuery>(*this);
+
+    if (for_roles)
+        res->for_roles = std::static_pointer_cast<ASTRolesOrUsersSet>(for_roles->clone());
+
+    return res;
 }
 
 
-void ASTShowGrantsQuery::formatQueryImpl(const FormatSettings & settings, FormatState &, FormatStateStacked) const
+void ASTShowGrantsQuery::formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const
 {
-    settings.ostr << (settings.hilite ? hilite_keyword : "") << "SHOW GRANTS"
+    ostr << (settings.hilite ? hilite_keyword : "") << "SHOW GRANTS"
                   << (settings.hilite ? hilite_none : "");
 
     if (for_roles->current_user && !for_roles->all && for_roles->names.empty() && for_roles->except_names.empty()
@@ -29,9 +34,21 @@ void ASTShowGrantsQuery::formatQueryImpl(const FormatSettings & settings, Format
     }
     else
     {
-        settings.ostr << (settings.hilite ? hilite_keyword : "") << " FOR "
+        ostr << (settings.hilite ? hilite_keyword : "") << " FOR "
                       << (settings.hilite ? hilite_none : "");
-        for_roles->format(settings);
+        for_roles->format(ostr, settings);
+    }
+
+    if (with_implicit)
+    {
+        ostr << (settings.hilite ? hilite_keyword : "") << " WITH IMPLICIT"
+                      << (settings.hilite ? hilite_none : "");
+    }
+
+    if (final)
+    {
+        ostr << (settings.hilite ? hilite_keyword : "") << " FINAL"
+                      << (settings.hilite ? hilite_none : "");
     }
 }
 }

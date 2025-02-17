@@ -1,6 +1,6 @@
-#include "FunctionsStringSearchToString.h"
-#include "FunctionFactory.h"
-#include "Regexps.h"
+#include <Functions/FunctionsStringSearchToString.h>
+#include <Functions/FunctionFactory.h>
+#include <Functions/Regexps.h>
 #include <Common/OptimizedRegularExpression.h>
 
 
@@ -16,25 +16,26 @@ struct ExtractImpl
         const ColumnString::Offsets & offsets,
         const std::string & pattern,
         ColumnString::Chars & res_data,
-        ColumnString::Offsets & res_offsets)
+        ColumnString::Offsets & res_offsets,
+        size_t input_rows_count)
     {
         res_data.reserve(data.size() / 5);
-        res_offsets.resize(offsets.size());
+        res_offsets.resize(input_rows_count);
 
-        const auto & regexp = Regexps::get<false, false>(pattern);
+        const OptimizedRegularExpression regexp = Regexps::createRegexp<false, false, false>(pattern);
 
-        unsigned capture = regexp->getNumberOfSubpatterns() > 0 ? 1 : 0;
+        unsigned capture = regexp.getNumberOfSubpatterns() > 0 ? 1 : 0;
         OptimizedRegularExpression::MatchVec matches;
         matches.reserve(capture + 1);
         size_t prev_offset = 0;
         size_t res_offset = 0;
 
-        for (size_t i = 0; i < offsets.size(); ++i)
+        for (size_t i = 0; i < input_rows_count; ++i)
         {
             size_t cur_offset = offsets[i];
 
             unsigned count
-                = regexp->match(reinterpret_cast<const char *>(&data[prev_offset]), cur_offset - prev_offset - 1, matches, capture + 1);
+                = regexp.match(reinterpret_cast<const char *>(&data[prev_offset]), cur_offset - prev_offset - 1, matches, capture + 1);
             if (count > capture && matches[capture].offset != std::string::npos)
             {
                 const auto & match = matches[capture];
@@ -65,7 +66,7 @@ using FunctionExtract = FunctionsStringSearchToString<ExtractImpl, NameExtract>;
 
 }
 
-void registerFunctionExtract(FunctionFactory & factory)
+REGISTER_FUNCTION(Extract)
 {
     factory.registerFunction<FunctionExtract>();
 }

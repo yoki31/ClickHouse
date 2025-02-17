@@ -1,6 +1,7 @@
 ---
-toc_priority: 21
-toc_title: 输入/输出格式
+slug: /zh/interfaces/formats
+sidebar_position: 21
+sidebar_label: 输入/输出格式
 ---
 
 # 输入/输出格式 {#formats}
@@ -48,7 +49,7 @@ ClickHouse可以接受和返回各种格式的数据。受支持的输入格式�
 | [AvroConfluent](#data-format-avro-confluent)                                            | ✔     | ✗      |
 | [Parquet](#data-format-parquet)                                                         | ✔     | ✔      |
 | [Arrow](#data-format-arrow)                                                             | ✔     | ✔      |
-| [ArrowStream](#data-format-arrow-stream)                                                | ✔     | ✔      |
+| [ArrowStream](#data-format-arrow)                                                | ✔     | ✔      |
 | [ORC](#data-format-orc)                                                                 | ✔     | ✔      |
 | [RowBinary](#rowbinary)                                                                 | ✔     | ✔      |
 | [RowBinaryWithNamesAndTypes](#rowbinarywithnamesandtypes)                               | ✔     | ✔      |
@@ -57,7 +58,7 @@ ClickHouse可以接受和返回各种格式的数据。受支持的输入格式�
 | [XML](#xml)                                                                             | ✗     | ✔      |
 | [CapnProto](#capnproto)                                                                 | ✔     | ✗      |
 | [LineAsString](#lineasstring)                                                           | ✔     | ✗      |
-| [Regexp](#data-format-regexp)                                                           | ✔     | ✗      |
+| [Regexp](#regexp)                                                           | ✔     | ✗      |
 | [RawBLOB](#rawblob)                                                                     | ✔     | ✔      |
 
 
@@ -684,8 +685,9 @@ CREATE TABLE IF NOT EXISTS example_table
 -   如果`input_format_defaults_for_omitted_fields = 0`, 那么`x`和`a`的默认值等于`0`(作为`UInt32`数据类型的默认值)。
 -   如果`input_format_defaults_for_omitted_fields = 1`, 那么`x`的默认值为`0`，但`a`的默认值为`x * 2`。
 
-!!! note "注意"
+:::warning
 当使用`input_format_defaults_for_omitted_fields = 1`插入数据时，与使用`input_format_defaults_for_omitted_fields = 0`相比，ClickHouse消耗更多的计算资源。
+:::
 
 ### Selecting Data {#selecting-data}
 
@@ -707,8 +709,9 @@ CREATE TABLE IF NOT EXISTS example_table
 
 与[JSON](#json)格式不同，没有替换无效的UTF-8序列。值以与`JSON`相同的方式转义。
 
-!!! note "提示"
+:::info
 字符串中可以输出任意一组字节。如果您确信表中的数据可以被格式化为JSON而不会丢失任何信息，那么就使用`JSONEachRow`格式。
+:::
 
 ### Nested Structures {#jsoneachrow-nested}
 
@@ -1036,10 +1039,12 @@ SELECT SearchPhrase, count() AS c FROM test.hits
 
 其中 `schema.capnp` 描述如下：6y2
 
+```
     struct Message {
       SearchPhrase @0 :Text;
       c @1 :Uint64;
     }
+```
 
 格式文件存储的目录可以在服务配置中的 [format_schema_path](../operations/server-configuration-parameters/settings.md) 指定。
 
@@ -1109,13 +1114,17 @@ ClickHouse在输入和输出protobuf消息采用`length-delimited` 格式。
 这意味着每个消息之前，应该写它的长度作为一个 [varint](https://developers.google.com/protocol-buffers/docs/encoding#varints).
 另请参阅 [如何在流行语言中读取/写入长度分隔的protobuf消息](https://cwiki.apache.org/confluence/display/GEODE/Delimiting+Protobuf+Messages).
 
+## ProtobufSingle
+
+与 [Protobuf](#protobuf) 相同，但用于存储/解析单个 Protobuf 消息而无需长度定界符。
+
 ## Avro {#data-format-avro}
 
 [Apache Avro](http://avro.apache.org/) 是在Apache Hadoop项目中开发的面向行的数据序列化框架。
 
 ClickHouse Avro格式支持读取和写入 [Avro数据文件](http://avro.apache.org/docs/current/spec.html#Object+Container+Files).
 
-### 数据类型匹配{#sql_reference/data_types-matching} {#data-types-matching-sql_referencedata_types-matching}
+### 数据类型匹配{#data_types-matching}
 
 下表显示了支持的数据类型以及它们如何匹配ClickHouse [数据类型](../sql-reference/data-types/index.md) 在 `INSERT` 和 `SELECT` 查询。
 
@@ -1153,7 +1162,7 @@ $ cat file.avro | clickhouse-client --query="INSERT INTO {some_table} FORMAT Avr
 
 Clickhouse通过字段名称来对应架构的列名称。字段名称区分大小写。未使用的字段会被跳过。
 
-ClickHouse表列的数据类型可能与插入的Avro数据的相应字段不同。 插入数据时，ClickHouse根据上表解释数据类型，然后通过 [Cast](../query_language/functions/type_conversion_functions/#type_conversion_function-cast) 将数据转换为相应的列类型。
+ClickHouse表列的数据类型可能与插入的Avro数据的相应字段不同。 插入数据时，ClickHouse根据上表解释数据类型，然后通过 [Cast](../sql-reference/functions/type-conversion-functions.md#type_conversion_function-cast) 将数据转换为相应的列类型。
 
 ### 选择数据 {#selecting-data}
 
@@ -1180,7 +1189,7 @@ AvroConfluent支持解码单个对象的Avro消息，这常用于 [Kafka](https:
 
 架构注册表URL配置为 [format_avro_schema_registry_url](../operations/settings/settings.md#settings-format_avro_schema_registry_url)
 
-### 数据类型匹配{#sql_reference/data_types-matching-1} {#data-types-matching-sql_referencedata_types-matching-1}
+### 数据类型匹配 {#data-types-matching-sql_reference}
 
 和 [Avro](#data-format-avro)相同。
 
@@ -1215,15 +1224,15 @@ SET format_avro_schema_registry_url = 'http://schema-registry';
 SELECT * FROM topic1_stream;
 ```
 
-!!! note "警告"
-    设置 `format_avro_schema_registry_url` 需要写入配置文件`users.xml`以在Clickhouse重启后，该设置仍为您的设定值。您也可以在使用Kafka引擎的时候指定该设置。
-
+:::warning
+设置 `format_avro_schema_registry_url` 需要写入配置文件`users.xml`以在Clickhouse重启后，该设置仍为您的设定值。您也可以在使用Kafka引擎的时候指定该设置。
+:::
 
 ## Parquet {#data-format-parquet}
 
 [Apache Parquet](http://parquet.apache.org/) 是Hadoop生态系统中普遍使用的列式存储格式。 ClickHouse支持此格式的读写操作。
 
-### 数据类型匹配{#sql_reference/data_types-matching-2} {#data-types-matching-sql_referencedata_types-matching-2}
+### 数据类型匹配 {#data-types-matching-sql_reference}
 
 下表显示了Clickhouse支持的数据类型以及它们在 `INSERT` 和 `SELECT` 查询如何对应Clickhouse的 [data types](../sql-reference/data-types/index.md) 。
 
@@ -1240,7 +1249,8 @@ SELECT * FROM topic1_stream;
 | `FLOAT`, `HALF_FLOAT`      | [Float32](../sql-reference/data-types/float.md)          | `FLOAT`                    |
 | `DOUBLE`                   | [Float64](../sql-reference/data-types/float.md)          | `DOUBLE`                   |
 | `DATE32`                   | [Date](../sql-reference/data-types/date.md)              | `UINT16`                   |
-| `DATE64`, `TIMESTAMP`      | [DateTime](../sql-reference/data-types/datetime.md)      | `UINT32`                   |
+| `DATE64`                   | [DateTime](../sql-reference/data-types/datetime.md)      | `UINT32`                   |
+| `TIMESTAMP`                | [DateTime64](../sql-reference/data-types/datetime64.md) | `TIMESTAMP`                 |
 | `STRING`, `BINARY`         | [String](../sql-reference/data-types/string.md)          | `STRING`                   |
 | —                          | [FixedString](../sql-reference/data-types/fixedstring.md) | `STRING`                   |
 | `DECIMAL`                  | [Decimal](../sql-reference/data-types/decimal.md)         | `DECIMAL`                  |
@@ -1249,7 +1259,7 @@ ClickHouse支持对 `Decimal` 类型设置精度。 `INSERT` 查询将 Parquet `
 
 不支持的Parquet数据类型: `DATE32`, `TIME32`, `FIXED_SIZE_BINARY`, `JSON`, `UUID`, `ENUM`.
 
-ClickHouse表列的数据类型可能与插入的Parquet数据的相应字段不同。 插入数据时，ClickHouse根据上表解释数据类型，然后 [Cast](../query_language/functions/type_conversion_functions/#type_conversion_function-cast) 为ClickHouse表列设置的数据类型的数据。
+ClickHouse表列的数据类型可能与插入的Parquet数据的相应字段不同。 插入数据时，ClickHouse根据上表解释数据类型，然后 [Cast](../sql-reference/functions/type-conversion-functions.md#type_conversion_function-cast) 为ClickHouse表列设置的数据类型的数据。
 
 ### 插入和选择数据 {#inserting-and-selecting-data}
 
@@ -1278,7 +1288,7 @@ $ clickhouse-client --query="SELECT * FROM {some_table} FORMAT Parquet" > {some_
 ## ORC {#data-format-orc}
 [Apache ORC](https://orc.apache.org/) 是Hadoop生态系统中普遍存在的列式存储格式。
 
-### 数据类型匹配{#sql_reference/data_types-matching-3} {#data-types-matching-sql_referencedata_types-matching-3}
+### 数据类型匹配 {#data-types-matching-sql_reference}
 
 下表显示了支持的数据类型以及它们如何在`SELECT`与`INSERT`查询中匹配ClickHouse的 [数据类型](../sql-reference/data-types/index.md)。
 
@@ -1295,7 +1305,8 @@ $ clickhouse-client --query="SELECT * FROM {some_table} FORMAT Parquet" > {some_
 | `FLOAT`, `HALF_FLOAT`    | [Float32](../sql-reference/data-types/float.md)     | `FLOAT`                  |
 | `DOUBLE`                 | [Float64](../sql-reference/data-types/float.md)     | `DOUBLE`                 |
 | `DATE32`                 | [Date](../sql-reference/data-types/date.md)         | `DATE32`                 |
-| `DATE64`, `TIMESTAMP`    | [DateTime](../sql-reference/data-types/datetime.md) | `TIMESTAMP`              |
+| `DATE64`                 | [DateTime](../sql-reference/data-types/datetime.md) | `UINT32`                 |
+| `TIMESTAMP`                | [DateTime64](../sql-reference/data-types/datetime64.md) | `TIMESTAMP`        |
 | `STRING`, `BINARY`       | [String](../sql-reference/data-types/string.md)     | `BINARY`                 |
 | `DECIMAL`                | [Decimal](../sql-reference/data-types/decimal.md)   | `DECIMAL`                |
 | `-`                      | [Array](../sql-reference/data-types/array.md)       | `LIST`                   |
@@ -1304,7 +1315,7 @@ ClickHouse支持的可配置精度的 `Decimal` 类型。 `INSERT` 查询将ORC�
 
 不支持的ORC数据类型: `TIME32`, `FIXED_SIZE_BINARY`, `JSON`, `UUID`, `ENUM`.
 
-ClickHouse表列的数据类型不必匹配相应的ORC数据字段。 插入数据时，ClickHouse根据上表解释数据类型，然后 [Cast](../query_language/functions/type_conversion_functions/#type_conversion_function-cast) 将数据转换为ClickHouse表列的数据类型集。
+ClickHouse表列的数据类型不必匹配相应的ORC数据字段。 插入数据时，ClickHouse根据上表解释数据类型，然后 [Cast](../sql-reference/functions/type-conversion-functions.md#type_conversion_function-cast) 将数据转换为ClickHouse表列的数据类型集。
 
 ### 插入数据 {#inserting-data-1}
 
@@ -1450,7 +1461,3 @@ f9725a22f9191e064120d718e26862a9  -
 限制:
 - 在解析错误的情况下 `JSONEachRow` 跳过该行的所有数据，直到遇到新行(或EOF)，所以行必须由换行符分隔以正确统计错误行的数量。
 - `Template` 和 `CustomSeparated` 在最后一列之后和行之间使用分隔符来查找下一行的开头，所以跳过错误只有在行分隔符和列分隔符其中至少有一个不为空时才有效。
-
-
-
-[来源文章](https://clickhouse.com/docs/zh/interfaces/formats/) <!--hide-->

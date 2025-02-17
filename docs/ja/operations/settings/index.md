@@ -1,33 +1,48 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_folder_title: "\u8A2D\u5B9A"
-toc_priority: 55
-toc_title: "\u306F\u3058\u3081\u306B"
+title: "設定の概要"
+sidebar_position: 1
+slug: /ja/operations/settings/
 ---
 
-# 設定 {#session-settings-intro}
+# 設定の概要
 
-複数あるというものですすべての設定は、このセクションで説明する文書
+:::note
+XMLベースの設定プロファイルと[設定ファイル](https://clickhouse.com/docs/ja/operations/configuration-files)は、現在のところClickHouse Cloudではサポートされていません。ClickHouse Cloudサービスの設定を指定するには、[SQL駆動の設定プロファイル](https://clickhouse.com/docs/ja/operations/access-rights#settings-profiles-management)を使用する必要があります。
+:::
 
-設定はレイヤーで構成されるため、後続の各レイヤーは以前の設定を再定義します。
+ClickHouseの設定は主に2つのグループに分かれています:
 
-優先順位の順に設定する方法:
+- グローバルサーバー設定
+- クエリレベルの設定
 
--   の設定 `users.xml` サーバー構成ファイル。
+グローバルサーバー設定とクエリレベルの設定の主な違いは、グローバルサーバー設定は設定ファイルで設定する必要があり、クエリレベルの設定は設定ファイルまたはSQLクエリで設定できるという点です。
 
-    要素に設定 `<profiles>`.
+ClickHouseサーバーをグローバルサーバーレベルで設定する方法については、[グローバルサーバー設定](/docs/ja/operations/server-configuration-parameters/settings.md)を参照してください。
 
--   セッション設定。
+ClickHouseサーバーをクエリレベルで設定する方法については、[クエリレベルの設定](/docs/ja/operations/settings/settings-query-level.md)を参照してください。
 
-    送信 `SET setting=value` 対話モードでClickHouseコンソールクライアントから。
-    同様に、HttpプロトコルでClickHouseセッションを使用できます。 これを行うには、以下を指定する必要があります `session_id` HTTPパラメータ。
+## デフォルト以外の設定を確認する
 
--   クエリ設定。
+デフォルトの値から変更された設定を確認するには、次のクエリを使用します:
 
-    -   ClickHouse consoleクライアントを非対話モードで起動するときは、startupパラメータを設定します `--setting=value`.
-    -   HTTP APIを使用する場合は、CGIパラメータを渡します (`URL?setting_1=value&setting_2=value...`).
+```sql
+SELECT name, value FROM system.settings WHERE changed
+```
 
-サーバー設定ファイルでのみ行うことができる設定は、このセクションでは説明しません。
+デフォルトの値から設定を変更していない場合、ClickHouseは何も返しません。
 
-[元の記事](https://clickhouse.com/docs/en/operations/settings/) <!--hide-->
+特定の設定の値を確認するには、クエリ内で設定の`name`を指定します:
+
+```sql
+SELECT name, value FROM system.settings WHERE name = 'max_threads'
+```
+
+このコマンドは以下のような結果を返します:
+
+```response
+┌─name────────┬─value─────┐
+│ max_threads │ 'auto(8)' │
+└─────────────┴───────────┘
+
+1 row in set. Elapsed: 0.002 sec.
+```

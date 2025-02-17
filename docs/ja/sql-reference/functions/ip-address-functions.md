@@ -1,23 +1,34 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 55
-toc_title: "IP\u30A2\u30C9\u30EC\u30B9\u306E\u64CD\u4F5C"
+slug: /ja/sql-reference/functions/ip-address-functions
+sidebar_position: 95
+sidebar_label: IPアドレス
 ---
 
-# IPアドレスを操作するための関数 {#functions-for-working-with-ip-addresses}
+# IPv4 および IPv6 アドレスを扱うための関数
 
-## IPv4NumToString(num) {#ipv4numtostringnum}
+## IPv4NumToString(num)
 
-UInt32番号を取ります。 ビッグエンディアンのIPv4アドレスとして解釈します。 対応するIPv4アドレスを含む文字列を、a.B.C.d(小数点以下のドット区切りの数値)の形式で返します。
+UInt32 数値を受け取り、ビッグエンディアン形式の IPv4 アドレスとして解釈します。対応する IPv4 アドレスを A.B.C.d（ドットで区切られた 10 進数形式）の文字列で返します。
 
-## IPv4StringToNum(s) {#ipv4stringtonums}
+エイリアス: `INET_NTOA`.
 
-IPv4NumToStringの逆関数。 IPv4アドレスの形式が無効な場合は、0を返します。
+## IPv4StringToNum(s)
 
-## IPv4NumToStringClassC(num) {#ipv4numtostringclasscnum}
+IPv4NumToString の逆関数です。IPv4 アドレスが無効な形式の場合、例外をスローします。
 
-IPv4NumToStringに似ていますが、最後のオクテットの代わりにxxxを使用します。
+エイリアス: `INET_ATON`.
+
+## IPv4StringToNumOrDefault(s)
+
+`IPv4StringToNum` と同様ですが、IPv4 アドレスが無効な形式の場合、0 を返します。
+
+## IPv4StringToNumOrNull(s)
+
+`IPv4StringToNum` と同様ですが、IPv4 アドレスが無効な形式の場合、null を返します。
+
+## IPv4NumToStringClassC(num)
+
+IPv4NumToString と似ていますが、最後のオクテットを xxx に置き換えます。
 
 例:
 
@@ -46,15 +57,18 @@ LIMIT 10
 └────────────────┴───────┘
 ```
 
-を使用して以来 ‘xxx’ 非常に珍しいですが、これは将来的に変更される可能性があります。 このフラグメントの正確な形式に依存しないことをお勧めします。
+'xxx' の使用は非常に珍しいため、将来的に変更される可能性があります。この形式に依存しないことをお勧めします。
 
-### IPv6NumToString(x) {#ipv6numtostringx}
+### IPv6NumToString(x)
 
-バイナリ形式のIPv6アドレスを含むFixedString(16)値を受け入れます。 このアドレスを含む文字列をテキスト形式で返します。
-IPv6マップされたIPv4アドレスは、::ffff:111.222.33.44の形式で出力されます。 例:
+バイナリ形式の IPv6 アドレスを含む FixedString(16) 値を受け取ります。このアドレスをテキスト形式で返します。IPv4 アドレスが IPv6 にマップされている場合は、::ffff:111.222.33.44 の形式で出力されます。
+
+エイリアス: `INET6_NTOA`.
+
+例:
 
 ``` sql
-SELECT IPv6NumToString(toFixedString(unhex('2A0206B8000000000000000000000011'), 16)) AS addr
+SELECT IPv6NumToString(toFixedString(unhex('2A0206B8000000000000000000000011'), 16)) AS addr;
 ```
 
 ``` text
@@ -115,17 +129,65 @@ LIMIT 10
 └────────────────────────────┴────────┘
 ```
 
-## IPv6StringToNum(s) {#ipv6stringtonums}
+## IPv6StringToNum
 
-IPv6NumToStringの逆関数。 IPv6アドレスの形式が無効な場合は、nullバイトの文字列を返します。
-HEXは大文字または小文字です。
+[IPv6NumToString](#ipv6numtostringx)の逆関数です。IPv6 アドレスが無効な形式の場合、例外をスローします。
 
-## IPv4ToIPv6(x) {#ipv4toipv6x}
+入力文字列に有効な IPv4 アドレスが含まれている場合、その IPv6 等価を返します。
+HEX は大文字でも小文字でもかまいません。
 
-を取る `UInt32` 番号 これをIPv4アドレスとして解釈します。 [ビッグエンディアン](https://en.wikipedia.org/wiki/Endianness). Aを返します `FixedString(16)` IPv6アドレスをバイナリ形式で含む値。 例:
+エイリアス: `INET6_ATON`.
+
+**構文**
 
 ``` sql
-SELECT IPv6NumToString(IPv4ToIPv6(IPv4StringToNum('192.168.0.1'))) AS addr
+IPv6StringToNum(string)
+```
+
+**引数**
+
+- `string` — IP アドレス。 [String](../data-types/string.md)。
+
+**返される値**
+
+- バイナリ形式の IPv6 アドレス。[FixedString(16)](../data-types/fixedstring.md)。
+
+**例**
+
+クエリ:
+
+``` sql
+SELECT addr, cutIPv6(IPv6StringToNum(addr), 0, 0) FROM (SELECT ['notaddress', '127.0.0.1', '1111::ffff'] AS addr) ARRAY JOIN addr;
+```
+
+結果:
+
+``` text
+┌─addr───────┬─cutIPv6(IPv6StringToNum(addr), 0, 0)─┐
+│ notaddress │ ::                                   │
+│ 127.0.0.1  │ ::ffff:127.0.0.1                     │
+│ 1111::ffff │ 1111::ffff                           │
+└────────────┴──────────────────────────────────────┘
+```
+
+**関連項目**
+
+- [cutIPv6](#cutipv6x-bytestocutforipv6-bytestocutforipv4).
+
+## IPv6StringToNumOrDefault(s)
+
+`IPv6StringToNum` と同様ですが、IPv6 アドレスが無効な形式の場合、0 を返します。
+
+## IPv6StringToNumOrNull(s)
+
+`IPv6StringToNum` と同様ですが、IPv6 アドレスが無効な形式の場合、null を返します。
+
+## IPv4ToIPv6(x)
+
+`UInt32` 数値を受け取り、ビッグエンディアン形式の IPv4 アドレスとして解釈します。バイナリ形式で IPv6 アドレスを含む `FixedString(16)` 値を返します。例:
+
+``` sql
+SELECT IPv6NumToString(IPv4ToIPv6(IPv4StringToNum('192.168.0.1'))) AS addr;
 ```
 
 ``` text
@@ -134,9 +196,9 @@ SELECT IPv6NumToString(IPv4ToIPv6(IPv4StringToNum('192.168.0.1'))) AS addr
 └────────────────────┘
 ```
 
-## cutIPv6(x,bytesToCutForIPv6,bytesToCutForIPv4) {#cutipv6x-bytestocutforipv6-bytestocutforipv4}
+## cutIPv6(x, bytesToCutForIPv6, bytesToCutForIPv4)
 
-バイナリ形式のIPv6アドレスを含むFixedString(16)値を受け入れます。 テキスト形式で削除された指定されたバイト数のアドレスを含む文字列を返します。 例えば:
+バイナリ形式の IPv6 アドレスを含む FixedString(16) 値を受け取ります。指定されたバイト数分削除したアドレスをテキスト形式で返します。例:
 
 ``` sql
 WITH
@@ -153,12 +215,12 @@ SELECT
 └─────────────────────────────────────┴─────────────────────┘
 ```
 
-## IPv4CIDRToRange(ipv4,Cidr), {#ipv4cidrtorangeipv4-cidr}
+## IPv4CIDRToRange(ipv4, Cidr),
 
-IPv4およびuint8の値を受け入れます。 [CIDR](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing). サブネットの低い範囲と高い範囲を含むIPv4のタプルを返します。
+IPv4 と CIDR を含む UInt8 値を受け取ります。サブネットの下限と上限の範囲を含む 2 つの IPv4 を持つタプルを返します。
 
 ``` sql
-SELECT IPv4CIDRToRange(toIPv4('192.168.5.2'), 16)
+SELECT IPv4CIDRToRange(toIPv4('192.168.5.2'), 16);
 ```
 
 ``` text
@@ -167,9 +229,9 @@ SELECT IPv4CIDRToRange(toIPv4('192.168.5.2'), 16)
 └────────────────────────────────────────────┘
 ```
 
-## IPv6CIDRToRange(ipv6,Cidr), {#ipv6cidrtorangeipv6-cidr}
+## IPv6CIDRToRange(ipv6, Cidr),
 
-IPv6およびCidrを含むUInt8値を受け入れます。 サブネットの下位範囲と上位の範囲を含むIPv6のタプルを返します。
+IPv6 と CIDR を含む UInt8 値を受け取ります。サブネットの下限と上限の範囲を含む 2 つの IPv6 を持つタプルを返します。
 
 ``` sql
 SELECT IPv6CIDRToRange(toIPv6('2001:0db8:0000:85a3:0000:0000:ac1f:8001'), 32);
@@ -181,23 +243,41 @@ SELECT IPv6CIDRToRange(toIPv6('2001:0db8:0000:85a3:0000:0000:ac1f:8001'), 32);
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-## toIPv4(文字列) {#toipv4string}
+## toIPv4
 
-エイリアス `IPv4StringToNum()` これは、IPv4アドレスの文字列形式をとり、の値を返します [IPv4](../../sql-reference/data-types/domains/ipv4.md) 返される値と等しいバイナリ型 `IPv4StringToNum()`.
+[`IPv4StringToNum`](##IPv4NumToString(num)) と似ていますが、IPv4 アドレスの文字列形式を受け取り、[IPv4](../data-types/ipv4.md) 型の値を返します。
+
+**構文**
+
+```sql
+toIPv4(string)
+```
+
+**引数**
+
+- `string` — IPv4 アドレス。[String](../data-types/string.md)。
+
+**返される値**
+
+- `string` が IPv4 アドレスに変換されます。[IPv4](../data-types/ipv4.md)。
+
+**例**
+
+クエリ:
 
 ``` sql
-WITH
-    '171.225.130.45' as IPv4_string
-SELECT
-    toTypeName(IPv4StringToNum(IPv4_string)),
-    toTypeName(toIPv4(IPv4_string))
+SELECT toIPv4('171.225.130.45');
 ```
 
+結果:
+
 ``` text
-┌─toTypeName(IPv4StringToNum(IPv4_string))─┬─toTypeName(toIPv4(IPv4_string))─┐
-│ UInt32                                   │ IPv4                            │
-└──────────────────────────────────────────┴─────────────────────────────────┘
+┌─toIPv4('171.225.130.45')─┐
+│ 171.225.130.45           │
+└──────────────────────────┘
 ```
+
+クエリ:
 
 ``` sql
 WITH
@@ -207,37 +287,158 @@ SELECT
     hex(toIPv4(IPv4_string))
 ```
 
+結果:
+
 ``` text
 ┌─hex(IPv4StringToNum(IPv4_string))─┬─hex(toIPv4(IPv4_string))─┐
 │ ABE1822D                          │ ABE1822D                 │
 └───────────────────────────────────┴──────────────────────────┘
 ```
 
-## toIPv6(文字列) {#toipv6string}
+## toIPv4OrDefault
 
-エイリアス `IPv6StringToNum()` これは、IPv6アドレスの文字列形式を取り、の値を返します [IPv6](../../sql-reference/data-types/domains/ipv6.md) 返される値と等しいバイナリ型 `IPv6StringToNum()`.
+`toIPv4` と同様ですが、IPv4 アドレスが無効な形式の場合、`0.0.0.0` (0 IPv4) または指定されたデフォルト IPv4 を返します。
+
+**構文**
+
+```sql
+toIPv4OrDefault(string[, default])
+```
+
+**引数**
+
+- `value` — IP アドレス。[String](../data-types/string.md)。
+- `default` (オプション) — `string` が無効な形式の場合に返す値。[IPv4](../data-types/ipv4.md)。
+
+**返される値**
+
+- `string` が現在の IPv4 アドレスに変換されます。[String](../data-types/string.md)。
+
+**例**
+
+クエリ:
+
+```sql
+WITH
+    '::ffff:127.0.0.1' AS valid_IPv6_string,
+    'fe80:2030:31:24' AS invalid_IPv6_string
+SELECT
+    toIPv4OrDefault(valid_IPv6_string) AS valid,
+    toIPv4OrDefault(invalid_IPv6_string) AS default,
+    toIPv4OrDefault(invalid_IPv6_string, toIPv4('1.1.1.1')) AS provided_default;
+```
+
+結果:
+
+```response
+┌─valid───┬─default─┬─provided_default─┐
+│ 0.0.0.0 │ 0.0.0.0 │ 1.1.1.1          │
+└─────────┴─────────┴──────────────────┘
+```
+
+## toIPv4OrNull
+
+[`toIPv4`](#toipv4) と同様ですが、IPv4 アドレスが無効な形式の場合、null を返します。
+
+**構文**
+
+```sql
+toIPv4OrNull(string)
+```
+
+**引数**
+
+- `string` — IP アドレス。[String](../data-types/string.md)。
+
+**返される値**
+
+- `string` が現在の IPv4 アドレスに変換されるか、`string` が無効なアドレスの場合は null。[String](../data-types/string.md)。
+
+**例**
+
+クエリ:
 
 ``` sql
-WITH
-    '2001:438:ffff::407d:1bc1' as IPv6_string
-SELECT
-    toTypeName(IPv6StringToNum(IPv6_string)),
-    toTypeName(toIPv6(IPv6_string))
+WITH 'fe80:2030:31:24' AS invalid_IPv6_string
+SELECT toIPv4OrNull(invalid_IPv6_string);
 ```
+
+結果:
 
 ``` text
-┌─toTypeName(IPv6StringToNum(IPv6_string))─┬─toTypeName(toIPv6(IPv6_string))─┐
-│ FixedString(16)                          │ IPv6                            │
-└──────────────────────────────────────────┴─────────────────────────────────┘
+┌─toIPv4OrNull(invalid_IPv6_string)─┐
+│ ᴺᵁᴸᴸ                              │
+└───────────────────────────────────┘
 ```
 
+## toIPv4OrZero
+
+[`toIPv4`](#toipv4) と同様ですが、IPv4 アドレスが無効な形式の場合、`0.0.0.0` を返します。
+
+**構文**
+
+```sql
+toIPv4OrZero(string)
+```
+
+**引数**
+
+- `string` — IP アドレス。[String](../data-types/string.md)。
+
+**返される値**
+
+- `string` が現在の IPv4 アドレスに変換されるか、`string` が無効なアドレスの場合は `0.0.0.0`。[String](../data-types/string.md)。
+
+**例**
+
+クエリ:
+
 ``` sql
-WITH
-    '2001:438:ffff::407d:1bc1' as IPv6_string
+WITH 'Not an IP address' AS invalid_IPv6_string
+SELECT toIPv4OrZero(invalid_IPv6_string);
+```
+
+結果:
+
+``` text
+┌─toIPv4OrZero(invalid_IPv6_string)─┐
+│ 0.0.0.0                           │
+└───────────────────────────────────┘
+```
+
+## toIPv6
+
+IPv6 アドレスの文字列形式を [IPv6](../data-types/ipv6.md) 型に変換します。IPv6 アドレスが無効な形式の場合、空の値を返します。
+IPv6 アドレスをバイナリ形式に変換する [IPv6StringToNum](#ipv6stringtonum) 関数と似ています。
+
+入力文字列に有効な IPv4 アドレスが含まれている場合、その IPv4 アドレスの IPv6 等価が返されます。
+
+**構文**
+
+```sql
+toIPv6(string)
+```
+
+**引数**
+
+- `string` — IP アドレス。[String](../data-types/string.md)。
+
+**返される値**
+
+- IP アドレス。[IPv6](../data-types/ipv6.md)。
+
+**例**
+
+クエリ:
+
+``` sql
+WITH '2001:438:ffff::407d:1bc1' AS IPv6_string
 SELECT
     hex(IPv6StringToNum(IPv6_string)),
-    hex(toIPv6(IPv6_string))
+    hex(toIPv6(IPv6_string));
 ```
+
+結果:
 
 ``` text
 ┌─hex(IPv6StringToNum(IPv6_string))─┬─hex(toIPv6(IPv6_string))─────────┐
@@ -245,4 +446,274 @@ SELECT
 └───────────────────────────────────┴──────────────────────────────────┘
 ```
 
-[元の記事](https://clickhouse.com/docs/en/query_language/functions/ip_address_functions/) <!--hide-->
+クエリ:
+
+``` sql
+SELECT toIPv6('127.0.0.1');
+```
+
+結果:
+
+``` text
+┌─toIPv6('127.0.0.1')─┐
+│ ::ffff:127.0.0.1    │
+└─────────────────────┘
+```
+
+## toIPv6OrDefault
+
+[`toIPv6`](#toipv6) と同様ですが、IPv6 アドレスが無効な形式の場合、`::` (0 IPv6) または指定された IPv6 デフォルトを返します。
+
+**構文**
+
+```sql
+toIPv6OrDefault(string[, default])
+```
+
+**引数**
+
+- `string` — IP アドレス。[String](../data-types/string.md)。
+- `default` (オプション) — `string` が無効な形式の場合に返す値。[IPv6](../data-types/ipv6.md)。
+
+**返される値**
+
+- IPv6 アドレス [IPv6](../data-types/ipv6.md)、そうでない場合は `::` またはオプションで指定されたデフォルトが `string` が無効な形式の場合に返されます。
+
+**例**
+
+クエリ:
+
+``` sql
+WITH
+    '127.0.0.1' AS valid_IPv4_string,
+    '127.0.0.1.6' AS invalid_IPv4_string
+SELECT
+    toIPv6OrDefault(valid_IPv4_string) AS valid,
+    toIPv6OrDefault(invalid_IPv4_string) AS default,
+    toIPv6OrDefault(invalid_IPv4_string, toIPv6('1.1.1.1')) AS provided_default
+```
+
+結果:
+
+``` text
+┌─valid────────────┬─default─┬─provided_default─┐
+│ ::ffff:127.0.0.1 │ ::      │ ::ffff:1.1.1.1   │
+└──────────────────┴─────────┴──────────────────┘
+```
+
+## toIPv6OrNull
+
+[`toIPv6`](#toipv6) と同様ですが、IPv6 アドレスが無効な形式の場合、null を返します。
+
+**構文**
+
+```sql
+toIPv6OrNull(string)
+```
+
+**引数**
+
+- `string` — IP アドレス。[String](../data-types/string.md)。
+
+**返される値**
+
+- IP アドレス。[IPv6](../data-types/ipv6.md)、または `string` が有効な形式でない場合は null。
+
+**例**
+
+クエリ:
+
+``` sql
+WITH '127.0.0.1.6' AS invalid_IPv4_string
+SELECT toIPv6OrNull(invalid_IPv4_string);
+```
+
+結果:
+
+``` text
+┌─toIPv6OrNull(invalid_IPv4_string)─┐
+│ ᴺᵁᴸᴸ                              │
+└───────────────────────────────────┘
+```
+
+## toIPv6OrZero
+
+[`toIPv6`](#toipv6) と同様ですが、IPv6 アドレスが無効な形式の場合、`::` を返します。
+
+**構文**
+
+```sql
+toIPv6OrZero(string)
+```
+
+**引数**
+
+- `string` — IP アドレス。[String](../data-types/string.md)。
+
+**返される値**
+
+- IP アドレス。[IPv6](../data-types/ipv6.md)、または `string` が有効な形式でない場合は `::`。
+
+**例**
+
+クエリ:
+
+``` sql
+WITH '127.0.0.1.6' AS invalid_IPv4_string
+SELECT toIPv6OrZero(invalid_IPv4_string);
+```
+
+結果:
+
+``` text
+┌─toIPv6OrZero(invalid_IPv4_string)─┐
+│ ::                                │
+└───────────────────────────────────┘
+```
+
+## IPv6StringToNumOrDefault(s)
+
+`toIPv6` と同様ですが、IPv6 アドレスが無効な形式の場合、0 を返します。
+
+## IPv6StringToNumOrNull(s)
+
+`toIPv6` と同様ですが、IPv6 アドレスが無効な形式の場合、null を返します。
+
+## isIPv4String
+
+入力文字列が IPv4 アドレスかどうかを判定します。`string` が IPv6 アドレスの場合、`0` を返します。
+
+**構文**
+
+```sql
+isIPv4String(string)
+```
+
+**引数**
+
+- `string` — IP アドレス。[String](../data-types/string.md)。
+
+**返される値**
+
+- `string` が IPv4 アドレスの場合は `1`、それ以外の場合は `0`。[UInt8](../data-types/int-uint.md)。
+
+**例**
+
+クエリ:
+
+```sql
+SELECT addr, isIPv4String(addr) FROM ( SELECT ['0.0.0.0', '127.0.0.1', '::ffff:127.0.0.1'] AS addr ) ARRAY JOIN addr;
+```
+
+結果:
+
+``` text
+┌─addr─────────────┬─isIPv4String(addr)─┐
+│ 0.0.0.0          │                  1 │
+│ 127.0.0.1        │                  1 │
+│ ::ffff:127.0.0.1 │                  0 │
+└──────────────────┴────────────────────┘
+```
+
+## isIPv6String
+
+入力文字列が IPv6 アドレスかどうかを判定します。`string` が IPv4 アドレスの場合、`0` を返します。
+
+**構文**
+
+```sql
+isIPv6String(string)
+```
+
+**引数**
+
+- `string` — IP アドレス。[String](../data-types/string.md)。
+
+**返される値**
+
+- `string` が IPv6 アドレスの場合は `1`、それ以外の場合は `0`。[UInt8](../data-types/int-uint.md)。
+
+**例**
+
+クエリ:
+
+``` sql
+SELECT addr, isIPv6String(addr) FROM ( SELECT ['::', '1111::ffff', '::ffff:127.0.0.1', '127.0.0.1'] AS addr ) ARRAY JOIN addr;
+```
+
+結果:
+
+``` text
+┌─addr─────────────┬─isIPv6String(addr)─┐
+│ ::               │                  1 │
+│ 1111::ffff       │                  1 │
+│ ::ffff:127.0.0.1 │                  1 │
+│ 127.0.0.1        │                  0 │
+└──────────────────┴────────────────────┘
+```
+
+## isIPAddressInRange
+
+IP アドレスが [CIDR](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing) 表記で表されるネットワークに含まれているかどうかを判定します。含まれている場合は `1` を返し、それ以外の場合は `0` を返します。
+
+**構文**
+
+``` sql
+isIPAddressInRange(address, prefix)
+```
+
+この関数は文字列として表される IPv4 および IPv6 アドレス（およびネットワーク）の両方を受け入れます。アドレスと CIDR の IP バージョンが一致しない場合、`0` を返します。
+
+**引数**
+
+- `address` — IPv4 または IPv6 アドレス。[String](../data-types/string.md)。
+- `prefix` — CIDR 形式の IPv4 または IPv6 ネットワーク プリフィックス。[String](../data-types/string.md)。
+
+**返される値**
+
+- `1` または `0`。[UInt8](../data-types/int-uint.md)。
+
+**例**
+
+クエリ:
+
+``` sql
+SELECT isIPAddressInRange('127.0.0.1', '127.0.0.0/8');
+```
+
+結果:
+
+``` text
+┌─isIPAddressInRange('127.0.0.1', '127.0.0.0/8')─┐
+│                                              1 │
+└────────────────────────────────────────────────┘
+```
+
+クエリ:
+
+``` sql
+SELECT isIPAddressInRange('127.0.0.1', 'ffff::/16');
+```
+
+結果:
+
+``` text
+┌─isIPAddressInRange('127.0.0.1', 'ffff::/16')─┐
+│                                            0 │
+└──────────────────────────────────────────────┘
+```
+
+クエリ:
+
+``` sql
+SELECT isIPAddressInRange('::ffff:192.168.0.1', '::ffff:192.168.0.4/128');
+```
+
+結果:
+
+``` text
+┌─isIPAddressInRange('::ffff:192.168.0.1', '::ffff:192.168.0.4/128')─┐
+│                                                                  0 │
+└────────────────────────────────────────────────────────────────────┘
+```
+

@@ -1,65 +1,83 @@
 #pragma once
 
-#include <Poco/MongoDB/Connection.h>
+#include "config.h"
 
-#include <base/shared_ptr_helper.h>
+#if USE_MONGODB
+#include <Common/RemoteHostFilter.h>
 
+#include <Analyzer/JoinNode.h>
+#include <Interpreters/Context.h>
 #include <Storages/IStorage.h>
-#include <Storages/ExternalDataSourceConfiguration.h>
+#include <Storages/SelectQueryInfo.h>
 
+#include <mongocxx/instance.hpp>
+#include <mongocxx/client.hpp>
 
 namespace DB
 {
-/* Implements storage in the MongoDB database.
- * Use ENGINE = mysql(host_port, database_name, table_name, user_name, password)
- * Read only.
- */
 
-class StorageMongoDB final : public shared_ptr_helper<StorageMongoDB>, public IStorage
+inline mongocxx::instance inst{};
+
+struct MongoDBConfiguration
 {
-    friend struct shared_ptr_helper<StorageMongoDB>;
+    std::unique_ptr<mongocxx::uri> uri;
+    String collection;
+
+    void checkHosts(const ContextPtr & context) const
+    {
+        // Because domain records will be resolved inside the driver, we can't check IPs for our restrictions.
+        for (const auto & host : uri->hosts())
+            context->getRemoteHostFilter().checkHostAndPort(host.name, toString(host.port));
+    }
+};
+
+/** Implements storage in the MongoDB database.
+ *  Use ENGINE = MongoDB(host:port, database, collection, user, password [, options]);
+ *               MongoDB(uri, collection);
+ *  Read only.
+ *  One stream only.
+ */
+class StorageMongoDB final : public IStorage
+{
 public:
+    static MongoDBConfiguration getConfiguration(ASTs engine_args, ContextPtr context);
+
     StorageMongoDB(
         const StorageID & table_id_,
-        const std::string & host_,
-        uint16_t port_,
-        const std::string & database_name_,
-        const std::string & collection_name_,
-        const std::string & username_,
-        const std::string & password_,
-        const std::string & options_,
+        MongoDBConfiguration configuration_,
         const ColumnsDescription & columns_,
         const ConstraintsDescription & constraints_,
         const String & comment);
 
     std::string getName() const override { return "MongoDB"; }
+    bool isRemote() const override { return true; }
 
     Pipe read(
         const Names & column_names,
-        const StorageMetadataPtr & metadata_snapshot,
+        const StorageSnapshotPtr & storage_snapshot,
         SelectQueryInfo & query_info,
         ContextPtr context,
         QueryProcessingStage::Enum processed_stage,
         size_t max_block_size,
-        unsigned num_streams) override;
-
-    static StorageMongoDBConfiguration getConfiguration(ASTs engine_args, ContextPtr context);
+        size_t num_streams) override;
 
 private:
-    void connectIfNotConnected();
+    template <typename OnError>
+    std::optional<bsoncxx::document::value> visitWhereFunction(
+        const ContextPtr & context,
+        const FunctionNode * func,
+        const JoinNode * join_node,
+        OnError on_error);
 
-    const std::string host;
-    const uint16_t port; /// NOLINT
-    const std::string database_name;
-    const std::string collection_name;
-    const std::string username;
-    const std::string password;
-    const std::string options;
-    const std::string uri;
+    bsoncxx::document::value buildMongoDBQuery(
+        const ContextPtr & context,
+        mongocxx::options::find & options,
+        const SelectQueryInfo & query,
+        const Block & sample_block);
 
-    std::shared_ptr<Poco::MongoDB::Connection> connection;
-    bool authenticated = false;
-    std::mutex connection_mutex; /// Protects the variables `connection` and `authenticated`.
+    const MongoDBConfiguration configuration;
+    LoggerPtr log;
 };
 
 }
+#endif

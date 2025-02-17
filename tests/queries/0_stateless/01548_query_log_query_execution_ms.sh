@@ -4,11 +4,6 @@ CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
 . "$CUR_DIR"/../shell_config.sh
 
-function random_str()
-{
-    local n=$1 && shift
-    tr -cd '[:lower:]' < /dev/urandom | head -c"$n"
-}
 function test_query_duration_ms()
 {
     local query_id
@@ -52,7 +47,7 @@ function main()
 {
     # retries, since there is no guarantee that every time query will take ~0.4 second.
     local retries=20 i=0
-    while [ "$(test_query_duration_ms | xargs)" != '1 1' ] && [[ $i < $retries ]]; do
+    while [ "$(test_query_duration_ms | xargs)" != '1 1' ] && (( i < retries )); do
         ((++i))
     done
 }

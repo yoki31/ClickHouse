@@ -7,12 +7,15 @@
 #include <unordered_set>
 
 #include <base/getFQDNOrHostName.h>
-#include <base/logger_useful.h>
 
+#include <Common/Config/ConfigHelper.h>
 #include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
-#include <Common/ZooKeeper/Types.h>
+#include <Common/FailPoint.h>
+#include <Common/logger_useful.h>
 #include <Common/setThreadName.h>
+#include <Common/StringUtils.h>
+#include <Common/thread_local_rng.h>
+#include <Common/ZooKeeper/Types.h>
 
 #include <Core/ServerUUID.h>
 
@@ -30,7 +33,14 @@ namespace DB
 
 namespace ErrorCodes
 {
+    extern const int KEEPER_EXCEPTION;
     extern const int LOGICAL_ERROR;
+    extern const int NO_ELEMENTS_IN_CONFIG;
+}
+
+namespace FailPoints
+{
+    extern const char cluster_discovery_faults[];
 }
 
 namespace
@@ -106,7 +116,7 @@ ClusterDiscovery::ClusterDiscovery(
     const String & config_prefix)
     : context(Context::createCopy(context_))
     , current_node_name(toString(ServerUUID::get()))
-    , log(&Poco::Logger::get("ClusterDiscovery"))
+    , log(getLogger("ClusterDiscovery"))
 {
     LOG_DEBUG(log, "Cluster discovery is enabled");
 
@@ -115,22 +125,55 @@ ClusterDiscovery::ClusterDiscovery(
 
     for (const auto & key : config_keys)
     {
-        String prefix = config_prefix + "." + key + ".discovery";
-        if (!config.has(prefix))
+        String cluster_config_prefix = config_prefix + "." + key + ".discovery";
+        if (!config.has(cluster_config_prefix))
             continue;
+
+        String zk_name_and_root = config.getString(cluster_config_prefix + ".path");
+        if (zk_name_and_root.empty())
+            throw Exception(ErrorCodes::NO_ELEMENTS_IN_CONFIG, "ZooKeeper path for cluster '{}' is empty", key);
+        String zk_root = zkutil::extractZooKeeperPath(zk_name_and_root, true);
+        String zk_name = zkutil::extractZooKeeperName(zk_name_and_root);
+
+        const auto & password = config.getString(cluster_config_prefix + ".password", "");
+        const auto & cluster_secret = config.getString(cluster_config_prefix + ".secret", "");
+        if (!password.empty() && !cluster_secret.empty())
+            throw Exception(ErrorCodes::NO_ELEMENTS_IN_CONFIG, "Both 'password' and 'secret' are specified for cluster '{}', only one option can be used at the same time", key);
 
         clusters_info.emplace(
             key,
             ClusterInfo(
                 /* name_= */ key,
-                /* zk_root_= */ config.getString(prefix + ".path"),
+                /* zk_name_= */ zk_name,
+                /* zk_root_= */ zk_root,
+                /* host_name= */ config.getString(cluster_config_prefix + ".my_hostname", getFQDNOrHostName()),
+                /* username= */ config.getString(cluster_config_prefix + ".user", context->getUserName()),
+                /* password= */ password,
+                /* cluster_secret= */ cluster_secret,
                 /* port= */ context->getTCPPort(),
-                /* secure= */ config.getBool(prefix + ".secure", false),
-                /* shard_id= */ config.getUInt(prefix + ".shard", 0)
+                /* secure= */ config.getBool(cluster_config_prefix + ".secure", false),
+                /* shard_id= */ config.getUInt(cluster_config_prefix + ".shard", 0),
+                /* observer_mode= */ ConfigHelper::getBool(config, cluster_config_prefix + ".observer"),
+                /* invisible= */ ConfigHelper::getBool(config, cluster_config_prefix + ".invisible")
             )
         );
     }
-    clusters_to_update = std::make_shared<UpdateFlags>(config_keys.begin(), config_keys.end());
+
+    std::vector<String> clusters_info_names;
+    clusters_info_names.reserve(clusters_info.size());
+    for (const auto & e : clusters_info)
+        clusters_info_names.emplace_back(e.first);
+
+    LOG_TRACE(log, "Clusters in discovery mode: {}", fmt::join(clusters_info_names, ", "));
+    clusters_to_update = std::make_shared<UpdateFlags>(clusters_info_names.begin(), clusters_info_names.end());
+
+    /// Init get_nodes_callbacks after init clusters_to_update.
+    for (const auto & e : clusters_info)
+        get_nodes_callbacks[e.first] = std::make_shared<Coordination::WatchCallback>(
+            [cluster_name = e.first, my_clusters_to_update = clusters_to_update](auto)
+            {
+                my_clusters_to_update->set(cluster_name);
+            });
 }
 
 /// List node in zookeper for cluster
@@ -140,10 +183,8 @@ Strings ClusterDiscovery::getNodeNames(zkutil::ZooKeeperPtr & zk,
                                        int * version,
                                        bool set_callback)
 {
-    auto watch_callback = [cluster_name, clusters_to_update=clusters_to_update](auto) { clusters_to_update->set(cluster_name); };
-
     Coordination::Stat stat;
-    Strings nodes = zk->getChildrenWatch(getShardsListPath(zk_root), &stat, set_callback ? watch_callback : Coordination::WatchCallback{});
+    Strings nodes = zk->getChildrenWatch(getShardsListPath(zk_root), &stat, set_callback ? get_nodes_callbacks[cluster_name] : Coordination::WatchCallbackPtr{});
     if (version)
         *version = stat.cversion;
     return nodes;
@@ -208,9 +249,9 @@ bool ClusterDiscovery::needUpdate(const Strings & node_uuids, const NodesInfo & 
 
 ClusterPtr ClusterDiscovery::makeCluster(const ClusterInfo & cluster_info)
 {
-    std::vector<std::vector<String>> shards;
+    std::vector<Strings> shards;
     {
-        std::map<size_t, Strings> replica_adresses;
+        std::map<size_t, Strings> replica_addresses;
 
         for (const auto & [_, node] : cluster_info.nodes_info)
         {
@@ -219,25 +260,35 @@ ClusterPtr ClusterDiscovery::makeCluster(const ClusterInfo & cluster_info)
                 LOG_WARNING(log, "Node '{}' in cluster '{}' has different 'secure' value, skipping it", node.address, cluster_info.name);
                 continue;
             }
-            replica_adresses[node.shard_id].emplace_back(node.address);
+            replica_addresses[node.shard_id].emplace_back(node.address);
         }
 
-        shards.reserve(replica_adresses.size());
-        for (auto & [_, replicas] : replica_adresses)
+        shards.reserve(replica_addresses.size());
+        for (auto & [_, replicas] : replica_addresses)
             shards.emplace_back(std::move(replicas));
     }
 
     bool secure = cluster_info.current_node.secure;
+    ClusterConnectionParameters params{
+        /* username= */ cluster_info.username,
+        /* password= */ cluster_info.password,
+        /* clickhouse_port= */ secure ? context->getTCPPortSecure().value_or(DBMS_DEFAULT_SECURE_PORT) : context->getTCPPort(),
+        /* treat_local_as_remote= */ false,
+        /* treat_local_port_as_remote= */ false, /// should be set only for clickhouse-local, but cluster discovery is not used there
+        /* secure= */ secure,
+        /* priority= */ Priority{1},
+        /* cluster_name= */ cluster_info.name,
+        /* cluster_secret= */ cluster_info.cluster_secret};
     auto cluster = std::make_shared<Cluster>(
         context->getSettingsRef(),
         shards,
-        /* username= */ context->getUserName(),
-        /* password= */ "",
-        /* clickhouse_port= */ secure ? context->getTCPPortSecure().value_or(DBMS_DEFAULT_SECURE_PORT) : context->getTCPPort(),
-        /* treat_local_as_remote= */ false,
-        /* treat_local_port_as_remote= */ context->getApplicationType() == Context::ApplicationType::LOCAL,
-        /* secure= */ secure);
+        params);
     return cluster;
+}
+
+static bool contains(const Strings & list, const String & value)
+{
+    return std::find(list.begin(), list.end(), value) != list.end();
 }
 
 /// Reads data from zookeeper and tries to update cluster.
@@ -246,13 +297,28 @@ bool ClusterDiscovery::updateCluster(ClusterInfo & cluster_info)
 {
     LOG_DEBUG(log, "Updating cluster '{}'", cluster_info.name);
 
-    auto zk = context->getZooKeeper();
+    auto zk = context->getDefaultOrAuxiliaryZooKeeper(cluster_info.zk_name);
 
     int start_version;
     Strings node_uuids = getNodeNames(zk, cluster_info.zk_root, cluster_info.name, &start_version, false);
     auto & nodes_info = cluster_info.nodes_info;
 
-    if (std::find(node_uuids.begin(), node_uuids.end(), current_node_name) == node_uuids.end())
+    auto on_exit = [this, start_version, &zk, &cluster_info, &nodes_info]()
+    {
+        /// in case of successful update we still need to check if configuration of cluster still valid and also set watch callback
+        int current_version;
+        getNodeNames(zk, cluster_info.zk_root, cluster_info.name, &current_version, true);
+
+        if (current_version != start_version)
+        {
+            LOG_DEBUG(log, "Cluster '{}' configuration changed during update", cluster_info.name);
+            nodes_info.clear();
+            return false;
+        }
+        return true;
+    };
+
+    if (!cluster_info.current_node_is_observer && !contains(node_uuids, current_node_name))
     {
         LOG_ERROR(log, "Can't find current node in cluster '{}', will register again", cluster_info.name);
         registerInZk(zk, cluster_info);
@@ -260,10 +326,16 @@ bool ClusterDiscovery::updateCluster(ClusterInfo & cluster_info)
         return false;
     }
 
+    if (cluster_info.current_cluster_is_invisible)
+    {
+        LOG_DEBUG(log, "Cluster '{}' is invisible.", cluster_info.name);
+        return true;
+    }
+
     if (!needUpdate(node_uuids, nodes_info))
     {
         LOG_DEBUG(log, "No update required for cluster '{}'", cluster_info.name);
-        return true;
+        return on_exit();
     }
 
     nodes_info = getNodes(zk, cluster_info.zk_root, node_uuids);
@@ -273,29 +345,31 @@ bool ClusterDiscovery::updateCluster(ClusterInfo & cluster_info)
         return false;
     }
 
-    int current_version;
-    getNodeNames(zk, cluster_info.zk_root, cluster_info.name, &current_version, true);
-
-    if (current_version != start_version)
-    {
-        LOG_DEBUG(log, "Cluster '{}' configuration changed during update", cluster_info.name);
-        nodes_info.clear();
+    if (bool ok = on_exit(); !ok)
         return false;
-    }
 
     LOG_DEBUG(log, "Updating system.clusters record for '{}' with {} nodes", cluster_info.name, cluster_info.nodes_info.size());
 
     auto cluster = makeCluster(cluster_info);
-    context->setCluster(cluster_info.name, cluster);
+
+    std::lock_guard lock(mutex);
+    cluster_impls[cluster_info.name] = cluster;
     return true;
 }
 
 void ClusterDiscovery::registerInZk(zkutil::ZooKeeperPtr & zk, ClusterInfo & info)
 {
-    LOG_DEBUG(log, "Registering current node {} in cluster {}", current_node_name, info.name);
-
+    /// Create root node in observer mode not to get 'No node' error
     String node_path = getShardsListPath(info.zk_root) / current_node_name;
     zk->createAncestors(node_path);
+
+    if (info.current_node_is_observer)
+    {
+        LOG_DEBUG(log, "Current node {} is observer of cluster {}", current_node_name, info.name);
+        return;
+    }
+
+    LOG_DEBUG(log, "Registering current node {} in cluster {}", current_node_name, info.name);
 
     zk->createOrUpdate(node_path, info.current_node.serialize(), zkutil::CreateMode::Ephemeral);
     LOG_DEBUG(log, "Current node {} registered in cluster {}", current_node_name, info.name);
@@ -303,9 +377,22 @@ void ClusterDiscovery::registerInZk(zkutil::ZooKeeperPtr & zk, ClusterInfo & inf
 
 void ClusterDiscovery::initialUpdate()
 {
-    auto zk = context->getZooKeeper();
+    LOG_DEBUG(log, "Initializing");
+
+    fiu_do_on(FailPoints::cluster_discovery_faults,
+    {
+        constexpr UInt8 success_chance = 4;
+        static size_t fail_count = 0;
+        fail_count++;
+        /// strict limit on fail count to avoid flaky tests
+        auto is_failed = fail_count < success_chance && std::uniform_int_distribution<>(0, success_chance)(thread_local_rng) != 0;
+        if (is_failed)
+            throw Exception(ErrorCodes::KEEPER_EXCEPTION, "Failpoint cluster_discovery_faults is triggered");
+    });
+
     for (auto & [_, info] : clusters_info)
     {
+        auto zk = context->getDefaultOrAuxiliaryZooKeeper(info.zk_name);
         registerInZk(zk, info);
         if (!updateCluster(info))
         {
@@ -313,6 +400,8 @@ void ClusterDiscovery::initialUpdate()
             clusters_to_update->set(info.name);
         }
     }
+    LOG_DEBUG(log, "Initialized");
+    is_initialized = true;
 }
 
 void ClusterDiscovery::start()
@@ -370,6 +459,10 @@ bool ClusterDiscovery::runMainThread(std::function<void()> up_to_date_callback)
     using namespace std::chrono_literals;
 
     constexpr auto force_update_interval = 2min;
+
+    if (!is_initialized)
+        initialUpdate();
+
     bool finished = false;
     while (!finished)
     {
@@ -416,6 +509,21 @@ bool ClusterDiscovery::runMainThread(std::function<void()> up_to_date_callback)
     return finished;
 }
 
+ClusterPtr ClusterDiscovery::getCluster(const String & cluster_name) const
+{
+    std::lock_guard lock(mutex);
+    auto it = cluster_impls.find(cluster_name);
+    if (it == cluster_impls.end())
+        return nullptr;
+    return it->second;
+}
+
+std::unordered_map<String, ClusterPtr> ClusterDiscovery::getClusters() const
+{
+    std::lock_guard lock(mutex);
+    return cluster_impls;
+}
+
 void ClusterDiscovery::shutdown()
 {
     LOG_DEBUG(log, "Shutting down");
@@ -427,7 +535,14 @@ void ClusterDiscovery::shutdown()
 
 ClusterDiscovery::~ClusterDiscovery()
 {
-    ClusterDiscovery::shutdown();
+    try
+    {
+        ClusterDiscovery::shutdown();
+    }
+    catch (...)
+    {
+        tryLogCurrentException(log, "Error on ClusterDiscovery shutdown");
+    }
 }
 
 bool ClusterDiscovery::NodeInfo::parse(const String & data, NodeInfo & result)
@@ -447,7 +562,7 @@ bool ClusterDiscovery::NodeInfo::parse(const String & data, NodeInfo & result)
         else
         {
             LOG_ERROR(
-                &Poco::Logger::get("ClusterDiscovery"),
+                getLogger("ClusterDiscovery"),
                 "Unsupported version '{}' of data in zk node '{}'",
                 ver, data.size() < 1024 ? data : "[data too long]");
         }
@@ -455,7 +570,7 @@ bool ClusterDiscovery::NodeInfo::parse(const String & data, NodeInfo & result)
     catch (Poco::Exception & e)
     {
         LOG_WARNING(
-            &Poco::Logger::get("ClusterDiscovery"),
+            getLogger("ClusterDiscovery"),
             "Can't parse '{}' from node: {}",
             data.size() < 1024 ? data : "[data too long]", e.displayText());
         return false;

@@ -8,14 +8,14 @@ namespace DB
 {
 namespace
 {
-    void formatNames(const Strings & names, const IAST::FormatSettings & settings)
+    void formatNames(const Strings & names, WriteBuffer & ostr)
     {
         bool need_comma = false;
         for (const auto & name : names)
         {
             if (std::exchange(need_comma, true))
-                settings.ostr << ',';
-            settings.ostr << ' ' << backQuoteIfNeed(name);
+                ostr << ',';
+            ostr << ' ' << backQuoteIfNeed(name);
         }
     }
 }
@@ -29,26 +29,36 @@ String ASTDropAccessEntityQuery::getID(char) const
 
 ASTPtr ASTDropAccessEntityQuery::clone() const
 {
-    return std::make_shared<ASTDropAccessEntityQuery>(*this);
+    auto res = std::make_shared<ASTDropAccessEntityQuery>(*this);
+
+    if (row_policy_names)
+        res->row_policy_names = std::static_pointer_cast<ASTRowPolicyNames>(row_policy_names->clone());
+
+    return res;
 }
 
 
-void ASTDropAccessEntityQuery::formatImpl(const FormatSettings & settings, FormatState &, FormatStateStacked) const
+void ASTDropAccessEntityQuery::formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const
 {
-    settings.ostr << (settings.hilite ? hilite_keyword : "")
+    ostr << (settings.hilite ? hilite_keyword : "")
                   << "DROP " << AccessEntityTypeInfo::get(type).name
                   << (if_exists ? " IF EXISTS" : "")
                   << (settings.hilite ? hilite_none : "");
 
     if (type == AccessEntityType::ROW_POLICY)
     {
-        settings.ostr << " ";
-        row_policy_names->format(settings);
+        ostr << " ";
+        row_policy_names->format(ostr, settings);
     }
     else
-        formatNames(names, settings);
+        formatNames(names, ostr);
 
-    formatOnCluster(settings);
+    if (!storage_name.empty())
+        ostr << (settings.hilite ? hilite_keyword : "")
+                      << " FROM " << (settings.hilite ? hilite_none : "")
+                      << backQuoteIfNeed(storage_name);
+
+    formatOnCluster(ostr, settings);
 }
 
 

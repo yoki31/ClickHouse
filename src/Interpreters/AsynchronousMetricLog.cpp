@@ -5,66 +5,80 @@
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Interpreters/AsynchronousMetricLog.h>
-#include <Interpreters/AsynchronousMetrics.h>
+#include <Parsers/ExpressionElementParsers.h>
+#include <Parsers/parseQuery.h>
+#include <base/getFQDNOrHostName.h>
+#include <Common/DateLUTImpl.h>
 
 
 namespace DB
 {
 
-NamesAndTypesList AsynchronousMetricLogElement::getNamesAndTypes()
+ColumnsDescription AsynchronousMetricLogElement::getColumnsDescription()
 {
-    return
+    ParserCodec codec_parser;
+    return ColumnsDescription
     {
-        {"event_date", std::make_shared<DataTypeDate>()},
-        {"event_time", std::make_shared<DataTypeDateTime>()},
-        {"event_time_microseconds", std::make_shared<DataTypeDateTime64>(6)},
-        {"metric", std::make_shared<DataTypeLowCardinality>(std::make_shared<DataTypeString>())},
-        {"value", std::make_shared<DataTypeFloat64>(),}
+        {
+            "hostname",
+            std::make_shared<DataTypeLowCardinality>(std::make_shared<DataTypeString>()),
+            parseQuery(codec_parser, "(ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
+            "Hostname of the server executing the query."
+        },
+        {
+            "event_date",
+            std::make_shared<DataTypeDate>(),
+            parseQuery(codec_parser, "(Delta(2), ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
+            "Event date."
+        },
+        {
+            "event_time",
+            std::make_shared<DataTypeDateTime>(),
+            parseQuery(codec_parser, "(Delta(4), ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
+            "Event time."
+        },
+        {
+            "metric",
+            std::make_shared<DataTypeLowCardinality>(std::make_shared<DataTypeString>()),
+            parseQuery(codec_parser, "(ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
+            "Metric name."
+        },
+        {
+            "value",
+            std::make_shared<DataTypeFloat64>(),
+            parseQuery(codec_parser, "(ZSTD(3))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
+            "Metric value."
+        }
     };
 }
-
 
 void AsynchronousMetricLogElement::appendToBlock(MutableColumns & columns) const
 {
     size_t column_idx = 0;
 
+    columns[column_idx++]->insert(getFQDNOrHostName());
     columns[column_idx++]->insert(event_date);
     columns[column_idx++]->insert(event_time);
-    columns[column_idx++]->insert(event_time_microseconds);
     columns[column_idx++]->insert(metric_name);
     columns[column_idx++]->insert(value);
-}
-
-
-inline UInt64 time_in_milliseconds(std::chrono::time_point<std::chrono::system_clock> timepoint)
-{
-    return std::chrono::duration_cast<std::chrono::milliseconds>(timepoint.time_since_epoch()).count();
-}
-
-inline UInt64 time_in_microseconds(std::chrono::time_point<std::chrono::system_clock> timepoint)
-{
-    return std::chrono::duration_cast<std::chrono::microseconds>(timepoint.time_since_epoch()).count();
-}
-
-
-inline UInt64 time_in_seconds(std::chrono::time_point<std::chrono::system_clock> timepoint)
-{
-    return std::chrono::duration_cast<std::chrono::seconds>(timepoint.time_since_epoch()).count();
 }
 
 void AsynchronousMetricLog::addValues(const AsynchronousMetricValues & values)
 {
     AsynchronousMetricLogElement element;
 
-    const auto now = std::chrono::system_clock::now();
-    element.event_time = time_in_seconds(now);
-    element.event_time_microseconds = time_in_microseconds(now);
+    element.event_time = time(nullptr);
     element.event_date = DateLUT::instance().toDayNum(element.event_time);
+
+    /// We will round the values to make them compress better in the table.
+    /// Note: as an alternative we can also use fixed point Decimal data type,
+    /// but we need to store up to UINT64_MAX sometimes.
+    static constexpr double precision = 1000.0;
 
     for (const auto & [key, value] : values)
     {
         element.metric_name = key;
-        element.value = value;
+        element.value = round(value.value * precision) / precision;
 
         add(element);
     }

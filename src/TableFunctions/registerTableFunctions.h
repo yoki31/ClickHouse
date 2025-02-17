@@ -1,7 +1,6 @@
 #pragma once
 
-#include <Common/config.h>
-#include "config_core.h"
+#include "config.h"
 
 namespace DB
 {
@@ -9,24 +8,35 @@ class TableFunctionFactory;
 void registerTableFunctionMerge(TableFunctionFactory & factory);
 void registerTableFunctionRemote(TableFunctionFactory & factory);
 void registerTableFunctionNumbers(TableFunctionFactory & factory);
+void registerTableFunctionLoop(TableFunctionFactory & factory);
+void registerTableFunctionGenerateSeries(TableFunctionFactory & factory);
 void registerTableFunctionNull(TableFunctionFactory & factory);
 void registerTableFunctionZeros(TableFunctionFactory & factory);
 void registerTableFunctionExecutable(TableFunctionFactory & factory);
 void registerTableFunctionFile(TableFunctionFactory & factory);
+void registerTableFunctionFileCluster(TableFunctionFactory & factory);
 void registerTableFunctionURL(TableFunctionFactory & factory);
+void registerTableFunctionURLCluster(TableFunctionFactory & factory);
 void registerTableFunctionValues(TableFunctionFactory & factory);
 void registerTableFunctionInput(TableFunctionFactory & factory);
 void registerTableFunctionGenerate(TableFunctionFactory & factory);
+#if USE_MONGODB
+void registerTableFunctionMongoDB(TableFunctionFactory & factory);
+void registerTableFunctionMongoDBPocoLegacy(TableFunctionFactory & factory);
+#endif
+void registerTableFunctionRedis(TableFunctionFactory & factory);
+void registerTableFunctionMergeTreeIndex(TableFunctionFactory & factory);
+void registerTableFunctionFuzzQuery(TableFunctionFactory & factory);
+#if USE_RAPIDJSON || USE_SIMDJSON
+void registerTableFunctionFuzzJSON(TableFunctionFactory & factory);
+#endif
 
 #if USE_AWS_S3
 void registerTableFunctionS3(TableFunctionFactory & factory);
 void registerTableFunctionS3Cluster(TableFunctionFactory & factory);
 void registerTableFunctionCOS(TableFunctionFactory & factory);
-#endif
-
-#if USE_HDFS
-void registerTableFunctionHDFS(TableFunctionFactory & factory);
-void registerTableFunctionHDFSCluster(TableFunctionFactory & factory);
+void registerTableFunctionOSS(TableFunctionFactory & factory);
+void registerTableFunctionGCS(TableFunctionFactory & factory);
 #endif
 
 #if USE_HIVE
@@ -37,6 +47,7 @@ void registerTableFunctionODBC(TableFunctionFactory & factory);
 void registerTableFunctionJDBC(TableFunctionFactory & factory);
 
 void registerTableFunctionView(TableFunctionFactory & factory);
+void registerTableFunctionViewIfPermitted(TableFunctionFactory & factory);
 
 #if USE_MYSQL
 void registerTableFunctionMySQL(TableFunctionFactory & factory);
@@ -54,6 +65,15 @@ void registerTableFunctionDictionary(TableFunctionFactory & factory);
 
 void registerTableFunctionFormat(TableFunctionFactory & factory);
 
-void registerTableFunctions();
+void registerTableFunctionExplain(TableFunctionFactory & factory);
+
+void registerTableFunctionObjectStorage(TableFunctionFactory & factory);
+void registerTableFunctionObjectStorageCluster(TableFunctionFactory & factory);
+void registerDataLakeTableFunctions(TableFunctionFactory & factory);
+void registerDataLakeClusterTableFunctions(TableFunctionFactory & factory);
+
+void registerTableFunctionTimeSeries(TableFunctionFactory & factory);
+
+void registerTableFunctions(bool use_legacy_mongodb_integration [[maybe_unused]]);
 
 }

@@ -9,6 +9,12 @@
 namespace DB
 {
 
+namespace ErrorCodes
+{
+    extern const int BAD_ARGUMENTS;
+}
+
+
 static GraphiteRollupSortedAlgorithm::ColumnsDefinition defineColumns(
     const Block & header, const Graphite::Params & params)
 {
@@ -26,16 +32,24 @@ static GraphiteRollupSortedAlgorithm::ColumnsDefinition defineColumns(
         if (i != def.time_column_num && i != def.value_column_num && i != def.version_column_num)
             def.unmodified_column_numbers.push_back(i);
 
+    if (!WhichDataType(header.getByPosition(def.value_column_num).type).isFloat64())
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Only `Float64` data type is allowed for the value column of GraphiteMergeTree");
+
     return def;
 }
 
 GraphiteRollupSortedAlgorithm::GraphiteRollupSortedAlgorithm(
-    const Block & header, size_t num_inputs,
-    SortDescription description_, size_t max_block_size,
-    Graphite::Params params_, time_t time_of_merge_)
-    : IMergingAlgorithmWithSharedChunks(num_inputs, std::move(description_), nullptr, max_row_refs)
-    , merged_data(header.cloneEmptyColumns(), false, max_block_size)
-    , params(std::move(params_)), time_of_merge(time_of_merge_)
+    const Block & header_,
+    size_t num_inputs,
+    SortDescription description_,
+    size_t max_block_size_rows_,
+    size_t max_block_size_bytes_,
+    Graphite::Params params_,
+    time_t time_of_merge_)
+    : IMergingAlgorithmWithSharedChunks(header_, num_inputs, std::move(description_), nullptr, max_row_refs, std::make_unique<GraphiteRollupMergedData>(false, max_block_size_rows_, max_block_size_bytes_))
+    , graphite_rollup_merged_data(assert_cast<GraphiteRollupMergedData &>(*merged_data))
+    , params(std::move(params_))
+    , time_of_merge(time_of_merge_)
 {
     size_t max_size_of_aggregate_state = 0;
     size_t max_alignment_of_aggregate_state = 1;
@@ -49,8 +63,8 @@ GraphiteRollupSortedAlgorithm::GraphiteRollupSortedAlgorithm(
         }
     }
 
-    merged_data.allocMemForAggregates(max_size_of_aggregate_state, max_alignment_of_aggregate_state);
-    columns_definition = defineColumns(header, params);
+    graphite_rollup_merged_data.allocMemForAggregates(max_size_of_aggregate_state, max_alignment_of_aggregate_state);
+    columns_definition = defineColumns(header_, params);
 }
 
 UInt32 GraphiteRollupSortedAlgorithm::selectPrecision(const Graphite::Retentions & retentions, time_t time) const
@@ -84,12 +98,10 @@ static time_t roundTimeToPrecision(const DateLUTImpl & date_lut, time_t time, UI
     {
         return time / precision * precision;
     }
-    else
-    {
-        time_t date = date_lut.toDate(time);
-        time_t remainder = time - date;
-        return date + remainder / precision * precision;
-    }
+
+    time_t date = date_lut.toDate(time);
+    time_t remainder = time - date;
+    return date + remainder / precision * precision;
 }
 
 IMergingAlgorithm::Status GraphiteRollupSortedAlgorithm::merge()
@@ -99,7 +111,7 @@ IMergingAlgorithm::Status GraphiteRollupSortedAlgorithm::merge()
 
     const DateLUTImpl & date_lut = timezone ? timezone->getTimeZone() : DateLUT::instance();
 
-    /// Take rows in needed order and put them into `merged_data` until we get `max_block_size` rows.
+    /// Take rows in needed order and put them into `graphite_rollup_merged_data` until we get `max_block_size` rows.
     ///
     /// Variables starting with current_* refer to the rows previously popped from the queue that will
     /// contribute towards current output row.
@@ -116,7 +128,7 @@ IMergingAlgorithm::Status GraphiteRollupSortedAlgorithm::merge()
             return Status(current.impl->order);
         }
 
-        StringRef next_path = current->all_columns[columns_definition.path_column_num]->getDataAt(current->getRow());
+        std::string_view next_path = current->all_columns[columns_definition.path_column_num]->getDataAt(current->getRow()).toView();
         bool new_path = is_first || next_path != current_group_path;
 
         is_first = false;
@@ -128,10 +140,10 @@ IMergingAlgorithm::Status GraphiteRollupSortedAlgorithm::merge()
         if (is_new_key)
         {
             /// Accumulate the row that has maximum version in the previous group of rows with the same key:
-            if (merged_data.wasGroupStarted())
+            if (graphite_rollup_merged_data.wasGroupStarted())
                 accumulateRow(current_subgroup_newest_row);
 
-            Graphite::RollupRule next_rule = merged_data.currentRule();
+            Graphite::RollupRule next_rule = graphite_rollup_merged_data.currentRule();
             if (new_path)
                 next_rule = selectPatternForPath(this->params, next_path);
 
@@ -153,15 +165,15 @@ IMergingAlgorithm::Status GraphiteRollupSortedAlgorithm::merge()
 
             if (will_be_new_key)
             {
-                if (merged_data.wasGroupStarted())
+                if (graphite_rollup_merged_data.wasGroupStarted())
                 {
                     finishCurrentGroup();
 
                     /// We have enough rows - return, but don't advance the loop. At the beginning of the
                     /// next call to merge() the same next_cursor will be processed once more and
                     /// the next output row will be created from it.
-                    if (merged_data.hasEnoughRows())
-                        return Status(merged_data.pull());
+                    if (graphite_rollup_merged_data.hasEnoughRows())
+                        return Status(graphite_rollup_merged_data.pull());
                 }
 
                 /// At this point previous row has been fully processed, so we can advance the loop
@@ -186,7 +198,7 @@ IMergingAlgorithm::Status GraphiteRollupSortedAlgorithm::merge()
             current_subgroup_newest_row.set(current, sources[current.impl->order].chunk);
 
             /// Small hack: group and subgroups have the same path, so we can set current_group_path here instead of startNextGroup
-            /// But since we keep in memory current_subgroup_newest_row's block, we could use StringRef for current_group_path and don't
+            /// But since we keep in memory current_subgroup_newest_row's block, we could use string_view for current_group_path and don't
             ///  make deep copy of the path.
             current_group_path = next_path;
         }
@@ -204,28 +216,28 @@ IMergingAlgorithm::Status GraphiteRollupSortedAlgorithm::merge()
     }
 
     /// Write result row for the last group.
-    if (merged_data.wasGroupStarted())
+    if (graphite_rollup_merged_data.wasGroupStarted())
     {
         accumulateRow(current_subgroup_newest_row);
         finishCurrentGroup();
     }
 
-    return Status(merged_data.pull(), true);
+    return Status(graphite_rollup_merged_data.pull(), true);
 }
 
 void GraphiteRollupSortedAlgorithm::startNextGroup(SortCursor & cursor, Graphite::RollupRule next_rule)
 {
-    merged_data.startNextGroup(cursor->all_columns, cursor->getRow(), next_rule, columns_definition);
+    graphite_rollup_merged_data.startNextGroup(cursor->all_columns, cursor->getRow(), next_rule, columns_definition);
 }
 
 void GraphiteRollupSortedAlgorithm::finishCurrentGroup()
 {
-    merged_data.insertRow(current_time_rounded, current_subgroup_newest_row, columns_definition);
+    graphite_rollup_merged_data.insertRow(current_time_rounded, current_subgroup_newest_row, columns_definition);
 }
 
 void GraphiteRollupSortedAlgorithm::accumulateRow(RowRef & row)
 {
-    merged_data.accumulateRow(row, columns_definition);
+    graphite_rollup_merged_data.accumulateRow(row, columns_definition);
 }
 
 void GraphiteRollupSortedAlgorithm::GraphiteRollupMergedData::startNextGroup(

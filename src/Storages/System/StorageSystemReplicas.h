@@ -1,36 +1,39 @@
 #pragma once
 
-#include <base/shared_ptr_helper.h>
-#include <Storages/IStorage.h>
+#include <memory>
+#include <Storages/System/IStorageSystemOneBlock.h>
 
 
 namespace DB
 {
 
 class Context;
-
+class StorageSystemReplicasImpl;
 
 /** Implements `replicas` system table, which provides information about the status of the replicated tables.
   */
-class StorageSystemReplicas final : public shared_ptr_helper<StorageSystemReplicas>, public IStorage
+class StorageSystemReplicas final : public IStorage
 {
-    friend struct shared_ptr_helper<StorageSystemReplicas>;
 public:
+    explicit StorageSystemReplicas(const StorageID & table_id_);
+    ~StorageSystemReplicas() override;
+
     std::string getName() const override { return "SystemReplicas"; }
 
-    Pipe read(
+    void read(
+        QueryPlan & query_plan,
         const Names & column_names,
-        const StorageMetadataPtr & /*metadata_snapshot*/,
+        const StorageSnapshotPtr & storage_snapshot,
         SelectQueryInfo & query_info,
         ContextPtr context,
         QueryProcessingStage::Enum processed_stage,
         size_t max_block_size,
-        unsigned num_streams) override;
+        size_t num_streams) override;
 
     bool isSystemStorage() const override { return true; }
 
-protected:
-    explicit StorageSystemReplicas(const StorageID & table_id_);
+private:
+    std::shared_ptr<StorageSystemReplicasImpl> impl;
 };
 
 }

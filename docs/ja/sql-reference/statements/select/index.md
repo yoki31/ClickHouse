@@ -1,19 +1,18 @@
 ---
-title: SELECT Query
-toc_folder_title: SELECT
-toc_priority: 32
-toc_title: Overview
+slug: /ja/sql-reference/statements/select/
+sidebar_position: 32
+sidebar_label: SELECT
 ---
 
-# SELECT Query {#select-queries-syntax}
+# SELECT クエリ
 
-`SELECT` queries perform data retrieval. By default, the requested data is returned to the client, while in conjunction with [INSERT INTO](../../../sql-reference/statements/insert-into.md) it can be forwarded to a different table.
+`SELECT` クエリはデータの取得を行います。デフォルトでは要求されたデータはクライアントに返されますが、[INSERT INTO](../../../sql-reference/statements/insert-into.md)と併用することで、異なるテーブルに転送することも可能です。
 
-## Syntax {#syntax}
+## 構文
 
 ``` sql
 [WITH expr_list|(subquery)]
-SELECT [DISTINCT] expr_list
+SELECT [DISTINCT [ON (column1, column2, ...)]] expr_list
 [FROM [db.]table | (subquery) | table_function] [FINAL]
 [SAMPLE sample_coeff]
 [ARRAY JOIN ...]
@@ -22,58 +21,62 @@ SELECT [DISTINCT] expr_list
 [WHERE expr]
 [GROUP BY expr_list] [WITH ROLLUP|WITH CUBE] [WITH TOTALS]
 [HAVING expr]
-[ORDER BY expr_list] [WITH FILL] [FROM expr] [TO expr] [STEP expr]
+[WINDOW window_expr_list]
+[QUALIFY expr]
+[ORDER BY expr_list] [WITH FILL] [FROM expr] [TO expr] [STEP expr] [INTERPOLATE [(expr_list)]]
 [LIMIT [offset_value, ]n BY columns]
 [LIMIT [n, ]m] [WITH TIES]
 [SETTINGS ...]
 [UNION  ...]
-[INTO OUTFILE filename]
+[INTO OUTFILE filename [COMPRESSION type [LEVEL level]] ]
 [FORMAT format]
 ```
 
-All clauses are optional, except for the required list of expressions immediately after `SELECT` which is covered in more detail [below](#select-clause).
+すべての句はオプションですが、`SELECT`の直後に必要な式のリストは[下記](#select-clause)で詳しく説明されています。
 
-Specifics of each optional clause are covered in separate sections, which are listed in the same order as they are executed:
+各オプション句の詳細は、実行順に書かれている別のセクションで説明されています：
 
--   [WITH clause](../../../sql-reference/statements/select/with.md)
--   [FROM clause](../../../sql-reference/statements/select/from.md)
--   [SAMPLE clause](../../../sql-reference/statements/select/sample.md)
--   [JOIN clause](../../../sql-reference/statements/select/join.md)
--   [PREWHERE clause](../../../sql-reference/statements/select/prewhere.md)
--   [WHERE clause](../../../sql-reference/statements/select/where.md)
--   [GROUP BY clause](../../../sql-reference/statements/select/group-by.md)
--   [LIMIT BY clause](../../../sql-reference/statements/select/limit-by.md)
--   [HAVING clause](../../../sql-reference/statements/select/having.md)
--   [SELECT clause](#select-clause)
--   [DISTINCT clause](../../../sql-reference/statements/select/distinct.md)
--   [LIMIT clause](../../../sql-reference/statements/select/limit.md)
--   [OFFSET clause](../../../sql-reference/statements/select/offset.md)
--   [UNION clause](../../../sql-reference/statements/select/union.md)
--   [INTO OUTFILE clause](../../../sql-reference/statements/select/into-outfile.md)
--   [FORMAT clause](../../../sql-reference/statements/select/format.md)
+- [WITH句](../../../sql-reference/statements/select/with.md)
+- [SELECT句](#select-clause)
+- [DISTINCT句](../../../sql-reference/statements/select/distinct.md)
+- [FROM句](../../../sql-reference/statements/select/from.md)
+- [SAMPLE句](../../../sql-reference/statements/select/sample.md)
+- [JOIN句](../../../sql-reference/statements/select/join.md)
+- [PREWHERE句](../../../sql-reference/statements/select/prewhere.md)
+- [WHERE句](../../../sql-reference/statements/select/where.md)
+- [GROUP BY句](../../../sql-reference/statements/select/group-by.md)
+- [LIMIT BY句](../../../sql-reference/statements/select/limit-by.md)
+- [HAVING句](../../../sql-reference/statements/select/having.md)
+- [QUALIFY句](../../../sql-reference/statements/select/qualify.md)
+- [LIMIT句](../../../sql-reference/statements/select/limit.md)
+- [OFFSET句](../../../sql-reference/statements/select/offset.md)
+- [UNION句](../../../sql-reference/statements/select/union.md)
+- [INTERSECT句](../../../sql-reference/statements/select/intersect.md)
+- [EXCEPT句](../../../sql-reference/statements/select/except.md)
+- [INTO OUTFILE句](../../../sql-reference/statements/select/into-outfile.md)
+- [FORMAT句](../../../sql-reference/statements/select/format.md)
 
-## SELECT Clause {#select-clause}
+## SELECT句
 
-[Expressions](../../../sql-reference/syntax.md#syntax-expressions) specified in the `SELECT` clause are calculated after all the operations in the clauses described above are finished. These expressions work as if they apply to separate rows in the result. If expressions in the `SELECT` clause contain aggregate functions, then ClickHouse processes aggregate functions and expressions used as their arguments during the [GROUP BY](../../../sql-reference/statements/select/group-by.md) aggregation.
+[式](../../../sql-reference/syntax.md#syntax-expressions) は、上記で説明したすべての句の操作完了後に `SELECT` 句で計算されます。これらの式は、結果に含まれる別々の行に対して適用されるかのように機能します。`SELECT`句に含まれる式が集計関数を含んでいる場合、ClickHouseは[GROUP BY](../../../sql-reference/statements/select/group-by.md) 集計中にこれらの集計関数とその引数として使用される式を処理します。
 
-If you want to include all columns in the result, use the asterisk (`*`) symbol. For example, `SELECT * FROM ...`.
+すべてのカラムを結果に含めたい場合は、アスタリスク (`*`) 記号を使用します。例えば、`SELECT * FROM ...` とします。
 
+### 動的カラム選択
 
-### COLUMNS expression {#columns-expression}
-
-To match some columns in the result with a [re2](https://en.wikipedia.org/wiki/RE2_(software)) regular expression, you can use the `COLUMNS` expression.
+動的カラム選択（COLUMNS式とも呼ばれます）は、結果のいくつかのカラムを[re2](https://en.wikipedia.org/wiki/RE2_(software))正規表現でマッチさせることができます。
 
 ``` sql
 COLUMNS('regexp')
 ```
 
-For example, consider the table:
+例えば、次のテーブルを考えてみます：
 
 ``` sql
 CREATE TABLE default.col_names (aa Int8, ab Int8, bc Int8) ENGINE = TinyLog
 ```
 
-The following query selects data from all the columns containing the `a` symbol in their name.
+以下のクエリは、名前に `a` が含まれるすべてのカラムからデータを選択します。
 
 ``` sql
 SELECT COLUMNS('a') FROM col_names
@@ -85,11 +88,11 @@ SELECT COLUMNS('a') FROM col_names
 └────┴────┘
 ```
 
-The selected columns are returned not in the alphabetical order.
+選択されたカラムはアルファベット順には返されません。
 
-You can use multiple `COLUMNS` expressions in a query and apply functions to them.
+クエリ内で複数の `COLUMNS` 式を使用し、関数をそれに適用することもできます。
 
-For example:
+例えば：
 
 ``` sql
 SELECT COLUMNS('a'), COLUMNS('c'), toTypeName(COLUMNS('c')) FROM col_names
@@ -101,9 +104,9 @@ SELECT COLUMNS('a'), COLUMNS('c'), toTypeName(COLUMNS('c')) FROM col_names
 └────┴────┴────┴────────────────┘
 ```
 
-Each column returned by the `COLUMNS` expression is passed to the function as a separate argument. Also you can pass other arguments to the function if it supports them. Be careful when using functions. If a function doesn’t support the number of arguments you have passed to it, ClickHouse throws an exception.
+`COLUMNS` 式で返された各カラムは、別々の引数として関数に渡されます。また、関数がサポートしている場合は他の引数を関数に渡すこともできます。関数を使用する際は注意が必要です。関数が渡された引数の数をサポートしていない場合、ClickHouseは例外をスローします。
 
-For example:
+例えば：
 
 ``` sql
 SELECT COLUMNS('a') + COLUMNS('c') FROM col_names
@@ -111,74 +114,74 @@ SELECT COLUMNS('a') + COLUMNS('c') FROM col_names
 
 ``` text
 Received exception from server (version 19.14.1):
-Code: 42. DB::Exception: Received from localhost:9000. DB::Exception: Number of arguments for function plus doesn't match: passed 3, should be 2.
+Code: 42. DB::Exception: Received from localhost:9000. DB::Exception: Number of arguments for function plus does not match: passed 3, should be 2.
 ```
 
-In this example, `COLUMNS('a')` returns two columns: `aa` and `ab`. `COLUMNS('c')` returns the `bc` column. The `+` operator can’t apply to 3 arguments, so ClickHouse throws an exception with the relevant message.
+この例では、`COLUMNS('a')` は2つのカラム `aa` と `ab` を返します。`COLUMNS('c')` は `bc` カラムを返します。`+` 演算子は3つの引数に適用できないため、ClickHouseは関連するメッセージとともに例外をスローします。
 
-Columns that matched the `COLUMNS` expression can have different data types. If `COLUMNS` doesn’t match any columns and is the only expression in `SELECT`, ClickHouse throws an exception.
+`COLUMNS` にマッチしたカラムは異なるデータ型を持つことがあります。`COLUMNS` が何のカラムにもマッチせず、`SELECT`の唯一の式である場合、ClickHouse は例外をスローします。
 
-### Asterisk {#asterisk}
+### アスタリスク
 
-You can put an asterisk in any part of a query instead of an expression. When the query is analyzed, the asterisk is expanded to a list of all table columns (excluding the `MATERIALIZED` and `ALIAS` columns). There are only a few cases when using an asterisk is justified:
+クエリのいかなる部分にもアスタリスクを式の代わりに置くことができます。クエリが解析されると、アスタリスクはすべてのテーブルカラムのリストに展開されます（`MATERIALIZED` および `ALIAS` カラムを除く）。アスタリスクの使用が正当化されるのはわずかなケースのみです：
 
--   When creating a table dump.
--   For tables containing just a few columns, such as system tables.
--   For getting information about what columns are in a table. In this case, set `LIMIT 1`. But it is better to use the `DESC TABLE` query.
--   When there is strong filtration on a small number of columns using `PREWHERE`.
--   In subqueries (since columns that aren’t needed for the external query are excluded from subqueries).
+- テーブルのダンプを作成する場合。
+- 数少ないカラムしか持たないテーブル、たとえばシステムテーブルの場合。
+- テーブルにどのカラムが含まれているかの情報を取得する場合。この場合、 `LIMIT 1` を設定してください。しかし、`DESC TABLE` クエリを使用する方が良いです。
+- `PREWHERE` を用いて少数のカラムに強いフィルタをかける場合。
+- サブクエリ内（外部クエリに必要でないカラムはサブクエリから除外されるため）。
 
-In all other cases, we don’t recommend using the asterisk, since it only gives you the drawbacks of a columnar DBMS instead of the advantages. In other words using the asterisk is not recommended.
+これら以外のケースでは、アスタリスクの使用は推奨されません。列指向DBMSの利点を活かすのではなく、逆に不利をもたらすからです。つまり、アスタリスクの使用は推奨されません。
 
-### Extreme Values {#extreme-values}
+### Extreme Values
 
-In addition to results, you can also get minimum and maximum values for the results columns. To do this, set the **extremes** setting to 1. Minimums and maximums are calculated for numeric types, dates, and dates with times. For other columns, the default values are output.
+結果に加えて、結果カラムの最小値と最大値も取得できます。これを行うには、**extremes** 設定を1に設定します。最小値と最大値は数値型、日付、日時について計算されます。他のカラムについてはデフォルト値が出力されます。
 
-An extra two rows are calculated – the minimums and maximums, respectively. These extra two rows are output in `JSON*`, `TabSeparated*`, and `Pretty*` [formats](../../../interfaces/formats.md), separate from the other rows. They are not output for other formats.
+追加の2行が計算されます。最小値と最大値のそれぞれです。これらの追加の2行は、他の行とは別に`XML`、`JSON*`、`TabSeparated*`、`CSV*`、`Vertical`、`Template` および `Pretty*` [format](../../../interfaces/formats.md)で出力されます。他のフォーマットでは出力されません。
 
-In `JSON*` formats, the extreme values are output in a separate ‘extremes’ field. In `TabSeparated*` formats, the row comes after the main result, and after ‘totals’ if present. It is preceded by an empty row (after the other data). In `Pretty*` formats, the row is output as a separate table after the main result, and after `totals` if present.
+`JSON*` および `XML` フォーマットでは、極値は別の ‘extremes’ フィールドで出力されます。`TabSeparated*`、`CSV*` および `Vertical` フォーマットでは、主要な結果の後、もし ‘totals’ が存在する場合はその後に行が空の行の後に出力されます。`Pretty*` フォーマットでは、行が主要な結果の後、もし `totals` が存在する場合はそれに続いて別のテーブルとして出力されます。`Template` フォーマットでは指定されたテンプレートに従って極値が出力されます。
 
-Extreme values are calculated for rows before `LIMIT`, but after `LIMIT BY`. However, when using `LIMIT offset, size`, the rows before `offset` are included in `extremes`. In stream requests, the result may also include a small number of rows that passed through `LIMIT`.
+極値は `LIMIT` の前に行に対して計算されますが、`LIMIT BY` の後に計算されます。しかし、`LIMIT offset, size` を使用している場合、`offset` 前の行も `extremes` に含まれます。ストリームリクエストでは、結果は `LIMIT` を通過した少数の行を含むこともあります。
 
-### Notes {#notes}
+### 注意事項
 
-You can use synonyms (`AS` aliases) in any part of a query.
+クエリのどの部分でも別名（`AS`エイリアス）を使用できます。
 
-The `GROUP BY` and `ORDER BY` clauses do not support positional arguments. This contradicts MySQL, but conforms to standard SQL. For example, `GROUP BY 1, 2` will be interpreted as grouping by constants (i.e. aggregation of all rows into one).
+`GROUP BY`、`ORDER BY` および `LIMIT BY` 句は位置引数をサポートすることができます。これを有効にするには、[enable_positional_arguments](../../../operations/settings/settings.md#enable-positional-arguments)設定をオンにします。たとえば、`ORDER BY 1,2` はテーブルの最初の、次に2番目のカラムで行をソートします。
 
-## Implementation Details {#implementation-details}
+## 実装の詳細
 
-If the query omits the `DISTINCT`, `GROUP BY` and `ORDER BY` clauses and the `IN` and `JOIN` subqueries, the query will be completely stream processed, using O(1) amount of RAM. Otherwise, the query might consume a lot of RAM if the appropriate restrictions are not specified:
+クエリが `DISTINCT`、`GROUP BY` および `ORDER BY` 句と `IN` および `JOIN` サブクエリを省略した場合、クエリは完全にストリーム処理され、O(1) のRAM量を使用します。それ以外の場合、適切な制限が指定されていないとクエリは大量のRAMを消費する可能性があります：
 
--   `max_memory_usage`
--   `max_rows_to_group_by`
--   `max_rows_to_sort`
--   `max_rows_in_distinct`
--   `max_bytes_in_distinct`
--   `max_rows_in_set`
--   `max_bytes_in_set`
--   `max_rows_in_join`
--   `max_bytes_in_join`
--   `max_bytes_before_external_sort`
--   `max_bytes_before_external_group_by`
+- `max_memory_usage`
+- `max_rows_to_group_by`
+- `max_rows_to_sort`
+- `max_rows_in_distinct`
+- `max_bytes_in_distinct`
+- `max_rows_in_set`
+- `max_bytes_in_set`
+- `max_rows_in_join`
+- `max_bytes_in_join`
+- `max_bytes_before_external_sort`
+- `max_bytes_before_external_group_by`
 
-For more information, see the section “Settings”. It is possible to use external sorting (saving temporary tables to a disk) and external aggregation.
+詳細については、「設定」セクションを参照してください。外部ソート（ディスクへの一時テーブルの保存）および外部集計を使用することが可能です。
 
-## SELECT modifiers {#select-modifiers}
+## SELECT修飾子
 
-You can use the following modifiers in `SELECT` queries.
+`SELECT` クエリで次の修飾子を使用できます。
 
-### APPLY {#apply-modifier}
+### APPLY
 
-Allows you to invoke some function for each row returned by an outer table expression of a query.
+クエリの外部テーブル式によって返される各行に対して関数を呼び出すことができます。
 
-**Syntax:**
+**構文:**
 
 ``` sql
 SELECT <expr> APPLY( <func> ) FROM [db.]table_name
 ```
 
-**Example:**
+**例:**
 
 ``` sql
 CREATE TABLE columns_transformers (i Int64, j Int16, k Int64) ENGINE = MergeTree ORDER by (i);
@@ -192,17 +195,17 @@ SELECT * APPLY(sum) FROM columns_transformers;
 └────────┴────────┴────────┘
 ```
 
-### EXCEPT {#except-modifier}
+### EXCEPT
 
-Specifies the names of one or more columns to exclude from the result. All matching column names are omitted from the output.
+結果から除外する一つまたは複数のカラム名を指定します。すべての一致するカラム名が出力から省略されます。
 
-**Syntax:**
+**構文:**
 
 ``` sql
 SELECT <expr> EXCEPT ( col_name1 [, col_name2, col_name3, ...] ) FROM [db.]table_name
 ```
 
-**Example:**
+**例:**
 
 ``` sql
 SELECT * EXCEPT (i) from columns_transformers;
@@ -215,19 +218,19 @@ SELECT * EXCEPT (i) from columns_transformers;
 └────┴─────┘
 ```
 
-### REPLACE {#replace-modifier}
+### REPLACE
 
-Specifies one or more [expression aliases](../../../sql-reference/syntax.md#syntax-expression_aliases). Each alias must match a column name from the `SELECT *` statement. In the output column list, the column that matches the alias is replaced by the expression in that `REPLACE`.
+[式のエイリアス](../../../sql-reference/syntax.md#syntax-expression_aliases)を一つまたは複数指定します。それぞれのエイリアスは `SELECT *` 文のカラム名と一致しなければなりません。出力カラムリストでは、エイリアスに一致するカラムがその `REPLACE` に表現された式で置き換えられます。
 
-This modifier does not change the names or order of columns. However, it can change the value and the value type.
+この修飾子はカラム名や順序を変更しません。ただし、値や値の型を変更することがあります。
 
-**Syntax:**
+**構文:**
 
 ``` sql
 SELECT <expr> REPLACE( <expr> AS col_name) from [db.]table_name
 ```
 
-**Example:**
+**例:**
 
 ``` sql
 SELECT * REPLACE(i + 1 AS i) from columns_transformers;
@@ -240,13 +243,13 @@ SELECT * REPLACE(i + 1 AS i) from columns_transformers;
 └─────┴────┴─────┘
 ```
 
-### Modifier Combinations {#modifier-combinations}
+### 修飾子の組み合わせ
 
-You can use each modifier separately or combine them.
+各修飾子を個別に使用することも、組み合わせて使用することもできます。
 
-**Examples:**
+**例**:
 
-Using the same modifier multiple times.
+同じ修飾子を複数回使用する。
 
 ``` sql
 SELECT COLUMNS('[jk]') APPLY(toString) APPLY(length) APPLY(max) from columns_transformers;
@@ -258,7 +261,7 @@ SELECT COLUMNS('[jk]') APPLY(toString) APPLY(length) APPLY(max) from columns_tra
 └──────────────────────────┴──────────────────────────┘
 ```
 
-Using multiple modifiers in a single query.
+単一のクエリで複数の修飾子を使用する。
 
 ``` sql
 SELECT * REPLACE(i + 1 AS i) EXCEPT (j) APPLY(sum) from columns_transformers;
@@ -270,14 +273,15 @@ SELECT * REPLACE(i + 1 AS i) EXCEPT (j) APPLY(sum) from columns_transformers;
 └─────────────────┴────────┘
 ```
 
-## SETTINGS in SELECT Query {#settings-in-select}
+## SELECT クエリでの SETTINGS
 
-You can specify the necessary settings right in the `SELECT` query. The setting value is applied only to this query and is reset to default or previous value after the query is executed.
+必要な設定を `SELECT` クエリ内で指定できます。この設定値はこのクエリにのみ適用され、クエリの実行が終了するとデフォルト値または以前の値にリセットされます。
 
-Other ways to make settings see [here](../../../operations/settings/index.md).
+他の設定方法については[こちら](../../../operations/settings/index.md)を参照してください。
 
-**Example**
+**例**
 
 ``` sql
 SELECT * FROM some_table SETTINGS optimize_read_in_order=1, cast_keep_nullable=1;
 ```
+

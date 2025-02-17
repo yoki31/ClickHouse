@@ -1,15 +1,14 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
+slug: /ja/engines/table-engines/log-family/stripelog
 toc_priority: 32
-toc_title: "\u30B9\u30C8\u30EA\u30C3\u30D7\u30ED\u30B0"
+toc_title: StripeLog
 ---
 
-# ストリップログ {#stripelog}
+# Stripelog
 
-このエンジンはログエンジンの系列に属します。 ログエンジンの共通のプロパティとその違いを参照してください [ログエンジン家族](index.md) 記事だ
+このエンジンはログエンジンファミリーに属します。ログエンジンの共通の特性とその違いについては、[Log Engine Family](../../../engines/table-engines/log-family/index.md)の記事を参照してください。
 
-少量のデータ(1万行未満)で多数のテーブルを記述する必要がある場合に、このエンジンを使用します。
+このエンジンは、小量のデータ（100万行未満）を持つ多くのテーブルを書き込む必要があるシナリオで使用します。
 
 ## テーブルの作成 {#table_engines-stripelog-creating-a-table}
 
@@ -22,26 +21,26 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 ) ENGINE = StripeLog
 ```
 
-の詳細な説明を見て下さい [CREATE TABLE](../../../sql-reference/statements/create.md#create-table-query) クエリ。
+[CREATE TABLE](../../../sql-reference/statements/create/table.md#create-table-query) クエリの詳細な説明を参照してください。
 
 ## データの書き込み {#table_engines-stripelog-writing-the-data}
 
-その `StripeLog` engineはすべての列を一つのファイルに格納します。 それぞれのため `INSERT` query,ClickHouseは、データブロックをテーブルファイルの最後に追加し、列を一つずつ書き込みます。
+`StripeLog`エンジンはすべてのカラムを1つのファイルに保存します。各`INSERT`クエリに対して、ClickHouseはデータブロックをテーブルファイルの末尾に追加し、カラムを一つずつ書き込みます。
 
-各テーブルClickHouseに書き込み中のファイル:
+各テーブルに対してClickHouseは以下のファイルを書き込みます：
 
--   `data.bin` — Data file.
--   `index.mrk` — File with marks. Marks contain offsets for each column of each data block inserted.
+- `data.bin` — データファイル。
+- `index.mrk` — マークを含むファイル。マークは、挿入された各データブロックの各カラムのオフセットを含みます。
 
-その `StripeLog` エンジンはサポートしません `ALTER UPDATE` と `ALTER DELETE` 作戦だ
+`StripeLog`エンジンは`ALTER UPDATE`および`ALTER DELETE`操作をサポートしていません。
 
 ## データの読み取り {#table_engines-stripelog-reading-the-data}
 
-ファイルをマークでClickHouseを並列化したデータです。 これは、 `SELECT` queryは、予測不可能な順序で行を返します。 使用する `ORDER BY` 行をソートする句。
+マークを含むファイルにより、ClickHouseはデータの読み取りを並列化することができます。これにより、`SELECT`クエリが行を予測不能な順序で返します。行をソートするには`ORDER BY`句を使用してください。
 
 ## 使用例 {#table_engines-stripelog-example-of-use}
 
-テーブルの作成:
+テーブルの作成：
 
 ``` sql
 CREATE TABLE stripe_log_table
@@ -53,16 +52,16 @@ CREATE TABLE stripe_log_table
 ENGINE = StripeLog
 ```
 
-データの挿入:
+データの挿入：
 
 ``` sql
 INSERT INTO stripe_log_table VALUES (now(),'REGULAR','The first regular message')
 INSERT INTO stripe_log_table VALUES (now(),'REGULAR','The second regular message'),(now(),'WARNING','The first warning message')
 ```
 
-我々は二つを使用 `INSERT` データブロックを作成するためのクエリ `data.bin` ファイル
+`data.bin`ファイル内に2つのデータブロックを作成するために、2つの`INSERT`クエリを使用しました。
 
-ClickHouse利用は、複数のスレッド選択時のデータです。 各スレッドは、個別のデータブロックを読み取り、終了時に結果の行を個別に返します その結果、出力内の行のブロックの順序は、ほとんどの場合、入力内の同じブロックの順序と一致しません。 例えば:
+ClickHouseはデータを選択する際に複数のスレッドを使用します。各スレッドは別々のデータブロックを読み取って、それぞれ完了時に結果の行を独立して返します。その結果、出力のブロックの順序は入力の同じブロックの順序にはほとんどの場合一致しません。例：
 
 ``` sql
 SELECT * FROM stripe_log_table
@@ -78,7 +77,7 @@ SELECT * FROM stripe_log_table
 └─────────────────────┴──────────────┴───────────────────────────┘
 ```
 
-結果の並べ替え(デフォルトでは昇順):
+結果のソート（デフォルトで昇順）：
 
 ``` sql
 SELECT * FROM stripe_log_table ORDER BY timestamp
@@ -91,5 +90,3 @@ SELECT * FROM stripe_log_table ORDER BY timestamp
 │ 2019-01-18 14:34:53 │ WARNING      │ The first warning message  │
 └─────────────────────┴──────────────┴────────────────────────────┘
 ```
-
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/stripelog/) <!--hide-->

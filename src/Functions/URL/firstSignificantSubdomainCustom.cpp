@@ -1,18 +1,21 @@
 #include <Functions/FunctionFactory.h>
-#include "ExtractFirstSignificantSubdomain.h"
-#include "FirstSignificantSubdomainCustomImpl.h"
+#include <Functions/URL/ExtractFirstSignificantSubdomain.h>
+#include <Functions/URL/FirstSignificantSubdomainCustomImpl.h>
 
 
 namespace DB
 {
 
 struct NameFirstSignificantSubdomainCustom { static constexpr auto name = "firstSignificantSubdomainCustom"; };
+using FunctionFirstSignificantSubdomainCustom = FunctionCutToFirstSignificantSubdomainCustomImpl<ExtractFirstSignificantSubdomain<true, false>, NameFirstSignificantSubdomainCustom>;
 
-using FunctionFirstSignificantSubdomainCustom = FunctionCutToFirstSignificantSubdomainCustomImpl<ExtractFirstSignificantSubdomain<true>, NameFirstSignificantSubdomainCustom>;
+struct NameFirstSignificantSubdomainCustomRFC { static constexpr auto name = "firstSignificantSubdomainCustomRFC"; };
+using FunctionFirstSignificantSubdomainCustomRFC = FunctionCutToFirstSignificantSubdomainCustomImpl<ExtractFirstSignificantSubdomain<true, true>, NameFirstSignificantSubdomainCustomRFC>;
 
-void registerFunctionFirstSignificantSubdomainCustom(FunctionFactory & factory)
+REGISTER_FUNCTION(FirstSignificantSubdomainCustom)
 {
     factory.registerFunction<FunctionFirstSignificantSubdomainCustom>();
+    factory.registerFunction<FunctionFirstSignificantSubdomainCustomRFC>();
 }
 
 }

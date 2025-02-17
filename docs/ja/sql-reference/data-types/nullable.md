@@ -1,28 +1,55 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 54
-toc_title: "Null\u53EF\u80FD"
+slug: /ja/sql-reference/data-types/nullable
+sidebar_position: 44
+sidebar_label: Nullable(T)
 ---
 
-# Nullable(型名) {#data_type-nullable}
+# Nullable(T)
 
-できる特別マーカー ([NULL](../../sql-reference/syntax.md)）を表す。 “missing value” と共に正常値を許可する `TypeName`. たとえば、 `Nullable(Int8)` 型列が格納できます `Int8` 値を入力し、値を持たない行には格納されます `NULL`.
+`T` が許可する通常の値に加えて、特別なマーカー ([NULL](../../sql-reference/syntax.md)) を格納できるようにします。これは「欠損値」を示します。例えば、`Nullable(Int8)` 型のカラムは `Int8` 型の値を格納することができ、値を持たない行は `NULL` を格納します。
 
-のために `TypeName` 複合データ型は使用できません [配列](array.md) と [タプル](tuple.md). 複合データ型には `Nullable` 次のような型の値 `Array(Nullable(Int8))`.
+`T` は、[Array](../../sql-reference/data-types/array.md)、[Map](../../sql-reference/data-types/map.md)、[Tuple](../../sql-reference/data-types/tuple.md) の複合データ型であってはならないが、複合データ型には `Nullable` 型の値を含めることができます。例えば `Array(Nullable(Int8))` です。
 
-A `Nullable` typeフィールドできない含まれてテーブルスを作成します。
+`Nullable` 型のフィールドは、テーブルのインデックスに含めることはできません。
 
-`NULL` のデフォルト値です `Nullable` ClickHouseサーバー構成で特に指定がない限り、入力します。
+`NULL` は、ClickHouse サーバーの設定で別途指定されない限り、どの `Nullable` 型においてもデフォルトの値です。
 
-## ストレージ機能 {#storage-features}
+## ストレージの特性
 
-保存するには `Nullable` テーブルの列に値を入力すると、ClickHouseは別のファイルを使用します `NULL` 値を持つ通常のファイルに加えて、マスク。 マスクファイル内のエントリはClickHouseが `NULL` テーブル行ごとに対応するデータ型のデフォルト値。 追加のファイルのために, `Nullable` columnは、同様の通常のものと比較して追加の記憶領域を消費します。
+ClickHouse は、テーブルのカラムに `Nullable` 型の値を格納するために、通常の値を格納するファイルに加えて `NULL` マスクのための別のファイルを使用します。マスクファイルのエントリにより、ClickHouse は各テーブル行の対応するデータ型のデフォルト値と `NULL` を区別することができます。この追加ファイルのため、`Nullable` カラムは類似の通常のカラムに比べて追加のストレージスペースを消費します。
 
-!!! info "注"
-    を使用して `Nullable` ほとんどの場合、パフォーマンスに悪影響を及ぼします。
+:::note    
+`Nullable` の使用はほとんど常にパフォーマンスに悪影響を与えますので、データベースを設計する際にはこれを念頭に置いてください。
+:::
 
-## 使用例 {#usage-example}
+## NULLの検索
+
+カラム全体を読み込むことなく、`null` サブカラムを使用して `NULL` 値を見つけることが可能です。対応する値が `NULL` の場合は `1` を返し、それ以外の場合は `0` を返します。
+
+**例**
+
+クエリ:
+
+``` sql
+CREATE TABLE nullable (`n` Nullable(UInt32)) ENGINE = MergeTree ORDER BY tuple();
+
+INSERT INTO nullable VALUES (1) (NULL) (2) (NULL);
+
+SELECT n.null FROM nullable;
+```
+
+結果:
+
+``` text
+┌─n.null─┐
+│      0 │
+│      1 │
+│      0 │
+│      1 │
+└────────┘
+```
+
+## 使用例
 
 ``` sql
 CREATE TABLE t_null(x Int8, y Nullable(Int8)) ENGINE TinyLog
@@ -42,5 +69,3 @@ SELECT x + y FROM t_null
 │          5 │
 └────────────┘
 ```
-
-[元の記事](https://clickhouse.com/docs/en/data_types/nullable/) <!--hide-->

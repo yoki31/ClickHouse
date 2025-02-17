@@ -1,7 +1,8 @@
 #pragma once
 
-#include <Processors/Sources/SourceWithProgress.h>
-#include <Storages/FileLog/ReadBufferFromFileLog.h>
+#include <Core/StreamingHandleErrorMode.h>
+#include <Processors/ISource.h>
+#include <Storages/FileLog/FileLogConsumer.h>
 #include <Storages/FileLog/StorageFileLog.h>
 
 namespace Poco
@@ -10,33 +11,34 @@ namespace Poco
 }
 namespace DB
 {
-class FileLogSource : public SourceWithProgress
+class FileLogSource : public ISource
 {
 public:
     FileLogSource(
         StorageFileLog & storage_,
-        const StorageMetadataPtr & metadata_snapshot_,
+        const StorageSnapshotPtr & storage_snapshot_,
         const ContextPtr & context_,
         const Names & columns,
         size_t max_block_size_,
         size_t poll_time_out_,
         size_t stream_number_,
-        size_t max_streams_number_);
+        size_t max_streams_number_,
+        StreamingHandleErrorMode handle_error_mode_);
 
     String getName() const override { return "FileLog"; }
 
-    bool noRecords() { return !buffer || buffer->noRecords(); }
+    bool noRecords() { return !consumer || consumer->noRecords(); }
 
     void onFinish();
 
-    virtual ~FileLogSource() override;
+    ~FileLogSource() override;
 
 protected:
     Chunk generate() override;
 
 private:
     StorageFileLog & storage;
-    StorageMetadataPtr metadata_snapshot;
+    StorageSnapshotPtr storage_snapshot;
     ContextPtr context;
     Names column_names;
     UInt64 max_block_size;
@@ -45,8 +47,9 @@ private:
 
     size_t stream_number;
     size_t max_streams_number;
+    StreamingHandleErrorMode handle_error_mode;
 
-    std::unique_ptr<ReadBufferFromFileLog> buffer;
+    std::unique_ptr<FileLogConsumer> consumer;
 
     Block non_virtual_header;
     Block virtual_header;

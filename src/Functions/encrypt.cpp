@@ -1,9 +1,12 @@
-#include <Common/config.h>
+#include "config.h"
 
 #if USE_SSL
 
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionsAES.h>
+
+namespace DB
+{
 
 namespace
 {
@@ -16,10 +19,7 @@ struct EncryptImpl
 
 }
 
-namespace DB
-{
-
-void registerFunctionEncrypt(FunctionFactory & factory)
+REGISTER_FUNCTION(Encrypt)
 {
     factory.registerFunction<FunctionEncrypt<EncryptImpl>>();
 }

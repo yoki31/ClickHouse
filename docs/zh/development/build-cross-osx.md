@@ -1,3 +1,6 @@
+---
+slug: /zh/development/build-cross-osx
+---
 # 如何在Linux中编译Mac OS X ClickHouse {#ru-he-zai-linuxzhong-bian-yi-mac-os-x-clickhouse}
 
 Linux机器也可以编译运行在OS X系统的`clickhouse`二进制包，这可以用于在Linux上跑持续集成测试。如果要在Mac OS X上直接构建ClickHouse，请参考另外一篇指南： https://clickhouse.com/docs/zh/development/build_osx/
@@ -16,7 +19,7 @@ sudo apt-get install clang-8
 
 # 安装交叉编译工具集 {#an-zhuang-jiao-cha-bian-yi-gong-ju-ji}
 
-我们假设安装 `cctools` 在 ${CCTOOLS} 路径下
+我们假设安装 `cctools` 在 `${CCTOOLS}` 路径下
 
 ``` bash
 mkdir ${CCTOOLS}

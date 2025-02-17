@@ -56,16 +56,41 @@ struct ExtractRaw
     }
 };
 
-struct NameVisitParamExtractRaw    { static constexpr auto name = "visitParamExtractRaw"; };
-using FunctionVisitParamExtractRaw = FunctionsStringSearchToString<ExtractParamToStringImpl<ExtractRaw>, NameVisitParamExtractRaw>;
-
 struct NameSimpleJSONExtractRaw    { static constexpr auto name = "simpleJSONExtractRaw"; };
 using FunctionSimpleJSONExtractRaw = FunctionsStringSearchToString<ExtractParamToStringImpl<ExtractRaw>, NameSimpleJSONExtractRaw>;
 
-void registerFunctionVisitParamExtractRaw(FunctionFactory & factory)
+REGISTER_FUNCTION(VisitParamExtractRaw)
 {
-    factory.registerFunction<FunctionVisitParamExtractRaw>();
-    factory.registerFunction<FunctionSimpleJSONExtractRaw>();
+    factory.registerFunction<FunctionSimpleJSONExtractRaw>(FunctionDocumentation{
+        .description = "Returns the value of the field named field_name as a String, including separators.",
+        .syntax = "simpleJSONExtractRaw(json, field_name)",
+        .arguments
+        = {{"json", "The JSON in which the field is searched for. String."},
+           {"field_name", "The name of the field to search for. String literal."}},
+        .returned_value
+        = "It returns the value of the field as a String including separators if the field exists, or an empty String otherwise.",
+        .examples
+        = {{.name = "simple",
+            .query = R"(CREATE TABLE jsons
+(
+    json String
+)
+ENGINE = Memory;
+
+INSERT INTO jsons VALUES ('{"foo":"-4e3"}');
+INSERT INTO jsons VALUES ('{"foo":-3.4}');
+INSERT INTO jsons VALUES ('{"foo":5}');
+INSERT INTO jsons VALUES ('{"foo":{"def":[1,2,3]}}');
+INSERT INTO jsons VALUES ('{"baz":2}');
+
+SELECT simpleJSONExtractRaw(json, 'foo') FROM jsons ORDER BY json;)",
+            .result = R"(
+"-4e3"
+-3.4
+5
+{"def":[1,2,3]})"}},
+        .category{"JSON"}});
+    factory.registerAlias("visitParamExtractRaw", "simpleJSONExtractRaw");
 }
 
 }

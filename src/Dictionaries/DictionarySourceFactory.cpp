@@ -6,7 +6,7 @@
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Poco/Logger.h>
-#include <base/logger_useful.h>
+#include <Common/logger_useful.h>
 #include "DictionaryStructure.h"
 
 namespace DB
@@ -65,7 +65,7 @@ namespace
 }
 
 
-DictionarySourceFactory::DictionarySourceFactory() : log(&Poco::Logger::get("DictionarySourceFactory"))
+DictionarySourceFactory::DictionarySourceFactory() : log(getLogger("DictionarySourceFactory"))
 {
 }
 
@@ -106,6 +106,18 @@ DictionarySourcePtr DictionarySourceFactory::create(
         "{}: unknown dictionary source type: {}",
         name,
         source_type);
+}
+
+void DictionarySourceFactory::checkSourceAvailable(const std::string & source_type, const std::string & dictionary_name, const ContextPtr & /* context */) const
+{
+    const auto found = registered_sources.find(source_type);
+    if (found == registered_sources.end())
+    {
+        throw Exception(ErrorCodes::UNKNOWN_ELEMENT_IN_CONFIG,
+            "{}: unknown dictionary source type: {}",
+            dictionary_name,
+            source_type);
+    }
 }
 
 DictionarySourceFactory & DictionarySourceFactory::instance()

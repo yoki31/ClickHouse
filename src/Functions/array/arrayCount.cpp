@@ -17,9 +17,6 @@ namespace ErrorCodes
   */
 struct ArrayCountImpl
 {
-    using column_type = ColumnArray;
-    using data_type = DataTypeArray;
-
     static bool needBoolean() { return true; }
     static bool needExpression() { return false; }
     static bool needOneArray() { return false; }
@@ -38,7 +35,7 @@ struct ArrayCountImpl
             const auto * column_filter_const = checkAndGetColumnConst<ColumnUInt8>(&*mapped);
 
             if (!column_filter_const)
-                throw Exception("Unexpected type of filter column", ErrorCodes::ILLEGAL_COLUMN);
+                throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Unexpected type of filter column: {}; The result is expected to be a UInt8", mapped->getDataType());
 
             if (column_filter_const->getValue<UInt8>())
             {
@@ -49,14 +46,13 @@ struct ArrayCountImpl
                 size_t pos = 0;
                 for (size_t i = 0; i < offsets.size(); ++i)
                 {
-                    out_counts[i] = offsets[i] - pos;
+                    out_counts[i] = static_cast<UInt32>(offsets[i] - pos);
                     pos = offsets[i];
                 }
 
                 return out_column;
             }
-            else
-                return DataTypeUInt32().createColumnConst(array.size(), 0u);
+            return DataTypeUInt32().createColumnConst(array.size(), 0u);
         }
 
         const IColumn::Filter & filter = column_filter->getData();
@@ -73,7 +69,7 @@ struct ArrayCountImpl
                 if (filter[pos])
                     ++count;
             }
-            out_counts[i] = count;
+            out_counts[i] = static_cast<UInt32>(count);
         }
 
         return out_column;
@@ -83,7 +79,7 @@ struct ArrayCountImpl
 struct NameArrayCount { static constexpr auto name = "arrayCount"; };
 using FunctionArrayCount = FunctionArrayMapped<ArrayCountImpl, NameArrayCount>;
 
-void registerFunctionArrayCount(FunctionFactory & factory)
+REGISTER_FUNCTION(ArrayCount)
 {
     factory.registerFunction<FunctionArrayCount>();
 }

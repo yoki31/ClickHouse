@@ -1,14 +1,14 @@
 #pragma once
 
+#include <Disks/IDisk.h>
+
 #include <Storages/FileLog/Buffer_fwd.h>
 #include <Storages/FileLog/FileLogDirectoryWatcher.h>
-#include <Storages/FileLog/FileLogSettings.h>
 
-#include <Core/BackgroundSchedulePool.h>
+#include <Core/BackgroundSchedulePoolTaskHolder.h>
+#include <Core/StreamingHandleErrorMode.h>
 #include <Storages/IStorage.h>
 #include <Common/SettingsChanges.h>
-
-#include <base/shared_ptr_helper.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -25,12 +25,21 @@ namespace ErrorCodes
 }
 
 class FileLogDirectoryWatcher;
+struct FileLogSettings;
 
-class StorageFileLog final : public shared_ptr_helper<StorageFileLog>, public IStorage, WithContext
+class StorageFileLog final : public IStorage, WithContext
 {
-    friend struct shared_ptr_helper<StorageFileLog>;
-
 public:
+    StorageFileLog(
+        const StorageID & table_id_,
+        ContextPtr context_,
+        const ColumnsDescription & columns_,
+        const String & path_,
+        const String & metadata_base_path_,
+        const String & format_name_,
+        std::unique_ptr<FileLogSettings> settings,
+        const String & comment,
+        LoadingStrictnessLevel mode);
 
     using Files = std::vector<String>;
 
@@ -39,22 +48,23 @@ public:
     bool noPushingToViews() const override { return true; }
 
     void startup() override;
-    void shutdown() override;
+    void shutdown(bool is_drop) override;
 
-    Pipe read(
+    void read(
+        QueryPlan & query_plan,
         const Names & column_names,
-        const StorageMetadataPtr & /*metadata_snapshot*/,
+        const StorageSnapshotPtr & storage_snapshot,
         SelectQueryInfo & query_info,
         ContextPtr context,
         QueryProcessingStage::Enum processed_stage,
         size_t max_block_size,
-        unsigned num_streams) override;
+        size_t num_streams) override;
 
     void drop() override;
 
     const auto & getFormatName() const { return format_name; }
 
-    enum class FileStatus
+    enum class FileStatus : uint8_t
     {
         OPEN, /// First time open file after table start up.
         NO_CHANGE,
@@ -74,6 +84,7 @@ public:
         String file_name;
         UInt64 last_writen_position = 0;
         UInt64 last_open_end = 0;
+        bool operator!() const { return file_name.empty(); }
     };
 
     using InodeToFileMeta = std::unordered_map<UInt64, FileMeta>;
@@ -91,10 +102,6 @@ public:
 
     String getFullMetaPath(const String & file_name) const { return std::filesystem::path(metadata_base_path) / file_name; }
     String getFullDataPath(const String & file_name) const { return std::filesystem::path(root_data_path) / file_name; }
-
-    NamesAndTypesList getVirtuals() const override;
-
-    static Names getVirtualColumnNames();
 
     static UInt64 getInode(const String & file_name);
 
@@ -114,8 +121,7 @@ public:
     {
         if (auto it = map.find(key); it != map.end())
             return it->second;
-        else
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "The key {} doesn't exist.", key);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "The key {} doesn't exist.", key);
     }
 
     void increaseStreams();
@@ -125,19 +131,10 @@ public:
 
     const auto & getFileLogSettings() const { return filelog_settings; }
 
-protected:
-    StorageFileLog(
-        const StorageID & table_id_,
-        ContextPtr context_,
-        const ColumnsDescription & columns_,
-        const String & path_,
-        const String & metadata_base_path_,
-        const String & format_name_,
-        std::unique_ptr<FileLogSettings> settings,
-        const String & comment,
-        bool attach);
-
 private:
+    friend class ReadFromStorageFileLog;
+
+    ContextMutablePtr filelog_context;
     std::unique_ptr<FileLogSettings> filelog_settings;
 
     const String path;
@@ -151,7 +148,9 @@ private:
     FileInfos file_infos;
 
     const String format_name;
-    Poco::Logger * log;
+    LoggerPtr log;
+
+    DiskPtr disk;
 
     uint64_t milliseconds_to_wait;
 
@@ -171,15 +170,15 @@ private:
 
     struct TaskContext
     {
-        BackgroundSchedulePool::TaskHolder holder;
+        BackgroundSchedulePoolTaskHolder holder;
         std::atomic<bool> stream_cancelled {false};
-        explicit TaskContext(BackgroundSchedulePool::TaskHolder&& task_) : holder(std::move(task_))
+        explicit TaskContext(BackgroundSchedulePoolTaskHolder&& task_) : holder(std::move(task_))
         {
         }
     };
     std::shared_ptr<TaskContext> task;
 
-    std::unique_ptr<FileLogDirectoryWatcher> directory_watch = nullptr;
+    std::unique_ptr<FileLogDirectoryWatcher> directory_watch;
 
     void loadFiles();
 
@@ -204,7 +203,16 @@ private:
     void serialize(UInt64 inode, const FileMeta & file_meta) const;
 
     void deserialize();
-    static void checkOffsetIsValid(const String & full_name, UInt64 offset);
+    void checkOffsetIsValid(const String & filename, UInt64 offset) const;
+
+    struct ReadMetadataResult
+    {
+        FileMeta metadata;
+        UInt64 inode = 0;
+    };
+    ReadMetadataResult readMetadata(const String & filename) const;
+
+    static VirtualColumnsDescription createVirtuals(StreamingHandleErrorMode handle_error_mode);
 };
 
 }

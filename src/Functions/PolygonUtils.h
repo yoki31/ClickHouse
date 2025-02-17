@@ -7,21 +7,13 @@
 #include <Columns/ColumnVector.h>
 #include <Common/typeid_cast.h>
 #include <Common/NaNUtils.h>
-#include <Common/SipHash.h>
 #include <base/range.h>
 
 /// Warning in boost::geometry during template strategy substitution.
-#pragma GCC diagnostic push
-
-#if !defined(__clang__)
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
-
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
 #include <boost/geometry.hpp>
-
-#pragma GCC diagnostic pop
+#pragma clang diagnostic pop
 
 #include <boost/geometry/geometries/point_xy.hpp>
 #include <boost/geometry/geometries/polygon.hpp>
@@ -131,7 +123,7 @@ public:
 
     bool hasEmptyBound() const { return has_empty_bound; }
 
-    inline bool ALWAYS_INLINE contains(CoordinateType x, CoordinateType y) const
+    inline bool contains(CoordinateType x, CoordinateType y) const
     {
         Point point(x, y);
 
@@ -174,10 +166,10 @@ public:
 
     UInt64 getAllocatedBytes() const;
 
-    inline bool ALWAYS_INLINE contains(CoordinateType x, CoordinateType y) const;
+    bool contains(CoordinateType x, CoordinateType y) const;
 
 private:
-    enum class CellType
+    enum class CellType : uint8_t
     {
         inner,                                  /// The cell is completely inside polygon.
         outer,                                  /// The cell is completely outside of polygon.
@@ -206,7 +198,7 @@ private:
         }
 
         /// Inner part of the HalfPlane is the left side of initialized vector.
-        bool ALWAYS_INLINE contains(CoordinateType x, CoordinateType y) const { return a * x + b * y + c >= 0; }
+        bool contains(CoordinateType x, CoordinateType y) const { return a * x + b * y + c >= 0; }
     };
 
     struct Cell
@@ -240,7 +232,7 @@ private:
     void calcGridAttributes(Box & box);
 
     template <typename T>
-    T ALWAYS_INLINE getCellIndex(T row, T col) const { return row * grid_size + col; }
+    T getCellIndex(T row, T col) const { return row * grid_size + col; }
 
     /// Complex case. Will check intersection directly.
     inline void addComplexPolygonCell(size_t index, const Box & box);
@@ -286,15 +278,8 @@ void PointInPolygonWithGrid<CoordinateType>::calcGridAttributes(
     const Point & min_corner = box.min_corner();
     const Point & max_corner = box.max_corner();
 
-#pragma GCC diagnostic push
-#if !defined(__clang__)
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
-
     cell_width = (max_corner.x() - min_corner.x()) / grid_size;
     cell_height = (max_corner.y() - min_corner.y()) / grid_size;
-
-#pragma GCC diagnostic pop
 
     if (cell_width == 0 || cell_height == 0)
     {
@@ -312,7 +297,7 @@ void PointInPolygonWithGrid<CoordinateType>::calcGridAttributes(
         && isFinite(x_shift)
         && isFinite(y_shift)
         && isFinite(grid_size)))
-        throw Exception("Polygon is not valid: bounding box is unbounded", ErrorCodes::BAD_ARGUMENTS);
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Polygon is not valid: bounding box is unbounded");
 }
 
 template <typename CoordinateType>
@@ -330,10 +315,6 @@ void PointInPolygonWithGrid<CoordinateType>::buildGrid()
 
     for (size_t row = 0; row < grid_size; ++row)
     {
-#pragma GCC diagnostic push
-#if !defined(__clang__)
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
         CoordinateType y_min = min_corner.y() + row * cell_height;
         CoordinateType y_max = min_corner.y() + (row + 1) * cell_height;
 
@@ -341,7 +322,6 @@ void PointInPolygonWithGrid<CoordinateType>::buildGrid()
         {
             CoordinateType x_min = min_corner.x() + col * cell_width;
             CoordinateType x_max = min_corner.x() + (col + 1) * cell_width;
-#pragma GCC diagnostic pop
             Box cell_box(Point(x_min, y_min), Point(x_max, y_max));
 
             MultiPolygon intersection;
@@ -378,8 +358,8 @@ bool PointInPolygonWithGrid<CoordinateType>::contains(CoordinateType x, Coordina
     if (float_col < 0 || float_col > grid_size)
         return false;
 
-    int row = std::min<int>(float_row, grid_size - 1);
-    int col = std::min<int>(float_col, grid_size - 1);
+    int row = std::min<int>(static_cast<int>(float_row), grid_size - 1);
+    int col = std::min<int>(static_cast<int>(float_col), grid_size - 1);
 
     int index = getCellIndex(row, col);
     const auto & cell = cells[index];
@@ -400,8 +380,6 @@ bool PointInPolygonWithGrid<CoordinateType>::contains(CoordinateType x, Coordina
         case CellType::complexPolygon:
             return boost::geometry::within(Point(x, y), polygons[cell.index_of_inner_polygon]);
     }
-
-    __builtin_unreachable();
 }
 
 
@@ -604,7 +582,7 @@ struct CallPointInPolygon<Type, Types ...>
     template <typename PointInPolygonImpl>
     static ColumnPtr call(const IColumn & x, const IColumn & y, PointInPolygonImpl && impl)
     {
-        using Impl = TypeListChangeRoot<CallPointInPolygon, TypeListIntAndFloat>;
+        using Impl = TypeListChangeRoot<CallPointInPolygon, TypeListNativeNumber>;
         if (auto column = typeid_cast<const ColumnVector<Type> *>(&x))
             return Impl::template call<Type>(*column, y, impl);
         return CallPointInPolygon<Types ...>::call(x, y, impl);
@@ -617,46 +595,20 @@ struct CallPointInPolygon<>
     template <typename T, typename PointInPolygonImpl>
     static ColumnPtr call(const ColumnVector<T> &, const IColumn & y, PointInPolygonImpl &&)
     {
-        throw Exception(std::string("Unknown numeric column type: ") + demangle(typeid(y).name()), ErrorCodes::LOGICAL_ERROR);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Unknown numeric column type: {}", demangle(typeid(y).name()));
     }
 
     template <typename PointInPolygonImpl>
     static ColumnPtr call(const IColumn & x, const IColumn &, PointInPolygonImpl &&)
     {
-        throw Exception(std::string("Unknown numeric column type: ") + demangle(typeid(x).name()), ErrorCodes::LOGICAL_ERROR);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Unknown numeric column type: {}", demangle(typeid(x).name()));
     }
 };
 
 template <typename PointInPolygonImpl>
 NO_INLINE ColumnPtr pointInPolygon(const IColumn & x, const IColumn & y, PointInPolygonImpl && impl)
 {
-    using Impl = TypeListChangeRoot<CallPointInPolygon, TypeListIntAndFloat>;
+    using Impl = TypeListChangeRoot<CallPointInPolygon, TypeListNativeNumber>;
     return Impl::call(x, y, impl);
 }
-
-
-template <typename Polygon>
-UInt128 sipHash128(Polygon && polygon)
-{
-    SipHash hash;
-
-    auto hash_ring = [&hash](const auto & ring)
-    {
-        UInt32 size = ring.size();
-        hash.update(size);
-        hash.update(reinterpret_cast<const char *>(ring.data()), size * sizeof(ring[0]));
-    };
-
-    hash_ring(polygon.outer());
-
-    const auto & inners = polygon.inners();
-    hash.update(inners.size());
-    for (auto & inner : inners)
-        hash_ring(inner);
-
-    UInt128 res;
-    hash.get128(res);
-    return res;
-}
-
 }

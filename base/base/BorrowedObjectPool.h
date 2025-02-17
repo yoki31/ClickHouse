@@ -10,7 +10,7 @@
 #include <base/MoveOrCopyIfThrow.h>
 
 /** Pool for limited size objects that cannot be used from different threads simultaneously.
-  * The main use case is to have fixed size of objects that can be reused in difference threads during their lifetime
+  * The main use case is to have fixed size of objects that can be reused in different threads during their lifetime
   * and have to be initialized on demand.
   * Two main properties of pool are allocated objects size and borrowed objects size.
   * Allocated objects size is size of objects that are currently allocated by the pool.
@@ -86,10 +86,10 @@ public:
     }
 
     /// Return object into pool. Client must return same object that was borrowed.
-    inline void returnObject(T && object_to_return)
+    void returnObject(T && object_to_return)
     {
         {
-            std::lock_guard<std::mutex> lock(objects_mutex);
+            std::lock_guard lock(objects_mutex);
 
             objects.emplace_back(std::move(object_to_return));
             --borrowed_objects_size;
@@ -99,37 +99,37 @@ public:
     }
 
     /// Max pool size
-    inline size_t maxSize() const
+    size_t maxSize() const
     {
         return max_size;
     }
 
     /// Allocated objects size by the pool. If allocatedObjectsSize == maxSize then pool is full.
-    inline size_t allocatedObjectsSize() const
+    size_t allocatedObjectsSize() const
     {
-        std::unique_lock<std::mutex> lock(objects_mutex);
+        std::lock_guard lock(objects_mutex);
         return allocated_objects_size;
     }
 
     /// Returns allocatedObjectsSize == maxSize
-    inline bool isFull() const
+    bool isFull() const
     {
-        std::unique_lock<std::mutex> lock(objects_mutex);
+        std::lock_guard lock(objects_mutex);
         return allocated_objects_size == max_size;
     }
 
     /// Borrowed objects size. If borrowedObjectsSize == allocatedObjectsSize and pool is full.
     /// Then client will wait during borrowObject function call.
-    inline size_t borrowedObjectsSize() const
+    size_t borrowedObjectsSize() const
     {
-        std::unique_lock<std::mutex> lock(objects_mutex);
+        std::lock_guard lock(objects_mutex);
         return borrowed_objects_size;
     }
 
 private:
 
     template <typename FactoryFunc>
-    inline T allocateObjectForBorrowing(const std::unique_lock<std::mutex> &, FactoryFunc && func)
+    T allocateObjectForBorrowing(const std::unique_lock<std::mutex> &, FactoryFunc && func)
     {
         ++allocated_objects_size;
         ++borrowed_objects_size;
@@ -137,7 +137,7 @@ private:
         return std::forward<FactoryFunc>(func)();
     }
 
-    inline T borrowFromObjects(const std::unique_lock<std::mutex> &)
+    T borrowFromObjects(const std::unique_lock<std::mutex> &)
     {
         T dst;
         detail::moveOrCopyIfThrow(std::move(objects.back()), dst);

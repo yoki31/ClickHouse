@@ -3,11 +3,33 @@
 #include <IO/WriteHelpers.h>
 #include <Common/quoteString.h>
 #include <algorithm>
+#include <Parsers/ExpressionListParsers.h>
+#include <Parsers/parseQuery.h>
 
 #include <base/JSON.h>
 
 namespace DB
 {
+
+void MergeTreeDataPartTTLInfo::update(time_t time)
+{
+    if (time && (!min || time < min))
+        min = time;
+
+    max = std::max(time, max);
+}
+
+void MergeTreeDataPartTTLInfo::update(const MergeTreeDataPartTTLInfo & other_info)
+{
+    if (other_info.min && (!min || other_info.min < min))
+        min = other_info.min;
+
+    max = std::max(other_info.max, max);
+    if (ttl_finished.has_value())
+        ttl_finished = ttl_finished.value() && other_info.finished();
+    else
+        ttl_finished = other_info.finished();
+}
 
 void MergeTreeDataPartTTLInfos::update(const MergeTreeDataPartTTLInfos & other_infos)
 {
@@ -57,7 +79,7 @@ void MergeTreeDataPartTTLInfos::read(ReadBuffer & in)
             ttl_info.max = col["max"].getUInt();
 
             if (col.has("finished"))
-                ttl_info.finished = col["finished"].getUInt();
+                ttl_info.ttl_finished = col["finished"].getUInt();
 
             String name = col["name"].getString();
             columns_ttl.emplace(name, ttl_info);
@@ -72,7 +94,7 @@ void MergeTreeDataPartTTLInfos::read(ReadBuffer & in)
         table_ttl.max = table["max"].getUInt();
 
         if (table.has("finished"))
-            table_ttl.finished = table["finished"].getUInt();
+            table_ttl.ttl_finished = table["finished"].getUInt();
 
         updatePartMinMaxTTL(table_ttl.min, table_ttl.max);
     }
@@ -86,7 +108,7 @@ void MergeTreeDataPartTTLInfos::read(ReadBuffer & in)
             ttl_info.max = elem["max"].getUInt();
 
             if (elem.has("finished"))
-                ttl_info.finished = elem["finished"].getUInt();
+                ttl_info.ttl_finished = elem["finished"].getUInt();
 
             String expression = elem["expression"].getString();
             ttl_info_map.emplace(expression, ttl_info);
@@ -138,7 +160,7 @@ void MergeTreeDataPartTTLInfos::write(WriteBuffer & out) const
             writeString(",\"max\":", out);
             writeIntText(it->second.max, out);
             writeString(R"(,"finished":)", out);
-            writeIntText(static_cast<uint8_t>(it->second.finished), out);
+            writeIntText(static_cast<uint8_t>(it->second.finished()), out);
             writeString("}", out);
         }
         writeString("]", out);
@@ -152,7 +174,7 @@ void MergeTreeDataPartTTLInfos::write(WriteBuffer & out) const
         writeString(R"(,"max":)", out);
         writeIntText(table_ttl.max, out);
         writeString(R"(,"finished":)", out);
-        writeIntText(static_cast<uint8_t>(table_ttl.finished), out);
+        writeIntText(static_cast<uint8_t>(table_ttl.finished()), out);
         writeString("}", out);
     }
 
@@ -175,7 +197,7 @@ void MergeTreeDataPartTTLInfos::write(WriteBuffer & out) const
             writeString(R"(,"max":)", out);
             writeIntText(it->second.max, out);
             writeString(R"(,"finished":)", out);
-            writeIntText(static_cast<uint8_t>(it->second.finished), out);
+            writeIntText(static_cast<uint8_t>(it->second.finished()), out);
             writeString("}", out);
         }
         writeString("]", out);
@@ -225,13 +247,13 @@ bool MergeTreeDataPartTTLInfos::hasAnyNonFinishedTTLs() const
     {
         for (const auto & [name, info] : map)
         {
-            if (!info.finished)
+            if (!info.finished())
                 return true;
         }
         return false;
     };
 
-    if (!table_ttl.finished)
+    if (!table_ttl.finished())
         return true;
 
     if (has_non_finished_ttl(columns_ttl))
@@ -252,6 +274,29 @@ bool MergeTreeDataPartTTLInfos::hasAnyNonFinishedTTLs() const
     return false;
 }
 
+namespace
+{
+    /// We had backward incompatibility in representation of serialized expressions, example:
+    ///
+    /// `expired + toIntervalSecond(20)` vs `plus(expired, toIntervalSecond(20))`
+    /// Since they are stored as strings we cannot compare them directly as strings
+    /// To avoid backward incompatibility we parse them and check AST hashes.
+    /// This O(N^2), but amount of TTLs should be small, so it should be Ok.
+    auto tryToFindTTLExpressionInMapByASTMatching(const TTLInfoMap & ttl_info_map, const std::string & result_column)
+    {
+        ParserExpression parser;
+        auto ast_needle = parseQuery(parser, result_column.data(), result_column.data() + result_column.size(), "", 0, 0, 0);
+        for (auto it = ttl_info_map.begin(); it != ttl_info_map.end(); ++it)
+        {
+            const std::string & stored_expression = it->first;
+            auto ast_candidate = parseQuery(parser, stored_expression.data(), stored_expression.data() + stored_expression.size(), "", 0, 0, 0);
+            if (ast_candidate->getTreeHash(false) == ast_needle->getTreeHash(false))
+                return it;
+        }
+        return ttl_info_map.end();
+    }
+}
+
 std::optional<TTLDescription> selectTTLDescriptionForTTLInfos(const TTLDescriptions & descriptions, const TTLInfoMap & ttl_info_map, time_t current_time, bool use_max)
 {
     time_t best_ttl_time = 0;
@@ -261,7 +306,11 @@ std::optional<TTLDescription> selectTTLDescriptionForTTLInfos(const TTLDescripti
         auto ttl_info_it = ttl_info_map.find(ttl_entry_it->result_column);
 
         if (ttl_info_it == ttl_info_map.end())
-            continue;
+        {
+            ttl_info_it = tryToFindTTLExpressionInMapByASTMatching(ttl_info_map, ttl_entry_it->result_column);
+            if (ttl_info_it == ttl_info_map.end())
+                continue;
+        }
 
         time_t ttl_time;
 

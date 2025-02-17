@@ -1,39 +1,33 @@
 #pragma once
 
 #include <Parsers/ASTBackupQuery.h>
+#include <Interpreters/Context_fwd.h>
 
 
 namespace DB
 {
-
 class IBackup;
-using BackupPtr = std::shared_ptr<const IBackup>;
-using BackupMutablePtr = std::shared_ptr<IBackup>;
-class IBackupEntry;
-using BackupEntryPtr = std::unique_ptr<IBackupEntry>;
-using BackupEntries = std::vector<std::pair<String, BackupEntryPtr>>;
-using RestoreDataTask = std::function<void()>;
-using RestoreDataTasks = std::vector<RestoreDataTask>;
-using RestoreObjectTask = std::function<RestoreDataTasks()>;
-using RestoreObjectsTasks = std::vector<RestoreObjectTask>;
-class Context;
-using ContextPtr = std::shared_ptr<const Context>;
-using ContextMutablePtr = std::shared_ptr<Context>;
+class AccessRightsElements;
+class DDLRenamingMap;
+struct QualifiedTableName;
 
+namespace BackupUtils
+{
 
-/// Prepares backup entries.
-BackupEntries makeBackupEntries(const ASTBackupQuery::Elements & elements, const ContextPtr & context);
+/// Initializes a DDLRenamingMap from a BACKUP or RESTORE query.
+DDLRenamingMap makeRenamingMap(const ASTBackupQuery::Elements & elements);
 
-/// Estimate total size of the backup which would be written from the specified entries.
-UInt64 estimateBackupSize(const BackupEntries & backup_entries, const BackupPtr & base_backup);
+/// Returns access required to execute BACKUP query.
+AccessRightsElements getRequiredAccessToBackup(const ASTBackupQuery::Elements & elements);
 
-/// Write backup entries to an opened backup.
-void writeBackupEntries(BackupMutablePtr backup, BackupEntries && backup_entries, size_t num_threads);
+/// Checks the definition of a restored table - it must correspond to the definition from the backup.
+bool compareRestoredTableDef(const IAST & restored_table_create_query, const IAST & create_query_from_backup, const ContextPtr & global_context);
+bool compareRestoredDatabaseDef(const IAST & restored_database_create_query, const IAST & create_query_from_backup, const ContextPtr & global_context);
 
-/// Prepare restore tasks.
-RestoreObjectsTasks makeRestoreTasks(const ASTBackupQuery::Elements & elements, ContextMutablePtr context, const BackupPtr & backup);
+/// Returns true if this table should be skipped while making a backup because it's an inner table.
+bool isInnerTable(const QualifiedTableName & table_name);
+bool isInnerTable(const String & database_name, const String & table_name);
 
-/// Execute restore tasks.
-void executeRestoreTasks(RestoreObjectsTasks && restore_tasks, size_t num_threads);
+}
 
 }

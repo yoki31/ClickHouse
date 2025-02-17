@@ -1,13 +1,13 @@
 #pragma once
 
-#include <string>
-#include <Core/Block.h>
 #include <Processors/Formats/IOutputFormat.h>
 #include <Formats/FormatSettings.h>
 
+#include <string>
 
 namespace DB
 {
+class Block;
 class WriteBuffer;
 
 
@@ -35,8 +35,9 @@ private:
     void writePrefix() override;
 
     const FormatSettings format_settings;
+    Serializations serializations;
 
-    void writeRow(const Serializations & serializations, const Columns & columns, size_t row_idx, std::string & buffer);
+    void writeRow(const Columns & columns, size_t row_idx, std::string & buffer);
     void write(Chunk chunk, PortKind port_kind);
 };
 

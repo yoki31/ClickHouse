@@ -1,10 +1,15 @@
 #include <Interpreters/JoinedTables.h>
 
+#include <Core/Settings.h>
+#include <Core/SettingsEnums.h>
+
+#include <Interpreters/DatabaseCatalog.h>
 #include <Interpreters/IdentifierSemantic.h>
 #include <Interpreters/InDepthNodeVisitor.h>
 #include <Interpreters/InJoinSubqueriesPreprocessor.h>
 #include <Interpreters/TableJoin.h>
 #include <Interpreters/getTableExpressions.h>
+#include <Functions/FunctionsExternalDictionaries.h>
 
 #include <Parsers/ASTAsterisk.h>
 #include <Parsers/ASTFunction.h>
@@ -23,6 +28,14 @@
 
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsBool asterisk_include_alias_columns;
+    extern const SettingsBool asterisk_include_materialized_columns;
+    extern const SettingsBool enable_optimize_predicate_expression;
+    extern const SettingsBool joined_subquery_requires_alias;
+    extern const SettingsJoinAlgorithm join_algorithm;
+}
 
 namespace ErrorCodes
 {
@@ -57,9 +70,18 @@ void replaceJoinedTable(const ASTSelectQuery & select_query)
     if (!join || !join->table_expression)
         return;
 
-    /// TODO: Push down for CROSS JOIN is not OK [disabled]
     const auto & table_join = join->table_join->as<ASTTableJoin &>();
-    if (table_join.kind == ASTTableJoin::Kind::Cross)
+
+    /// TODO: Push down for CROSS JOIN is not OK [disabled]
+    if (table_join.kind == JoinKind::Cross)
+        return;
+
+    /* Do not push down predicates for ASOF because it can lead to incorrect results
+     * (for example, if we will filter a suitable row before joining and will choose another, not the closest row).
+     * ANY join behavior can also be different with this optimization,
+     * but it's ok because we don't guarantee which row to choose for ANY, unlike ASOF, where we have to pick the closest one.
+     */
+    if (table_join.strictness == JoinStrictness::Asof)
         return;
 
     auto & table_expr = join->table_expression->as<ASTTableExpression &>();
@@ -131,8 +153,8 @@ private:
                 match == IdentifierSemantic::ColumnMatch::DBAndTable)
             {
                 if (rewritten)
-                    throw Exception("Failed to rewrite distributed table names. Ambiguous column '" + identifier.name() + "'",
-                                    ErrorCodes::AMBIGUOUS_COLUMN_NAME);
+                    throw Exception(ErrorCodes::AMBIGUOUS_COLUMN_NAME, "Failed to rewrite distributed table names. Ambiguous column '{}'",
+                                    identifier.name());
                 /// Table has an alias. So we set a new name qualified by table alias.
                 IdentifierSemantic::setColumnLongName(identifier, table);
                 rewritten = true;
@@ -142,15 +164,15 @@ private:
 
     static void visit(const ASTQualifiedAsterisk & node, const ASTPtr &, Data & data)
     {
-        auto & identifier = node.children[0]->as<ASTTableIdentifier &>();
+        auto & identifier = node.qualifier->as<ASTIdentifier &>();
         bool rewritten = false;
         for (const auto & table : data)
         {
             if (identifier.name() == table.table)
             {
                 if (rewritten)
-                    throw Exception("Failed to rewrite distributed table. Ambiguous column '" + identifier.name() + "'",
-                                    ErrorCodes::AMBIGUOUS_COLUMN_NAME);
+                    throw Exception(ErrorCodes::AMBIGUOUS_COLUMN_NAME, "Failed to rewrite distributed table. Ambiguous column '{}'",
+                                    identifier.name());
                 identifier.setShortName(table.alias);
                 rewritten = true;
             }
@@ -161,12 +183,14 @@ using RenameQualifiedIdentifiersVisitor = InDepthNodeVisitor<RenameQualifiedIden
 
 }
 
-JoinedTables::JoinedTables(ContextPtr context_, const ASTSelectQuery & select_query, bool include_all_columns_)
+JoinedTables::JoinedTables(ContextPtr context_, const ASTSelectQuery & select_query_, bool include_all_columns_, bool is_create_parameterized_view_)
     : context(context_)
-    , table_expressions(getTableExpressions(select_query))
+    , table_expressions(getTableExpressions(select_query_))
     , include_all_columns(include_all_columns_)
-    , left_table_expression(extractTableExpression(select_query, 0))
-    , left_db_and_table(getDatabaseAndTable(select_query, 0))
+    , left_table_expression(extractTableExpression(select_query_, 0))
+    , left_db_and_table(getDatabaseAndTable(select_query_, 0))
+    , select_query(select_query_)
+    , is_create_parameterized_view(is_create_parameterized_view_)
 {}
 
 bool JoinedTables::isLeftTableSubquery() const
@@ -194,7 +218,7 @@ StoragePtr JoinedTables::getLeftTableStorage()
         return {};
 
     if (isLeftTableFunction())
-        return context->getQueryContext()->executeTableFunction(left_table_expression);
+        return context->getQueryContext()->executeTableFunction(left_table_expression, &select_query);
 
     StorageID table_id = StorageID::createEmpty();
     if (left_db_and_table)
@@ -224,22 +248,23 @@ StoragePtr JoinedTables::getLeftTableStorage()
 bool JoinedTables::resolveTables()
 {
     const auto & settings = context->getSettingsRef();
-    bool include_alias_cols = include_all_columns || settings.asterisk_include_alias_columns;
-    bool include_materialized_cols = include_all_columns || settings.asterisk_include_materialized_columns;
-    tables_with_columns = getDatabaseAndTablesWithColumns(table_expressions, context, include_alias_cols, include_materialized_cols);
+    bool include_alias_cols = include_all_columns || settings[Setting::asterisk_include_alias_columns];
+    bool include_materialized_cols = include_all_columns || settings[Setting::asterisk_include_materialized_columns];
+    tables_with_columns = getDatabaseAndTablesWithColumns(table_expressions, context, include_alias_cols, include_materialized_cols, is_create_parameterized_view);
     if (tables_with_columns.size() != table_expressions.size())
-        throw Exception("Unexpected tables count", ErrorCodes::LOGICAL_ERROR);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Unexpected tables count");
 
-    if (settings.joined_subquery_requires_alias && tables_with_columns.size() > 1)
+    if (settings[Setting::joined_subquery_requires_alias] && tables_with_columns.size() > 1)
     {
         for (size_t i = 0; i < tables_with_columns.size(); ++i)
         {
             const auto & t = tables_with_columns[i];
             if (t.table.table.empty() && t.table.alias.empty())
             {
-                throw Exception("No alias for subquery or table function in JOIN (set joined_subquery_requires_alias=0 to disable restriction). While processing '"
-                    + table_expressions[i]->formatForErrorMessage() + "'",
-                    ErrorCodes::ALIAS_REQUIRED);
+                throw Exception(ErrorCodes::ALIAS_REQUIRED,
+                                "No alias for subquery or table function "
+                                "in JOIN (set joined_subquery_requires_alias=0 to disable restriction). "
+                                "While processing '{}'", table_expressions[i]->formatForErrorMessage());
             }
         }
     }
@@ -257,7 +282,7 @@ void JoinedTables::makeFakeTable(StoragePtr storage, const StorageMetadataPtr & 
         auto & table = tables_with_columns.back();
         table.addHiddenColumns(storage_columns.getMaterialized());
         table.addHiddenColumns(storage_columns.getAliases());
-        table.addHiddenColumns(storage->getVirtuals());
+        table.addHiddenColumns(storage->getVirtualsList());
     }
     else
         tables_with_columns.emplace_back(DatabaseAndTableWithAlias{}, source_header.getNamesAndTypesList());
@@ -286,15 +311,17 @@ void JoinedTables::rewriteDistributedInAndJoins(ASTPtr & query)
     }
 }
 
-std::shared_ptr<TableJoin> JoinedTables::makeTableJoin(const ASTSelectQuery & select_query)
+std::shared_ptr<TableJoin> JoinedTables::makeTableJoin(const ASTSelectQuery & select_query_)
 {
     if (tables_with_columns.size() < 2)
         return {};
 
-    auto settings = context->getSettingsRef();
-    auto table_join = std::make_shared<TableJoin>(settings, context->getTemporaryVolume());
+    const auto & settings = context->getSettingsRef();
+    MultiEnum<JoinAlgorithm> join_algorithm = settings[Setting::join_algorithm];
+    bool try_use_direct_join = join_algorithm.isSet(JoinAlgorithm::DIRECT) || join_algorithm.isSet(JoinAlgorithm::DEFAULT);
+    auto table_join = std::make_shared<TableJoin>(settings, context->getGlobalTemporaryVolume(), context->getTempDataOnDisk());
 
-    const ASTTablesInSelectQueryElement * ast_join = select_query.join();
+    const ASTTablesInSelectQueryElement * ast_join = select_query_.join();
     const auto & table_to_join = ast_join->table_expression->as<ASTTableExpression &>();
 
     /// TODO This syntax does not support specifying a database name.
@@ -305,24 +332,50 @@ std::shared_ptr<TableJoin> JoinedTables::makeTableJoin(const ASTSelectQuery & se
         if (storage)
         {
             if (auto storage_join = std::dynamic_pointer_cast<StorageJoin>(storage); storage_join)
+            {
                 table_join->setStorageJoin(storage_join);
-            else if (auto storage_dict = std::dynamic_pointer_cast<StorageDictionary>(storage); storage_dict)
-                table_join->setStorageJoin(storage_dict);
+            }
+
+            auto storage_dict = std::dynamic_pointer_cast<StorageDictionary>(storage);
+            if (storage_dict && try_use_direct_join && storage_dict->getDictionary()->getSpecialKeyType() != DictionarySpecialKeyType::Range)
+            {
+                FunctionDictHelper dictionary_helper(context);
+
+                auto dictionary_name = storage_dict->getDictionaryName();
+                auto dictionary = dictionary_helper.getDictionary(dictionary_name);
+                if (!dictionary)
+                {
+                    LOG_TRACE(getLogger("JoinedTables"), "Can't use dictionary join: dictionary '{}' was not found", dictionary_name);
+                    return nullptr;
+                }
+                if (dictionary->getSpecialKeyType() == DictionarySpecialKeyType::Range)
+                {
+                    LOG_TRACE(getLogger("JoinedTables"), "Can't use dictionary join: dictionary '{}' is a range dictionary", dictionary_name);
+                    return nullptr;
+                }
+
+                auto dictionary_kv = std::dynamic_pointer_cast<const IKeyValueEntity>(dictionary);
+                table_join->setStorageJoin(dictionary_kv);
+            }
+
+            if (auto storage_kv = std::dynamic_pointer_cast<IKeyValueEntity>(storage); storage_kv && try_use_direct_join)
+            {
+                table_join->setStorageJoin(storage_kv);
+            }
         }
     }
 
-    if (!table_join->isSpecialStorage() &&
-        settings.enable_optimize_predicate_expression)
-        replaceJoinedTable(select_query);
+    if (!table_join->isSpecialStorage() && settings[Setting::enable_optimize_predicate_expression])
+        replaceJoinedTable(select_query_);
 
     return table_join;
 }
 
-void JoinedTables::reset(const ASTSelectQuery & select_query)
+void JoinedTables::reset(const ASTSelectQuery & select_query_)
 {
-    table_expressions = getTableExpressions(select_query);
-    left_table_expression = extractTableExpression(select_query, 0);
-    left_db_and_table = getDatabaseAndTable(select_query, 0);
+    table_expressions = getTableExpressions(select_query_);
+    left_table_expression = extractTableExpression(select_query_, 0);
+    left_db_and_table = getDatabaseAndTable(select_query_, 0);
 }
 
 }

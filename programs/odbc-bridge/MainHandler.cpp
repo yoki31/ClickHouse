@@ -1,25 +1,28 @@
 #include "MainHandler.h"
 
-#include "validateODBCConnectionString.h"
-#include "ODBCBlockInputStream.h"
-#include "ODBCBlockOutputStream.h"
-#include "getIdentifierQuote.h"
+#include <Core/Settings.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <Formats/FormatFactory.h>
-#include <Server/HTTP/WriteBufferFromHTTPServerResponse.h>
-#include <IO/WriteHelpers.h>
-#include <IO/ReadHelpers.h>
+#include <IO/Operators.h>
 #include <IO/ReadBufferFromIStream.h>
-#include <Poco/Net/HTTPServerRequest.h>
-#include <Poco/Net/HTTPServerResponse.h>
-#include <Poco/Net/HTMLForm.h>
-#include <Poco/ThreadPool.h>
-#include <QueryPipeline/QueryPipeline.h>
+#include <IO/ReadHelpers.h>
+#include <IO/WriteHelpers.h>
 #include <Processors/Executors/CompletedPipelineExecutor.h>
 #include <Processors/Formats/IInputFormat.h>
-#include <base/logger_useful.h>
+#include <QueryPipeline/QueryPipeline.h>
 #include <Server/HTTP/HTMLForm.h>
-#include <Common/config.h>
+#include <Server/HTTP/WriteBufferFromHTTPServerResponse.h>
+#include <Poco/Net/HTMLForm.h>
+#include <Poco/Net/HTTPServerRequest.h>
+#include <Poco/Net/HTTPServerResponse.h>
+#include <Poco/ThreadPool.h>
+#include <Common/BridgeProtocolVersion.h>
+#include <Common/logger_useful.h>
+#include "ODBCSink.h"
+#include "ODBCSource.h"
+#include "config.h"
+#include "getIdentifierQuote.h"
+#include "validateODBCConnectionString.h"
 
 #include <mutex>
 #include <memory>
@@ -27,6 +30,10 @@
 
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsUInt64 odbc_bridge_connection_pool_size;
+}
 
 namespace
 {
@@ -45,15 +52,37 @@ void ODBCHandler::processError(HTTPServerResponse & response, const std::string 
 {
     response.setStatusAndReason(HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
     if (!response.sent())
-        *response.send() << message << std::endl;
+        *response.send() << message << '\n';
     LOG_WARNING(log, fmt::runtime(message));
 }
 
 
-void ODBCHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse & response)
+void ODBCHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event & /*write_event*/)
 {
     HTMLForm params(getContext()->getSettingsRef(), request);
     LOG_TRACE(log, "Request URI: {}", request.getURI());
+
+    size_t version;
+
+    if (!params.has("version"))
+        version = 0; /// assumed version for too old servers which do not send a version
+    else
+    {
+        String version_str = params.get("version");
+        if (!tryParse(version, version_str))
+        {
+            processError(response, "Unable to parse 'version' string in request URL: '" + version_str + "' Check if the server and library-bridge have the same version.");
+            return;
+        }
+    }
+
+    if (version != XDBC_BRIDGE_PROTOCOL_VERSION)
+    {
+        /// backwards compatibility is considered unnecessary for now, just let the user know that the server and the bridge must be upgraded together
+        processError(response, "Server and library-bridge have different versions: '" + std::to_string(version) + "' vs. '" + std::to_string(LIBRARY_BRIDGE_PROTOCOL_VERSION) + "'");
+        return;
+    }
+
 
     if (mode == "read")
         params.read(request.getStream());
@@ -79,7 +108,9 @@ void ODBCHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse 
 
     std::string format = params.get("format", "RowBinary");
     std::string connection_string = params.get("connection_string");
+    bool use_connection_pooling = params.getParsed<bool>("use_connection_pooling", true);
     LOG_TRACE(log, "Connection string: '{}'", connection_string);
+    LOG_TRACE(log, "Use pooling: {}", use_connection_pooling);
 
     UInt64 max_block_size = DEFAULT_BLOCK_SIZE;
     if (params.has("max_block_size"))
@@ -106,13 +137,16 @@ void ODBCHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse 
         return;
     }
 
-    WriteBufferFromHTTPServerResponse out(response, request.getMethod() == Poco::Net::HTTPRequest::HTTP_HEAD, keep_alive_timeout);
+    WriteBufferFromHTTPServerResponse out(response, request.getMethod() == Poco::Net::HTTPRequest::HTTP_HEAD);
 
     try
     {
-        auto connection_handler = ODBCConnectionFactory::instance().get(
-                validateODBCConnectionString(connection_string),
-                getContext()->getSettingsRef().odbc_bridge_connection_pool_size);
+        nanodbc::ConnectionHolderPtr connection_handler;
+        if (use_connection_pooling)
+            connection_handler = ODBCPooledConnectionFactory::instance().get(
+                validateODBCConnectionString(connection_string), getContext()->getSettingsRef()[Setting::odbc_bridge_connection_pool_size]);
+        else
+            connection_handler = std::make_shared<nanodbc::ConnectionHolder>(validateODBCConnectionString(connection_string));
 
         if (mode == "write")
         {
@@ -130,7 +164,7 @@ void ODBCHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse 
             std::string table_name = params.get("table_name");
             LOG_TRACE(log, "DB name: '{}', table name: '{}'", db_name, table_name);
 
-            auto quoting_style = IdentifierQuotingStyle::None;
+            auto quoting_style = IdentifierQuotingStyle::Backticks;
 #if USE_ODBC
             quoting_style = getQuotingStyle(connection_handler);
 #endif
@@ -160,33 +194,13 @@ void ODBCHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse 
             CompletedPipelineExecutor executor(pipeline);
             executor.execute();
         }
-    }
-    catch (...)
-    {
-        auto message = getCurrentExceptionMessage(true);
-        response.setStatusAndReason(
-                Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR); // can't call process_error, because of too soon response sending
 
-        try
-        {
-            writeStringBinary(message, out);
-            out.finalize();
-        }
-        catch (...)
-        {
-            tryLogCurrentException(log);
-        }
-
-        tryLogCurrentException(log);
-    }
-
-    try
-    {
         out.finalize();
     }
     catch (...)
     {
         tryLogCurrentException(log);
+        out.cancelWithException(request, getCurrentExceptionCode(), getCurrentExceptionMessage(true), nullptr);
     }
 }
 

@@ -1,14 +1,13 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 38
-toc_title: 'Null'
+slug: /ja/engines/table-engines/special/null
+sidebar_position: 50
+sidebar_label: 'Null'
 ---
 
-# Null {#null}
+# Null テーブルエンジン
 
-Nullテーブルに書き込む場合、データは無視されます。 Nullテーブルから読み取る場合、応答は空です。
+`Null` テーブルに書き込むとデータは無視されます。`Null` テーブルから読み取ると、応答は空になります。
 
-ただし、Nullテーブルにマテリアライズドビューを作成できます。 したがって、テーブルに書き込まれたデータはビュー内で終了します。
-
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/null/) <!--hide-->
+:::note
+これがなぜ有用なのか疑問に思う場合は、`Null` テーブルに対して Materialized View を作成できることを確認してください。従って、テーブルに書き込まれたデータはビューに影響を与えますが、元の生データは無視されます。
+:::

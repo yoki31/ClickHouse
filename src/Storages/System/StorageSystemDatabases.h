@@ -1,6 +1,5 @@
 #pragma once
 
-#include <base/shared_ptr_helper.h>
 #include <Storages/System/IStorageSystemOneBlock.h>
 
 
@@ -12,23 +11,23 @@ class Context;
 
 /** Implements `databases` system table, which allows you to get information about all databases.
   */
-class StorageSystemDatabases final : public shared_ptr_helper<StorageSystemDatabases>, public IStorageSystemOneBlock<StorageSystemDatabases>
+class StorageSystemDatabases final : public IStorageSystemOneBlock
 {
-    friend struct shared_ptr_helper<StorageSystemDatabases>;
 public:
     std::string getName() const override
     {
         return "SystemDatabases";
     }
 
-    static NamesAndTypesList getNamesAndTypes();
-
-    static NamesAndAliases getNamesAndAliases();
+    static ColumnsDescription getColumnsDescription();
 
 protected:
     using IStorageSystemOneBlock::IStorageSystemOneBlock;
 
-    void fillData(MutableColumns & res_columns, ContextPtr context, const SelectQueryInfo &) const override;
+    bool supportsColumnsMask() const override { return true; }
+
+    void fillData(MutableColumns & res_columns, ContextPtr context, const ActionsDAG::Node * predicate, std::vector<UInt8> columns_mask) const override;
+    Block getFilterSampleBlock() const override;
 };
 
 }

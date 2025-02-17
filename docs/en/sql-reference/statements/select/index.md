@@ -1,33 +1,34 @@
 ---
-title: SELECT Query
-toc_folder_title: SELECT
-toc_priority: 32
-toc_title: Overview
+slug: /en/sql-reference/statements/select/
+sidebar_position: 32
+sidebar_label: SELECT
 ---
 
-# SELECT Query {#select-queries-syntax}
+# SELECT Query
 
 `SELECT` queries perform data retrieval. By default, the requested data is returned to the client, while in conjunction with [INSERT INTO](../../../sql-reference/statements/insert-into.md) it can be forwarded to a different table.
 
-## Syntax {#syntax}
+## Syntax
 
 ``` sql
-[WITH expr_list|(subquery)]
+[WITH expr_list(subquery)]
 SELECT [DISTINCT [ON (column1, column2, ...)]] expr_list
 [FROM [db.]table | (subquery) | table_function] [FINAL]
 [SAMPLE sample_coeff]
 [ARRAY JOIN ...]
-[GLOBAL] [ANY|ALL|ASOF] [INNER|LEFT|RIGHT|FULL|CROSS] [OUTER|SEMI|ANTI] JOIN (subquery)|table (ON <expr_list>)|(USING <column_list>)
+[GLOBAL] [ANY|ALL|ASOF] [INNER|LEFT|RIGHT|FULL|CROSS] [OUTER|SEMI|ANTI] JOIN (subquery)|table [(alias1 [, alias2 ...])] (ON <expr_list>)|(USING <column_list>)
 [PREWHERE expr]
 [WHERE expr]
 [GROUP BY expr_list] [WITH ROLLUP|WITH CUBE] [WITH TOTALS]
 [HAVING expr]
-[ORDER BY expr_list] [WITH FILL] [FROM expr] [TO expr] [STEP expr]
+[WINDOW window_expr_list]
+[QUALIFY expr]
+[ORDER BY expr_list] [WITH FILL] [FROM expr] [TO expr] [STEP expr] [INTERPOLATE [(expr_list)]]
 [LIMIT [offset_value, ]n BY columns]
 [LIMIT [n, ]m] [WITH TIES]
 [SETTINGS ...]
 [UNION  ...]
-[INTO OUTFILE filename [COMPRESSION type] ]
+[INTO OUTFILE filename [COMPRESSION type [LEVEL level]] ]
 [FORMAT format]
 ```
 
@@ -35,35 +36,37 @@ All clauses are optional, except for the required list of expressions immediatel
 
 Specifics of each optional clause are covered in separate sections, which are listed in the same order as they are executed:
 
--   [WITH clause](../../../sql-reference/statements/select/with.md)
--   [SELECT clause](#select-clause)
--   [DISTINCT clause](../../../sql-reference/statements/select/distinct.md)
--   [FROM clause](../../../sql-reference/statements/select/from.md)
--   [SAMPLE clause](../../../sql-reference/statements/select/sample.md)
--   [JOIN clause](../../../sql-reference/statements/select/join.md)
--   [PREWHERE clause](../../../sql-reference/statements/select/prewhere.md)
--   [WHERE clause](../../../sql-reference/statements/select/where.md)
--   [GROUP BY clause](../../../sql-reference/statements/select/group-by.md)
--   [LIMIT BY clause](../../../sql-reference/statements/select/limit-by.md)
--   [HAVING clause](../../../sql-reference/statements/select/having.md)
--   [LIMIT clause](../../../sql-reference/statements/select/limit.md)
--   [OFFSET clause](../../../sql-reference/statements/select/offset.md)
--   [UNION clause](../../../sql-reference/statements/select/union.md)
--   [INTERSECT clause](../../../sql-reference/statements/select/intersect.md)
--   [EXCEPT clause](../../../sql-reference/statements/select/except.md)
--   [INTO OUTFILE clause](../../../sql-reference/statements/select/into-outfile.md)
--   [FORMAT clause](../../../sql-reference/statements/select/format.md)
+- [WITH clause](../../../sql-reference/statements/select/with.md)
+- [SELECT clause](#select-clause)
+- [DISTINCT clause](../../../sql-reference/statements/select/distinct.md)
+- [FROM clause](../../../sql-reference/statements/select/from.md)
+- [SAMPLE clause](../../../sql-reference/statements/select/sample.md)
+- [JOIN clause](../../../sql-reference/statements/select/join.md)
+- [PREWHERE clause](../../../sql-reference/statements/select/prewhere.md)
+- [WHERE clause](../../../sql-reference/statements/select/where.md)
+- [WINDOW clause](../../../sql-reference/window-functions/index.md)
+- [GROUP BY clause](../../../sql-reference/statements/select/group-by.md)
+- [LIMIT BY clause](../../../sql-reference/statements/select/limit-by.md)
+- [HAVING clause](../../../sql-reference/statements/select/having.md)
+- [QUALIFY clause](../../../sql-reference/statements/select/qualify.md)
+- [LIMIT clause](../../../sql-reference/statements/select/limit.md)
+- [OFFSET clause](../../../sql-reference/statements/select/offset.md)
+- [UNION clause](../../../sql-reference/statements/select/union.md)
+- [INTERSECT clause](../../../sql-reference/statements/select/intersect.md)
+- [EXCEPT clause](../../../sql-reference/statements/select/except.md)
+- [INTO OUTFILE clause](../../../sql-reference/statements/select/into-outfile.md)
+- [FORMAT clause](../../../sql-reference/statements/select/format.md)
 
-## SELECT Clause {#select-clause}
+## SELECT Clause
 
 [Expressions](../../../sql-reference/syntax.md#syntax-expressions) specified in the `SELECT` clause are calculated after all the operations in the clauses described above are finished. These expressions work as if they apply to separate rows in the result. If expressions in the `SELECT` clause contain aggregate functions, then ClickHouse processes aggregate functions and expressions used as their arguments during the [GROUP BY](../../../sql-reference/statements/select/group-by.md) aggregation.
 
 If you want to include all columns in the result, use the asterisk (`*`) symbol. For example, `SELECT * FROM ...`.
 
 
-### COLUMNS expression {#columns-expression}
+### Dynamic column selection
 
-To match some columns in the result with a [re2](https://en.wikipedia.org/wiki/RE2_(software)) regular expression, you can use the `COLUMNS` expression.
+Dynamic column selection (also known as a COLUMNS expression) allows you to match some columns in a result with a [re2](https://en.wikipedia.org/wiki/RE2_(software)) regular expression.
 
 ``` sql
 COLUMNS('regexp')
@@ -116,61 +119,63 @@ Received exception from server (version 19.14.1):
 Code: 42. DB::Exception: Received from localhost:9000. DB::Exception: Number of arguments for function plus does not match: passed 3, should be 2.
 ```
 
-In this example, `COLUMNS('a')` returns two columns: `aa` and `ab`. `COLUMNS('c')` returns the `bc` column. The `+` operator can’t apply to 3 arguments, so ClickHouse throws an exception with the relevant message.
+In this example, `COLUMNS('a')` returns two columns: `aa` and `ab`. `COLUMNS('c')` returns the `bc` column. The `+` operator can't apply to 3 arguments, so ClickHouse throws an exception with the relevant message.
 
 Columns that matched the `COLUMNS` expression can have different data types. If `COLUMNS` does not match any columns and is the only expression in `SELECT`, ClickHouse throws an exception.
 
-### Asterisk {#asterisk}
+### Asterisk
 
 You can put an asterisk in any part of a query instead of an expression. When the query is analyzed, the asterisk is expanded to a list of all table columns (excluding the `MATERIALIZED` and `ALIAS` columns). There are only a few cases when using an asterisk is justified:
 
--   When creating a table dump.
--   For tables containing just a few columns, such as system tables.
--   For getting information about what columns are in a table. In this case, set `LIMIT 1`. But it is better to use the `DESC TABLE` query.
--   When there is strong filtration on a small number of columns using `PREWHERE`.
--   In subqueries (since columns that aren’t needed for the external query are excluded from subqueries).
+- When creating a table dump.
+- For tables containing just a few columns, such as system tables.
+- For getting information about what columns are in a table. In this case, set `LIMIT 1`. But it is better to use the `DESC TABLE` query.
+- When there is strong filtration on a small number of columns using `PREWHERE`.
+- In subqueries (since columns that aren't needed for the external query are excluded from subqueries).
 
 In all other cases, we do not recommend using the asterisk, since it only gives you the drawbacks of a columnar DBMS instead of the advantages. In other words using the asterisk is not recommended.
 
-### Extreme Values {#extreme-values}
+### Extreme Values
 
 In addition to results, you can also get minimum and maximum values for the results columns. To do this, set the **extremes** setting to 1. Minimums and maximums are calculated for numeric types, dates, and dates with times. For other columns, the default values are output.
 
-An extra two rows are calculated – the minimums and maximums, respectively. These extra two rows are output in `JSON*`, `TabSeparated*`, and `Pretty*` [formats](../../../interfaces/formats.md), separate from the other rows. They are not output for other formats.
+An extra two rows are calculated – the minimums and maximums, respectively. These extra two rows are output in `XML`, `JSON*`, `TabSeparated*`, `CSV*`, `Vertical`, `Template` and `Pretty*` [formats](../../../interfaces/formats.md), separate from the other rows. They are not output for other formats.
 
-In `JSON*` formats, the extreme values are output in a separate ‘extremes’ field. In `TabSeparated*` formats, the row comes after the main result, and after ‘totals’ if present. It is preceded by an empty row (after the other data). In `Pretty*` formats, the row is output as a separate table after the main result, and after `totals` if present.
+In `JSON*` and `XML` formats, the extreme values are output in a separate 'extremes' field. In `TabSeparated*`, `CSV*` and `Vertical` formats, the row comes after the main result, and after 'totals' if present. It is preceded by an empty row (after the other data). In `Pretty*` formats, the row is output as a separate table after the main result, and after `totals` if present. In `Template` format the extreme values are output according to specified template.
 
 Extreme values are calculated for rows before `LIMIT`, but after `LIMIT BY`. However, when using `LIMIT offset, size`, the rows before `offset` are included in `extremes`. In stream requests, the result may also include a small number of rows that passed through `LIMIT`.
 
-### Notes {#notes}
+### Notes
 
 You can use synonyms (`AS` aliases) in any part of a query.
 
 The `GROUP BY`, `ORDER BY`, and `LIMIT BY` clauses can support positional arguments. To enable this, switch on the [enable_positional_arguments](../../../operations/settings/settings.md#enable-positional-arguments) setting. Then, for example, `ORDER BY 1,2` will be sorting rows in the table on the first and then the second column.
 
-## Implementation Details {#implementation-details}
+## Implementation Details
 
 If the query omits the `DISTINCT`, `GROUP BY` and `ORDER BY` clauses and the `IN` and `JOIN` subqueries, the query will be completely stream processed, using O(1) amount of RAM. Otherwise, the query might consume a lot of RAM if the appropriate restrictions are not specified:
 
--   `max_memory_usage`
--   `max_rows_to_group_by`
--   `max_rows_to_sort`
--   `max_rows_in_distinct`
--   `max_bytes_in_distinct`
--   `max_rows_in_set`
--   `max_bytes_in_set`
--   `max_rows_in_join`
--   `max_bytes_in_join`
--   `max_bytes_before_external_sort`
--   `max_bytes_before_external_group_by`
+- `max_memory_usage`
+- `max_rows_to_group_by`
+- `max_rows_to_sort`
+- `max_rows_in_distinct`
+- `max_bytes_in_distinct`
+- `max_rows_in_set`
+- `max_bytes_in_set`
+- `max_rows_in_join`
+- `max_bytes_in_join`
+- `max_bytes_before_external_sort`
+- `max_bytes_ratio_before_external_sort`
+- `max_bytes_before_external_group_by`
+- `max_bytes_ratio_before_external_group_by`
 
-For more information, see the section “Settings”. It is possible to use external sorting (saving temporary tables to a disk) and external aggregation.
+For more information, see the section "Settings". It is possible to use external sorting (saving temporary tables to a disk) and external aggregation.
 
-## SELECT modifiers {#select-modifiers}
+## SELECT modifiers
 
 You can use the following modifiers in `SELECT` queries.
 
-### APPLY {#apply-modifier}
+### APPLY
 
 Allows you to invoke some function for each row returned by an outer table expression of a query.
 
@@ -188,13 +193,13 @@ INSERT INTO columns_transformers VALUES (100, 10, 324), (120, 8, 23);
 SELECT * APPLY(sum) FROM columns_transformers;
 ```
 
-```
+```text
 ┌─sum(i)─┬─sum(j)─┬─sum(k)─┐
 │    220 │     18 │    347 │
 └────────┴────────┴────────┘
 ```
 
-### EXCEPT {#except-modifier}
+### EXCEPT
 
 Specifies the names of one or more columns to exclude from the result. All matching column names are omitted from the output.
 
@@ -210,14 +215,14 @@ SELECT <expr> EXCEPT ( col_name1 [, col_name2, col_name3, ...] ) FROM [db.]table
 SELECT * EXCEPT (i) from columns_transformers;
 ```
 
-```
+```text
 ┌──j─┬───k─┐
 │ 10 │ 324 │
 │  8 │  23 │
 └────┴─────┘
 ```
 
-### REPLACE {#replace-modifier}
+### REPLACE
 
 Specifies one or more [expression aliases](../../../sql-reference/syntax.md#syntax-expression_aliases). Each alias must match a column name from the `SELECT *` statement. In the output column list, the column that matches the alias is replaced by the expression in that `REPLACE`.
 
@@ -235,14 +240,14 @@ SELECT <expr> REPLACE( <expr> AS col_name) from [db.]table_name
 SELECT * REPLACE(i + 1 AS i) from columns_transformers;
 ```
 
-```
+```text
 ┌───i─┬──j─┬───k─┐
 │ 101 │ 10 │ 324 │
 │ 121 │  8 │  23 │
 └─────┴────┴─────┘
 ```
 
-### Modifier Combinations {#modifier-combinations}
+### Modifier Combinations
 
 You can use each modifier separately or combine them.
 
@@ -254,7 +259,7 @@ Using the same modifier multiple times.
 SELECT COLUMNS('[jk]') APPLY(toString) APPLY(length) APPLY(max) from columns_transformers;
 ```
 
-```
+```text
 ┌─max(length(toString(j)))─┬─max(length(toString(k)))─┐
 │                        2 │                        3 │
 └──────────────────────────┴──────────────────────────┘
@@ -266,13 +271,13 @@ Using multiple modifiers in a single query.
 SELECT * REPLACE(i + 1 AS i) EXCEPT (j) APPLY(sum) from columns_transformers;
 ```
 
-```
+```text
 ┌─sum(plus(i, 1))─┬─sum(k)─┐
 │             222 │    347 │
 └─────────────────┴────────┘
 ```
 
-## SETTINGS in SELECT Query {#settings-in-select}
+## SETTINGS in SELECT Query
 
 You can specify the necessary settings right in the `SELECT` query. The setting value is applied only to this query and is reset to default or previous value after the query is executed.
 
@@ -283,5 +288,3 @@ Other ways to make settings see [here](../../../operations/settings/index.md).
 ``` sql
 SELECT * FROM some_table SETTINGS optimize_read_in_order=1, cast_keep_nullable=1;
 ```
-
-[Original article](https://clickhouse.com/docs/en/sql-reference/statements/select/)<!--hide-->

@@ -1,6 +1,7 @@
 #include <Parsers/Access/ASTShowAccessEntitiesQuery.h>
 #include <Common/quoteString.h>
 #include <IO/Operators.h>
+#include <fmt/format.h>
 
 
 namespace DB
@@ -20,23 +21,23 @@ String ASTShowAccessEntitiesQuery::getKeyword() const
 
 String ASTShowAccessEntitiesQuery::getID(char) const
 {
-    return "SHOW " + String(getKeyword()) + " query";
+    return fmt::format("SHOW {} query", getKeyword());
 }
 
-void ASTShowAccessEntitiesQuery::formatQueryImpl(const FormatSettings & settings, FormatState &, FormatStateStacked) const
+void ASTShowAccessEntitiesQuery::formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const
 {
-    settings.ostr << (settings.hilite ? hilite_keyword : "") << "SHOW " << getKeyword() << (settings.hilite ? hilite_none : "");
+    ostr << (settings.hilite ? hilite_keyword : "") << "SHOW " << getKeyword() << (settings.hilite ? hilite_none : "");
 
     if (!short_name.empty())
-        settings.ostr << " " << backQuoteIfNeed(short_name);
+        ostr << " " << backQuoteIfNeed(short_name);
 
     if (database_and_table_name)
     {
         const String & database = database_and_table_name->first;
         const String & table_name = database_and_table_name->second;
-        settings.ostr << (settings.hilite ? hilite_keyword : "") << " ON " << (settings.hilite ? hilite_none : "");
-        settings.ostr << (database.empty() ? "" : backQuoteIfNeed(database) + ".");
-        settings.ostr << (table_name.empty() ? "*" : backQuoteIfNeed(table_name));
+        ostr << (settings.hilite ? hilite_keyword : "") << " ON " << (settings.hilite ? hilite_none : "");
+        ostr << (database.empty() ? "" : backQuoteIfNeed(database) + ".");
+        ostr << (table_name.empty() ? "*" : backQuoteIfNeed(table_name));
     }
 }
 

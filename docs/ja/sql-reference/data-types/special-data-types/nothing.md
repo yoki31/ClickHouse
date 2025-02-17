@@ -1,17 +1,16 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 60
-toc_title: "\u4F55\u3082\u306A\u3044"
+slug: /ja/sql-reference/data-types/special-data-types/nothing
+sidebar_position: 60
+sidebar_label: Nothing
 ---
 
-# 何もない {#nothing}
+# Nothing
 
-このデータ型の唯一の目的は、値が期待されないケースを表すことです。 だから、作成することはできません `Nothing` タイプ値。
+このデータ型の唯一の目的は、値が期待されない場合を表すことです。そのため、`Nothing` 型の値を作成することはできません。
 
-たとえば、リテラル [NULL](../../../sql-reference/syntax.md#null-literal) タイプをの有する `Nullable(Nothing)`. 詳細はこちら [Null可能](../../../sql-reference/data-types/nullable.md).
+たとえば、リテラル [NULL](../../../sql-reference/syntax.md#null-literal) は `Nullable(Nothing)` 型を持っています。[Nullable](../../../sql-reference/data-types/nullable.md) について詳しくは参照してください。
 
-その `Nothing` 型は空の配列を表すためにも使用できます:
+`Nothing` 型は、空の配列を示すためにも使用されます:
 
 ``` sql
 SELECT toTypeName(array())
@@ -23,4 +22,3 @@ SELECT toTypeName(array())
 └─────────────────────┘
 ```
 
-[元の記事](https://clickhouse.com/docs/en/data_types/special_data_types/nothing/) <!--hide-->

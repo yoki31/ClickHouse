@@ -1,35 +1,178 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 48
-toc_title: "\u30D3\u30C3\u30C8"
+slug: /ja/sql-reference/functions/bit-functions
+sidebar_position: 20
+sidebar_label: Bit
 ---
 
-# ビット関数 {#bit-functions}
+# ビット関数
 
-ビット関数は、UInt8、UInt16、UInt32、UInt64、Int8、Int16、Int32、Int64、Float32、Float64のいずれかの型のペアに対しても機能します。
+ビット関数は、`UInt8`、`UInt16`、`UInt32`、`UInt64`、`Int8`、`Int16`、`Int32`、`Int64`、`Float32`、`Float64`の任意のペアの型に対して機能します。一部の関数は`String`および`FixedString`型もサポートしています。
 
-結果の型は、引数の最大ビットに等しいビットを持つ整数です。 引数のうち少なくともいずれかが署名されている場合、結果は符号付き番号になります。 引数が浮動小数点数の場合は、Int64にキャストされます。
+結果の型は、その引数の最大ビット数に等しい整数です。少なくとも一つの引数が符号付きである場合、結果は符号付き数になります。引数が浮動小数点数の場合、それはInt64にキャストされます。
 
-## ビタン(a,b) {#bitanda-b}
+## bitAnd(a, b)
 
-## ビター(a,b) {#bitora-b}
+## bitOr(a, b)
 
-## bitXor(a,b) {#bitxora-b}
+## bitXor(a, b)
 
-## bitNot(a) {#bitnota}
+## bitNot(a)
 
-## ビットシフトレフト(a,b) {#bitshiftlefta-b}
+## bitShiftLeft(a, b)
 
-## ビットシフトライト(a,b) {#bitshiftrighta-b}
+値のバイナリ表現を指定されたビット位置数だけ左にシフトします。
 
-## ビットロタテレフト(a,b) {#bitrotatelefta-b}
+`FixedString`または`String`は単一のマルチバイト値として扱われます。
 
-## ビットロータライト(a,b) {#bitrotaterighta-b}
+`FixedString`値のビットはシフトアウトされると失われます。一方、`String`値は追加のバイトで拡張されるため、ビットは失われません。
 
-## bitTest {#bittest}
+**構文**
 
-間の任意の整数に換算しています。 [バイナリ形式](https://en.wikipedia.org/wiki/Binary_number),指定された位置にあるビットの値を返します。 カウントダウンは右から左に0から始まります。
+``` sql
+bitShiftLeft(a, b)
+```
+
+**引数**
+
+- `a` — シフトする値です。[整数型](../data-types/int-uint.md)、[String](../data-types/string.md)、または[FixedString](../data-types/fixedstring.md)。
+- `b` — シフト位置の数です。[符号なし整数型](../data-types/int-uint.md)、64ビット型以下が許可されます。
+
+**返される値**
+
+- シフトされた値。
+
+返される値の型は、入力値の型と同じです。
+
+**例**
+
+以下のクエリでは、シフトされた値のビットを表示するために[bin](encoding-functions.md#bin)および[hex](encoding-functions.md#hex)関数が使用されます。
+
+``` sql
+SELECT 99 AS a, bin(a), bitShiftLeft(a, 2) AS a_shifted, bin(a_shifted);
+SELECT 'abc' AS a, hex(a), bitShiftLeft(a, 4) AS a_shifted, hex(a_shifted);
+SELECT toFixedString('abc', 3) AS a, hex(a), bitShiftLeft(a, 4) AS a_shifted, hex(a_shifted);
+```
+
+結果:
+
+``` text
+┌──a─┬─bin(99)──┬─a_shifted─┬─bin(bitShiftLeft(99, 2))─┐
+│ 99 │ 01100011 │       140 │ 10001100                 │
+└────┴──────────┴───────────┴──────────────────────────┘
+┌─a───┬─hex('abc')─┬─a_shifted─┬─hex(bitShiftLeft('abc', 4))─┐
+│ abc │ 616263     │ &0        │ 06162630                    │
+└─────┴────────────┴───────────┴─────────────────────────────┘
+┌─a───┬─hex(toFixedString('abc', 3))─┬─a_shifted─┬─hex(bitShiftLeft(toFixedString('abc', 3), 4))─┐
+│ abc │ 616263                       │ &0        │ 162630                                        │
+└─────┴──────────────────────────────┴───────────┴───────────────────────────────────────────────┘
+```
+
+## bitShiftRight(a, b)
+
+値のバイナリ表現を指定されたビット位置数だけ右にシフトします。
+
+`FixedString`または`String`は単一のマルチバイト値として扱われます。`String`値の長さはビットがシフトアウトされると減少しますので注意してください。
+
+**構文**
+
+``` sql
+bitShiftRight(a, b)
+```
+
+**引数**
+
+- `a` — シフトする値です。[整数型](../data-types/int-uint.md)、[String](../data-types/string.md)、または[FixedString](../data-types/fixedstring.md)。
+- `b` — シフト位置の数です。[符号なし整数型](../data-types/int-uint.md)、64ビット型以下が許可されます。
+
+**返される値**
+
+- シフトされた値。
+
+返される値の型は、入力値の型と同じです。
+
+**例**
+
+クエリ:
+
+``` sql
+SELECT 101 AS a, bin(a), bitShiftRight(a, 2) AS a_shifted, bin(a_shifted);
+SELECT 'abc' AS a, hex(a), bitShiftRight(a, 12) AS a_shifted, hex(a_shifted);
+SELECT toFixedString('abc', 3) AS a, hex(a), bitShiftRight(a, 12) AS a_shifted, hex(a_shifted);
+```
+
+結果:
+
+``` text
+┌───a─┬─bin(101)─┬─a_shifted─┬─bin(bitShiftRight(101, 2))─┐
+│ 101 │ 01100101 │        25 │ 00011001                   │
+└─────┴──────────┴───────────┴────────────────────────────┘
+┌─a───┬─hex('abc')─┬─a_shifted─┬─hex(bitShiftRight('abc', 12))─┐
+│ abc │ 616263     │           │ 0616                          │
+└─────┴────────────┴───────────┴───────────────────────────────┘
+┌─a───┬─hex(toFixedString('abc', 3))─┬─a_shifted─┬─hex(bitShiftRight(toFixedString('abc', 3), 12))─┐
+│ abc │ 616263                       │           │ 000616                                          │
+└─────┴──────────────────────────────┴───────────┴─────────────────────────────────────────────────┘
+```
+
+## bitRotateLeft(a, b)
+
+## bitRotateRight(a, b)
+
+## bitSlice(s, offset, length)
+
+‘offset’インデックスから始まる‘length’ビットのビットサブストリングを返します。ビットのインデックスは1から始まります。
+
+**構文**
+
+``` sql
+bitSlice(s, offset[, length])
+```
+
+**引数**
+
+- `s` — sは[String](../data-types/string.md)または[FixedString](../data-types/fixedstring.md)。
+- `offset` — ビットの開始インデックス。正の値は左からのオフセットを示し、負の値は右からのインデントを示します。ビットの番号付けは1から始まります。
+- `length` — ビットのサブストリングの長さ。負の値を指定すると、関数は開いたサブストリング\[offset, array_length - length\]を返します。値を省略すると、関数はサブストリング\[offset, the_end_string\]を返します。lengthがsを超えると切り捨てられます。lengthが8の倍数でない場合、右に0を埋めます。
+
+**返される値**
+
+- サブストリング。[String](../data-types/string.md)
+
+**例**
+
+クエリ:
+
+``` sql
+select bin('Hello'), bin(bitSlice('Hello', 1, 8))
+select bin('Hello'), bin(bitSlice('Hello', 1, 2))
+select bin('Hello'), bin(bitSlice('Hello', 1, 9))
+select bin('Hello'), bin(bitSlice('Hello', -4, 8))
+```
+
+結果:
+
+``` text
+┌─bin('Hello')─────────────────────────────┬─bin(bitSlice('Hello', 1, 8))─┐
+│ 0100100001100101011011000110110001101111 │ 01001000                     │
+└──────────────────────────────────────────┴──────────────────────────────┘
+┌─bin('Hello')─────────────────────────────┬─bin(bitSlice('Hello', 1, 2))─┐
+│ 0100100001100101011011000110110001101111 │ 01000000                     │
+└──────────────────────────────────────────┴──────────────────────────────┘
+┌─bin('Hello')─────────────────────────────┬─bin(bitSlice('Hello', 1, 9))─┐
+│ 0100100001100101011011000110110001101111 │ 0100100000000000             │
+└──────────────────────────────────────────┴──────────────────────────────┘
+┌─bin('Hello')─────────────────────────────┬─bin(bitSlice('Hello', -4, 8))─┐
+│ 0100100001100101011011000110110001101111 │ 11110000                      │
+└──────────────────────────────────────────┴───────────────────────────────┘
+```
+
+## byteSlice(s, offset, length)
+
+関数[substring](string-functions.md#substring)を参照してください。
+
+## bitTest
+
+任意の整数を[2進法](https://en.wikipedia.org/wiki/Binary_number)に変換し、指定された位置にあるビットの値を返します。カウントは右から左へ0から始まります。
 
 **構文**
 
@@ -37,25 +180,23 @@ toc_title: "\u30D3\u30C3\u30C8"
 SELECT bitTest(number, index)
 ```
 
-**パラメータ**
+**引数**
 
--   `number` – integer number.
--   `index` – position of bit.
+- `number` – 整数。
+- `index` – ビットの位置。
 
-**戻り値**
+**返される値**
 
-指定された位置にあるbitの値を返します。
-
-タイプ: `UInt8`.
+- 指定された位置にあるビットの値。[UInt8](../data-types/int-uint.md)。
 
 **例**
 
-たとえば、基数43-2(二進数)の数値システムでは101011です。
+例えば、10進数で43の数は2進数で101011です。
 
 クエリ:
 
 ``` sql
-SELECT bitTest(43, 1)
+SELECT bitTest(43, 1);
 ```
 
 結果:
@@ -71,7 +212,7 @@ SELECT bitTest(43, 1)
 クエリ:
 
 ``` sql
-SELECT bitTest(43, 2)
+SELECT bitTest(43, 2);
 ```
 
 結果:
@@ -82,11 +223,11 @@ SELECT bitTest(43, 2)
 └────────────────┘
 ```
 
-## ビッテスタール {#bittestall}
+## bitTestAll
 
-の結果を返します [論理結合](https://en.wikipedia.org/wiki/Logical_conjunction) 指定された位置にあるすべてのビットの(and演算子)。 カウントダウンは右から左に0から始まります。
+指定された位置のすべてのビットの[論理積](https://en.wikipedia.org/wiki/Logical_conjunction)（AND演算子）の結果を返します。カウントは右から左へ、0から始まります。
 
-ビットごとの演算のための結合:
+ビット単位の演算での積:
 
 0 AND 0 = 0
 
@@ -102,25 +243,23 @@ SELECT bitTest(43, 2)
 SELECT bitTestAll(number, index1, index2, index3, index4, ...)
 ```
 
-**パラメータ**
+**引数**
 
--   `number` – integer number.
--   `index1`, `index2`, `index3`, `index4` – positions of bit. For example, for set of positions (`index1`, `index2`, `index3`, `index4`)は、すべての位置が真である場合にのみtrueです (`index1` ⋀ `index2`, ⋀ `index3` ⋀ `index4`).
+- `number` – 整数。
+- `index1`, `index2`, `index3`, `index4` – ビットの位置。例えば、位置のセット (`index1`, `index2`, `index3`, `index4`) がすべて真である場合（`index1` ⋀ `index2` ⋀ `index3` ⋀ `index4`）にのみ真です。
 
-**戻り値**
+**返される値**
 
-論理結合の結果を返します。
-
-タイプ: `UInt8`.
+- 論理積の結果。[UInt8](../data-types/int-uint.md)。
 
 **例**
 
-たとえば、基数43-2(二進数)の数値システムでは101011です。
+例えば、10進数で43の数は2進数で101011です。
 
 クエリ:
 
 ``` sql
-SELECT bitTestAll(43, 0, 1, 3, 5)
+SELECT bitTestAll(43, 0, 1, 3, 5);
 ```
 
 結果:
@@ -136,7 +275,7 @@ SELECT bitTestAll(43, 0, 1, 3, 5)
 クエリ:
 
 ``` sql
-SELECT bitTestAll(43, 0, 1, 3, 5, 2)
+SELECT bitTestAll(43, 0, 1, 3, 5, 2);
 ```
 
 結果:
@@ -147,11 +286,11 @@ SELECT bitTestAll(43, 0, 1, 3, 5, 2)
 └───────────────────────────────┘
 ```
 
-## ビッテスタニ {#bittestany}
+## bitTestAny
 
-の結果を返します [論理和](https://en.wikipedia.org/wiki/Logical_disjunction) 指定された位置にあるすべてのビットの（または演算子）。 カウントダウンは右から左に0から始まります。
+指定された位置のすべてのビットの[論理和](https://en.wikipedia.org/wiki/Logical_disjunction)（OR演算子）の結果を返します。カウントは右から左へ、0から始まります。
 
-ビットごとの演算の分離:
+ビット単位の演算での和:
 
 0 OR 0 = 0
 
@@ -167,25 +306,23 @@ SELECT bitTestAll(43, 0, 1, 3, 5, 2)
 SELECT bitTestAny(number, index1, index2, index3, index4, ...)
 ```
 
-**パラメータ**
+**引数**
 
--   `number` – integer number.
--   `index1`, `index2`, `index3`, `index4` – positions of bit.
+- `number` – 整数。
+- `index1`, `index2`, `index3`, `index4` – ビットの位置。
 
-**戻り値**
+**返される値**
 
-論理解釈の結果を返します。
-
-タイプ: `UInt8`.
+- 論理和の結果。[UInt8](../data-types/int-uint.md)。
 
 **例**
 
-たとえば、基数43-2(二進数)の数値システムでは101011です。
+例えば、10進数で43の数は2進数で101011です。
 
 クエリ:
 
 ``` sql
-SELECT bitTestAny(43, 0, 2)
+SELECT bitTestAny(43, 0, 2);
 ```
 
 結果:
@@ -201,7 +338,7 @@ SELECT bitTestAny(43, 0, 2)
 クエリ:
 
 ``` sql
-SELECT bitTestAny(43, 4, 2)
+SELECT bitTestAny(43, 4, 2);
 ```
 
 結果:
@@ -212,9 +349,9 @@ SELECT bitTestAny(43, 4, 2)
 └──────────────────────┘
 ```
 
-## ビット数 {#bitcount}
+## bitCount
 
-数値のバイナリ表現で一つに設定されたビット数を計算します。
+数の2進表現で1に設定されたビットの数を計算します。
 
 **構文**
 
@@ -222,26 +359,26 @@ SELECT bitTestAny(43, 4, 2)
 bitCount(x)
 ```
 
-**パラメータ**
+**引数**
 
--   `x` — [整数](../../sql-reference/data-types/int-uint.md) または [浮動小数点数](../../sql-reference/data-types/float.md) 番号 この関数は、メモリ内の値表現を使用します。 浮動小数点数をサポートできます。
+- `x` — [整数](../data-types/int-uint.md)または[浮動小数点](../data-types/float.md)数。関数はメモリ内での値表現を使用します。これにより、浮動小数点数のサポートが可能になります。
 
-**戻り値**
+**返される値**
 
--   入力番号の一つに設定されたビット数。
+- 入力数で1に設定されたビットの数。[UInt8](../data-types/int-uint.md)。
 
-この関数は、入力値をより大きな型に変換しません ([符号拡張](https://en.wikipedia.org/wiki/Sign_extension)). 例えば, `bitCount(toUInt8(-1)) = 8`.
-
-タイプ: `UInt8`.
+:::note
+この関数は、入力値をより大きな型に変換しません（[符号拡張](https://en.wikipedia.org/wiki/Sign_extension)）。例えば、`bitCount(toUInt8(-1)) = 8`です。
+:::
 
 **例**
 
-たとえば、数333を取る。 そのバイナリ表現：00000000101001101。
+例えば、数値333を取り上げます。その2進表現: 0000000101001101。
 
 クエリ:
 
 ``` sql
-SELECT bitCount(333)
+SELECT bitCount(333);
 ```
 
 結果:
@@ -252,4 +389,51 @@ SELECT bitCount(333)
 └───────────────┘
 ```
 
-[元の記事](https://clickhouse.com/docs/en/query_language/functions/bit_functions/) <!--hide-->
+## bitHammingDistance
+
+2つの整数値のビット表現間の[ハミング距離](https://en.wikipedia.org/wiki/Hamming_distance)を返します。[SimHash](../../sql-reference/functions/hash-functions.md#ngramsimhash)関数と組み合わせて、半重複文字列の検出に使用できます。距離が小さいほど、それらの文字列が同じである可能性が高くなります。
+
+**構文**
+
+``` sql
+bitHammingDistance(int1, int2)
+```
+
+**引数**
+
+- `int1` — 初の整数値。[Int64](../data-types/int-uint.md)。
+- `int2` — 次の整数値。[Int64](../data-types/int-uint.md)。
+
+**返される値**
+
+- ハミング距離。[UInt8](../data-types/int-uint.md)。
+
+**例**
+
+クエリ:
+
+``` sql
+SELECT bitHammingDistance(111, 121);
+```
+
+結果:
+
+``` text
+┌─bitHammingDistance(111, 121)─┐
+│                            3 │
+└──────────────────────────────┘
+```
+
+[SimHash](../../sql-reference/functions/hash-functions.md#ngramsimhash)と一緒に:
+
+``` sql
+SELECT bitHammingDistance(ngramSimHash('cat ate rat'), ngramSimHash('rat ate cat'));
+```
+
+結果:
+
+``` text
+┌─bitHammingDistance(ngramSimHash('cat ate rat'), ngramSimHash('rat ate cat'))─┐
+│                                                                            5 │
+└──────────────────────────────────────────────────────────────────────────────┘
+```

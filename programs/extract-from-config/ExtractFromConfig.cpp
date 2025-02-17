@@ -1,6 +1,12 @@
+#include <filesystem>
 #include <iostream>
+#include <string>
+#include <vector>
+#include <memory>
+#include <queue>
 
 #include <boost/program_options.hpp>
+#include <boost/algorithm/string.hpp>
 #include <Poco/Logger.h>
 #include <Poco/ConsoleChannel.h>
 #include <Poco/FormattingChannel.h>
@@ -11,7 +17,18 @@
 #include <Common/ZooKeeper/ZooKeeperNodeCache.h>
 #include <Common/Config/ConfigProcessor.h>
 #include <Common/Exception.h>
+#include <Common/parseGlobs.h>
+#include <Common/re2.h>
 
+namespace DB
+{
+    namespace ErrorCodes
+    {
+        extern const int CANNOT_LOAD_CONFIG;
+    }
+}
+
+namespace fs = std::filesystem;
 
 static void setupLogging(const std::string & log_level)
 {
@@ -23,8 +40,57 @@ static void setupLogging(const std::string & log_level)
     Poco::Logger::root().setLevel(log_level);
 }
 
-static std::string extractFromConfig(
-        const std::string & config_path, const std::string & key, bool process_zk_includes, bool try_get = false)
+
+static std::vector<std::string> extactFromConfigAccordingToGlobs(DB::ConfigurationPtr configuration, const std::string & pattern, bool try_get)
+{
+    auto pattern_prefix = pattern.substr(0, pattern.find_first_of("*?{"));
+    boost::algorithm::trim_if(pattern_prefix, [](char s){ return s == '.'; });
+
+    auto matcher = std::make_unique<re2::RE2>(DB::makeRegexpPatternFromGlobs(pattern));
+
+    std::vector<std::string> result;
+    std::queue<std::string> working_queue;
+    working_queue.emplace(pattern_prefix);
+
+    while (!working_queue.empty())
+    {
+        auto node = working_queue.front();
+        working_queue.pop();
+
+        /// Disclose one more layer
+        Poco::Util::AbstractConfiguration::Keys keys;
+        configuration->keys(node, keys);
+
+        /// This is a leave
+        if (keys.empty())
+        {
+            if (!re2::RE2::FullMatch(node, *matcher))
+                continue;
+
+
+            if (try_get)
+            {
+                auto value = configuration->getString(node, "");
+                if (!value.empty())
+                    result.emplace_back(value);
+            }
+            else
+            {
+                result.emplace_back(configuration->getString(node));
+            }
+            continue;
+        }
+
+        /// Add new nodes to working queue
+        for (const auto & key : keys)
+            working_queue.emplace(fmt::format("{}.{}", node, key));
+    }
+
+    return result;
+}
+
+
+static DB::ConfigurationPtr get_configuration(const std::string & config_path, bool process_zk_includes)
 {
     DB::ConfigProcessor processor(config_path, /* throw_on_bad_incl = */ false, /* log_to_console = */ false);
     bool has_zk_includes;
@@ -32,26 +98,56 @@ static std::string extractFromConfig(
     if (has_zk_includes && process_zk_includes)
     {
         DB::ConfigurationPtr bootstrap_configuration(new Poco::Util::XMLConfiguration(config_xml));
-        zkutil::ZooKeeperPtr zookeeper = std::make_shared<zkutil::ZooKeeper>(
-                *bootstrap_configuration, "zookeeper", nullptr);
+
+        zkutil::validateZooKeeperConfig(*bootstrap_configuration);
+
+        zkutil::ZooKeeperPtr zookeeper = zkutil::ZooKeeper::createWithoutKillingPreviousSessions(
+            *bootstrap_configuration, bootstrap_configuration->has("zookeeper") ? "zookeeper" : "keeper");
+
         zkutil::ZooKeeperNodeCache zk_node_cache([&] { return zookeeper; });
         config_xml = processor.processConfig(&has_zk_includes, &zk_node_cache);
     }
-    DB::ConfigurationPtr configuration(new Poco::Util::XMLConfiguration(config_xml));
-    // do not throw exception if not found
-    if (try_get)
-        return configuration->getString(key, "");
-    return configuration->getString(key);
+    return DB::ConfigurationPtr(new Poco::Util::XMLConfiguration(config_xml));
 }
 
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wmissing-declarations"
+
+static std::vector<std::string> extractFromConfig(
+        const std::string & config_path, const std::string & key, bool process_zk_includes, bool try_get = false, bool get_users = false)
+{
+    DB::ConfigurationPtr configuration = get_configuration(config_path, process_zk_includes);
+
+    if (get_users)
+    {
+        bool has_user_directories = configuration->has("user_directories");
+        if (!has_user_directories && !try_get)
+            throw DB::Exception(DB::ErrorCodes::CANNOT_LOAD_CONFIG, "Can't load config for users");
+
+        std::string users_config_path = configuration->getString("user_directories.users_xml.path");
+        const auto config_dir = fs::path{config_path}.remove_filename().string();
+        if (fs::path(users_config_path).is_relative() && fs::exists(fs::path(config_dir) / users_config_path))
+            users_config_path = fs::path(config_dir) / users_config_path;
+        configuration = get_configuration(users_config_path, process_zk_includes);
+    }
+
+    /// Check if a key has globs.
+    if (key.find_first_of("*?{") != std::string::npos)
+        return extactFromConfigAccordingToGlobs(configuration, key, try_get);
+
+    /// Do not throw exception if not found.
+    if (try_get)
+        return {configuration->getString(key, "")};
+    return {configuration->getString(key)};
+}
+
+#pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wmissing-declarations"
 
 int mainEntryClickHouseExtractFromConfig(int argc, char ** argv)
 {
     bool print_stacktrace = false;
     bool process_zk_includes = false;
     bool try_get = false;
+    bool get_users = false;
     std::string log_level;
     std::string config_path;
     std::string key;
@@ -65,6 +161,7 @@ int mainEntryClickHouseExtractFromConfig(int argc, char ** argv)
         ("process-zk-includes", po::bool_switch(&process_zk_includes),
          "if there are from_zk elements in config, connect to ZooKeeper and process them")
         ("try", po::bool_switch(&try_get), "Do not warn about missing keys")
+        ("users", po::bool_switch(&get_users), "Return values from users.xml config")
         ("log-level", po::value<std::string>(&log_level)->default_value("error"), "log level")
         ("config-file,c", po::value<std::string>(&config_path)->required(), "path to config file")
         ("key,k", po::value<std::string>(&key)->required(), "key to get value for");
@@ -91,7 +188,8 @@ int mainEntryClickHouseExtractFromConfig(int argc, char ** argv)
         po::notify(options);
 
         setupLogging(log_level);
-        std::cout << extractFromConfig(config_path, key, process_zk_includes, try_get) << std::endl;
+        for (const auto & value : extractFromConfig(config_path, key, process_zk_includes, try_get, get_users))
+            std::cout << value << std::endl;
     }
     catch (...)
     {

@@ -1,15 +1,16 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_folder_title: "\u30E6\u30FC\u30C6\u30A3\u30EA"
-toc_priority: 56
-toc_title: "\u6982\u8981"
+slug: /ja/operations/utilities/
+sidebar_position: 56
+sidebar_label: ツールとユーティリティの一覧
 ---
 
-# ClickHouseユーティリティ {#clickhouse-utility}
+# ツールとユーティリティの一覧
 
--   [ﾂつｨﾂ姪"ﾂ債ﾂつｹ](clickhouse-local.md) — Allows running SQL queries on data without stopping the ClickHouse server, similar to how `awk` これを行います。
--   [クリックハウス-複写機](clickhouse-copier.md) — Copies (and reshards) data from one cluster to another cluster.
--   [clickhouse-ベンチマーク](clickhouse-benchmark.md) — Loads server with the custom queries and settings.
-
-[元の記事](https://clickhouse.com/docs/en/operations/utils/) <!--hide-->
+- [clickhouse-local](../../operations/utilities/clickhouse-local.md) — ClickHouseサーバーを起動せずにデータに対してSQLクエリを実行できるツールで、`awk`のような動作をします。
+- [clickhouse-benchmark](../../operations/utilities/clickhouse-benchmark.md) — サーバーにカスタムクエリや設定を読み込ませます。
+- [clickhouse-format](../../operations/utilities/clickhouse-format.md) — 入力クエリのフォーマットを整えることができます。
+- [ClickHouse obfuscator](../../operations/utilities/clickhouse-obfuscator.md) — データを難読化します。
+- [ClickHouse compressor](../../operations/utilities/clickhouse-compressor.md) — データを圧縮・解凍します。
+- [clickhouse-disks](../../operations/utilities/clickhouse-disks.md) — 異なるClickHouseディスク間でファイルに対するファイルシステムのような操作を提供します。
+- [clickhouse-odbc-bridge](../../operations/utilities/odbc-bridge.md) — ODBCドライバーのためのプロキシサーバーです。
+- [clickhouse_backupview](../../operations/utilities/backupview.md) — ClickHouseのバックアップを分析するためのPythonモジュールです。

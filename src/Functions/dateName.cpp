@@ -4,6 +4,7 @@
 #include <IO/WriteHelpers.h>
 
 #include <DataTypes/DataTypeDate.h>
+#include <DataTypes/DataTypeDate32.h>
 #include <DataTypes/DataTypeDateTime.h>
 #include <DataTypes/DataTypeDateTime64.h>
 #include <DataTypes/DataTypeString.h>
@@ -32,6 +33,11 @@ template <typename DataType> struct DataTypeToTimeTypeMap {};
 template <> struct DataTypeToTimeTypeMap<DataTypeDate>
 {
     using TimeType = UInt16;
+};
+
+template <> struct DataTypeToTimeTypeMap<DataTypeDate32>
+{
+    using TimeType = Int32;
 };
 
 template <> struct DataTypeToTimeTypeMap<DataTypeDateTime>
@@ -72,7 +78,7 @@ public:
                 ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
                 "Number of arguments for function {} doesn't match: passed {}",
                 getName(),
-                toString(arguments.size()));
+                arguments.size());
 
         if (!WhichDataType(arguments[0].type).isString())
             throw Exception(
@@ -83,7 +89,7 @@ public:
 
         WhichDataType first_argument_type(arguments[1].type);
 
-        if (!(first_argument_type.isDate() || first_argument_type.isDateTime() || first_argument_type.isDateTime64()))
+        if (!(first_argument_type.isDate() || first_argument_type.isDateTime() || first_argument_type.isDate32() || first_argument_type.isDateTime64()))
             throw Exception(
                 ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
                 "Illegal type {} of 2 argument of function {}. Must be a date or a date with time",
@@ -100,19 +106,25 @@ public:
         return std::make_shared<DataTypeString>();
     }
 
+    DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override
+    {
+        return std::make_shared<DataTypeString>();
+    }
+
     ColumnPtr executeImpl(
         const ColumnsWithTypeAndName & arguments,
         const DataTypePtr & result_type,
-        [[maybe_unused]] size_t input_rows_count) const override
+        size_t input_rows_count) const override
     {
         ColumnPtr res;
 
-        if (!((res = executeType<DataTypeDate>(arguments, result_type))
-            || (res = executeType<DataTypeDateTime>(arguments, result_type))
-            || (res = executeType<DataTypeDateTime64>(arguments, result_type))))
+        if (!((res = executeType<DataTypeDate>(arguments, result_type, input_rows_count))
+            || (res = executeType<DataTypeDate32>(arguments, result_type, input_rows_count))
+            || (res = executeType<DataTypeDateTime>(arguments, result_type, input_rows_count))
+            || (res = executeType<DataTypeDateTime64>(arguments, result_type, input_rows_count))))
             throw Exception(
                 ErrorCodes::ILLEGAL_COLUMN,
-                "Illegal column {} of function {], must be Date or DateTime.",
+                "Illegal column {} of function {}, must be Date or DateTime.",
                 arguments[1].column->getName(),
                 getName());
 
@@ -120,7 +132,7 @@ public:
     }
 
     template <typename DataType>
-    ColumnPtr executeType(const ColumnsWithTypeAndName & arguments, const DataTypePtr &) const
+    ColumnPtr executeType(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const
     {
         auto * times = checkAndGetColumn<typename DataType::ColumnType>(arguments[1].column.get());
         if (!times)
@@ -137,7 +149,7 @@ public:
         String date_part = date_part_column->getValue<String>();
 
         const DateLUTImpl * time_zone_tmp;
-        if (std::is_same_v<DataType, DataTypeDateTime64> || std::is_same_v<DataType, DataTypeDateTime>)
+        if constexpr (std::is_same_v<DataType, DataTypeDateTime64> || std::is_same_v<DataType, DataTypeDateTime>)
             time_zone_tmp = &extractTimeZoneFromFunctionArguments(arguments, 2, 1);
         else
             time_zone_tmp = &DateLUT::instance();
@@ -163,12 +175,12 @@ public:
 
         auto * begin = reinterpret_cast<char *>(result_column_data.data());
 
-        WriteBuffer buffer(begin, result_column_data.size());
+        WriteBufferFromPointer buffer(begin, result_column_data.size());
 
         using TimeType = DateTypeToTimeType<DataType>;
         callOnDatePartWriter<TimeType>(date_part, [&](const auto & writer)
         {
-            for (size_t i = 0; i < times_data.size(); ++i)
+            for (size_t i = 0; i < input_rows_count; ++i)
             {
                 if constexpr (std::is_same_v<DataType, DataTypeDateTime64>)
                 {
@@ -188,6 +200,8 @@ public:
 
         result_column_data.resize(buffer.position() - begin);
 
+        buffer.finalize();
+
         return result_column;
     }
 
@@ -205,7 +219,7 @@ private:
     template <typename Time>
     struct QuarterWriter
     {
-        static inline void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
+        static void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
         {
             writeText(ToQuarterImpl::execute(source, timezone), buffer);
         }
@@ -214,7 +228,7 @@ private:
     template <typename Time>
     struct MonthWriter
     {
-        static inline void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
+        static void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
         {
             const auto month = ToMonthImpl::execute(source, timezone);
             static constexpr std::string_view month_names[] =
@@ -240,7 +254,7 @@ private:
     template <typename Time>
     struct WeekWriter
     {
-        static inline void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
+        static void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
         {
             writeText(ToISOWeekImpl::execute(source, timezone), buffer);
         }
@@ -249,7 +263,7 @@ private:
     template <typename Time>
     struct DayOfYearWriter
     {
-        static inline void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
+        static void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
         {
             writeText(ToDayOfYearImpl::execute(source, timezone), buffer);
         }
@@ -258,7 +272,7 @@ private:
     template <typename Time>
     struct DayWriter
     {
-        static inline void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
+        static void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
         {
             writeText(ToDayOfMonthImpl::execute(source, timezone), buffer);
         }
@@ -267,9 +281,9 @@ private:
     template <typename Time>
     struct WeekDayWriter
     {
-        static inline void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
+        static void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
         {
-            const auto day = ToDayOfWeekImpl::execute(source, timezone);
+            const auto day = ToDayOfWeekImpl::execute(source, 0, timezone);
             static constexpr std::string_view day_names[] =
             {
                 "Monday",
@@ -288,7 +302,7 @@ private:
     template <typename Time>
     struct HourWriter
     {
-        static inline void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
+        static void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
         {
             writeText(ToHourImpl::execute(source, timezone), buffer);
         }
@@ -297,7 +311,7 @@ private:
     template <typename Time>
     struct MinuteWriter
     {
-        static inline void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
+        static void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
         {
             writeText(ToMinuteImpl::execute(source, timezone), buffer);
         }
@@ -306,7 +320,7 @@ private:
     template <typename Time>
     struct SecondWriter
     {
-        static inline void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
+        static void write(WriteBuffer & buffer, Time source, const DateLUTImpl & timezone)
         {
             writeText(ToSecondImpl::execute(source, timezone), buffer);
         }
@@ -343,9 +357,9 @@ private:
 
 }
 
-void registerFunctionDateName(FunctionFactory & factory)
+REGISTER_FUNCTION(DateName)
 {
-    factory.registerFunction<FunctionDateNameImpl>(FunctionFactory::CaseInsensitive);
+    factory.registerFunction<FunctionDateNameImpl>({}, FunctionFactory::Case::Insensitive);
 }
 
 }

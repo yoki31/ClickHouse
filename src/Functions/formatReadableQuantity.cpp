@@ -1,5 +1,6 @@
 #include <Functions/FunctionFactory.h>
 #include <Functions/formatReadable.h>
+#include <Common/formatReadable.h>
 
 
 namespace DB
@@ -18,7 +19,7 @@ namespace
     };
 }
 
-void registerFunctionFormatReadableQuantity(FunctionFactory & factory)
+REGISTER_FUNCTION(FormatReadableQuantity)
 {
     factory.registerFunction<FunctionFormatReadable<Impl>>();
 }

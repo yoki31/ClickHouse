@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-import shutil
+import logging
 import os
+import shutil
+import signal
 import subprocess
 import tempfile
-import logging
-import signal
 
 
 class SSHAgent:
@@ -21,21 +21,25 @@ class SSHAgent:
 
     def start(self):
         if shutil.which("ssh-agent") is None:
-            raise Exception("ssh-agent binary is not available")
+            raise RuntimeError("ssh-agent binary is not available")
 
         self._env_backup["SSH_AUTH_SOCK"] = os.environ.get("SSH_AUTH_SOCK")
         self._env_backup["SSH_OPTIONS"] = os.environ.get("SSH_OPTIONS")
 
         # set ENV from stdout of ssh-agent
-        for line in self._run(['ssh-agent']).splitlines():
+        for line in self._run(["ssh-agent"]).splitlines():
             name, _, value = line.partition(b"=")
             if _ == b"=":
                 value = value.split(b";", 1)[0]
                 self._env[name.decode()] = value.decode()
                 os.environ[name.decode()] = value.decode()
 
-        ssh_options = "," + os.environ["SSH_OPTIONS"] if os.environ.get("SSH_OPTIONS") else ""
-        os.environ["SSH_OPTIONS"] = f"{ssh_options}UserKnownHostsFile=/dev/null,StrictHostKeyChecking=no"
+        ssh_options = (
+            "," + os.environ["SSH_OPTIONS"] if os.environ.get("SSH_OPTIONS") else ""
+        )
+        os.environ["SSH_OPTIONS"] = (
+            f"{ssh_options}UserKnownHostsFile=/dev/null,StrictHostKeyChecking=no"
+        )
 
     def add(self, key):
         key_pub = self._key_pub(key)
@@ -50,7 +54,7 @@ class SSHAgent:
 
     def remove(self, key_pub):
         if key_pub not in self._keys:
-            raise Exception(f"Private key not found, public part: {key_pub}")
+            raise ValueError(f"Private key not found, public part: {key_pub}")
 
         if self._keys[key_pub] > 1:
             self._keys[key_pub] -= 1
@@ -89,7 +93,13 @@ class SSHAgent:
     @staticmethod
     def _run(cmd, stdin=None):
         shell = isinstance(cmd, str)
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE if stdin else None, shell=shell) as p:
+        with subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE if stdin else None,
+            shell=shell,
+        ) as p:
             stdout, stderr = p.communicate(stdin)
 
             if stdout.strip().decode() == "The agent has no identities.":
@@ -97,16 +107,17 @@ class SSHAgent:
 
             if p.returncode:
                 message = stderr.strip() + b"\n" + stdout.strip()
-                raise Exception(message.strip().decode())
+                raise RuntimeError(message.strip().decode())
 
             return stdout
+
 
 class SSHKey:
     def __init__(self, key_name=None, key_value=None):
         if key_name is None and key_value is None:
-            raise Exception("Either key_name or key_value must be specified")
+            raise ValueError("Either key_name or key_value must be specified")
         if key_name is not None and key_value is not None:
-            raise Exception("key_name or key_value must be specified")
+            raise ValueError("key_name or key_value must be specified")
         if key_name is not None:
             self.key = os.getenv(key_name)
         else:

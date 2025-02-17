@@ -1,6 +1,7 @@
-#include <Functions/FunctionFactory.h>
-#include <Functions/FunctionsRandom.h>
 #include <DataTypes/DataTypeUUID.h>
+#include <Functions/FunctionFactory.h>
+#include <Functions/FunctionHelpers.h>
+#include <Functions/FunctionsRandom.h>
 
 namespace DB
 {
@@ -16,21 +17,25 @@ class FunctionGenerateUUIDv4 : public IFunction
 public:
     static constexpr auto name = "generateUUIDv4";
 
-    String getName() const override
-    {
-        return name;
-    }
+    String getName() const override { return name; }
 
     size_t getNumberOfArguments() const override { return 0; }
-
+    bool isDeterministic() const override { return false; }
+    bool isDeterministicInScopeOfQuery() const override { return false; }
+    bool useDefaultImplementationForNulls() const override { return false; }
     bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
+    bool isVariadic() const override { return true; }
 
-    DataTypePtr getReturnTypeImpl(const DataTypes &) const override
+    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override
     {
+        FunctionArgumentDescriptors mandatory_args;
+        FunctionArgumentDescriptors optional_args{
+            {"expr", nullptr, nullptr, "any type"}
+        };
+        validateFunctionArguments(*this, arguments, mandatory_args, optional_args);
+
         return std::make_shared<DataTypeUUID>();
     }
-
-    bool isDeterministic() const override { return false; }
 
     ColumnPtr executeImpl(const ColumnsWithTypeAndName &, const DataTypePtr &, size_t input_rows_count) const override
     {
@@ -47,9 +52,8 @@ public:
         {
             /// https://tools.ietf.org/html/rfc4122#section-4.4
 
-            UInt128 & impl = uuid.toUnderType();
-            impl.items[0] = (impl.items[0] & 0xffffffffffff0fffull) | 0x0000000000004000ull;
-            impl.items[1] = (impl.items[1] & 0x3fffffffffffffffull) | 0x8000000000000000ull;
+            UUIDHelpers::getHighBytes(uuid) = (UUIDHelpers::getHighBytes(uuid) & 0xffffffffffff0fffull) | 0x0000000000004000ull;
+            UUIDHelpers::getLowBytes(uuid) = (UUIDHelpers::getLowBytes(uuid) & 0x3fffffffffffffffull) | 0x8000000000000000ull;
         }
 
         return col_res;
@@ -67,10 +71,10 @@ public:
         selector.registerImplementation<TargetArch::Default,
             TargetSpecific::Default::FunctionGenerateUUIDv4>();
 
-    #if USE_MULTITARGET_CODE
+#if USE_MULTITARGET_CODE
         selector.registerImplementation<TargetArch::AVX2,
             TargetSpecific::AVX2::FunctionGenerateUUIDv4>();
-    #endif
+#endif
     }
 
     ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
@@ -87,7 +91,7 @@ private:
     ImplementationSelector<IFunction> selector;
 };
 
-void registerFunctionGenerateUUIDv4(FunctionFactory & factory)
+REGISTER_FUNCTION(GenerateUUIDv4)
 {
     factory.registerFunction<FunctionGenerateUUIDv4>();
 }

@@ -1,5 +1,6 @@
+#include <Processors/Merges/Algorithms/MergeTreeReadInfo.h>
 #include <Processors/Merges/IMergingTransform.h>
-#include <Processors/Transforms/SelectorInfo.h>
+#include <Processors/Port.h>
 
 namespace DB
 {
@@ -15,22 +16,50 @@ IMergingTransformBase::IMergingTransformBase(
     const Block & input_header,
     const Block & output_header,
     bool have_all_inputs_,
-    UInt64 limit_hint_)
+    UInt64 limit_hint_,
+    bool always_read_till_end_)
     : IProcessor(InputPorts(num_inputs, input_header), {output_header})
     , have_all_inputs(have_all_inputs_)
     , limit_hint(limit_hint_)
+    , always_read_till_end(always_read_till_end_)
+{
+}
+
+OutputPort & IMergingTransformBase::getOutputPort()
+{
+    return outputs.front();
+}
+
+static InputPorts createPorts(const Blocks & blocks)
+{
+    InputPorts ports;
+    for (const auto & block : blocks)
+        ports.emplace_back(block);
+    return ports;
+}
+
+IMergingTransformBase::IMergingTransformBase(
+    const Blocks & input_headers,
+    const Block & output_header,
+    bool have_all_inputs_,
+    UInt64 limit_hint_,
+    bool always_read_till_end_)
+    : IProcessor(createPorts(input_headers), {output_header})
+    , have_all_inputs(have_all_inputs_)
+    , limit_hint(limit_hint_)
+    , always_read_till_end(always_read_till_end_)
 {
 }
 
 void IMergingTransformBase::onNewInput()
 {
-    throw Exception("onNewInput is not implemented for " + getName(), ErrorCodes::NOT_IMPLEMENTED);
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "onNewInput is not implemented for {}", getName());
 }
 
 void IMergingTransformBase::addInput()
 {
     if (have_all_inputs)
-        throw Exception("IMergingTransform already have all inputs.", ErrorCodes::LOGICAL_ERROR);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "IMergingTransform already have all inputs.");
 
     inputs.emplace_back(outputs.front().getHeader(), this);
     onNewInput();
@@ -39,7 +68,7 @@ void IMergingTransformBase::addInput()
 void IMergingTransformBase::setHaveAllInputs()
 {
     if (have_all_inputs)
-        throw Exception("IMergingTransform already have all inputs.", ErrorCodes::LOGICAL_ERROR);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "IMergingTransform already have all inputs.");
 
     have_all_inputs = true;
 }
@@ -79,11 +108,16 @@ IProcessor::Status IMergingTransformBase::prepareInitializeInputs()
         /// setNotNeeded after reading first chunk, because in optimismtic case
         /// (e.g. with optimized 'ORDER BY primary_key LIMIT n' and small 'n')
         /// we won't have to read any chunks anymore;
-        auto chunk = input.pull(limit_hint != 0);
-        if (limit_hint && chunk.getNumRows() < limit_hint)
+        /// If virtual row exists, let it pass through, so don't read more chunks.
+        auto chunk = input.pull(true);
+        bool virtual_row = isVirtualRow(chunk);
+        if (limit_hint == 0 && !virtual_row)
             input.setNeeded();
 
-        if (!chunk.hasRows())
+        if (!virtual_row && ((limit_hint && chunk.getNumRows() < limit_hint) || always_read_till_end))
+            input.setNeeded();
+
+        if (!virtual_row && !chunk.hasRows())
         {
             if (!input.isFinished())
             {
@@ -131,11 +165,11 @@ IProcessor::Status IMergingTransformBase::prepare()
         return Status::Finished;
     }
 
-    /// Do not disable inputs, so it will work in the same way as with AsynchronousBlockInputStream, like before.
+    /// Do not disable inputs, so they can be executed in parallel.
     bool is_port_full = !output.canPush();
 
     /// Push if has data.
-    if ((state.output_chunk || state.output_chunk.hasChunkInfo()) && !is_port_full)
+    if ((state.output_chunk || !state.output_chunk.getChunkInfos().empty()) && !is_port_full)
         output.push(std::move(state.output_chunk));
 
     if (!is_initialized)
@@ -145,6 +179,21 @@ IProcessor::Status IMergingTransformBase::prepare()
     {
         if (is_port_full)
             return Status::PortFull;
+
+        if (always_read_till_end)
+        {
+            for (auto & input : inputs)
+            {
+                if (!input.isFinished())
+                {
+                    input.setNeeded();
+                    if (input.hasData())
+                        std::ignore = input.pull();
+
+                    return Status::NeedData;
+                }
+            }
+        }
 
         for (auto & input : inputs)
             input.close();
@@ -171,6 +220,10 @@ IProcessor::Status IMergingTransformBase::prepare()
 
             state.has_input = true;
         }
+        else
+        {
+            state.no_data = true;
+        }
 
         state.need_data = false;
     }
@@ -180,69 +233,5 @@ IProcessor::Status IMergingTransformBase::prepare()
 
     return Status::Ready;
 }
-
-static void filterChunk(IMergingAlgorithm::Input & input, size_t selector_position)
-{
-    if (!input.chunk.getChunkInfo())
-        throw Exception("IMergingTransformBase expected ChunkInfo for input chunk", ErrorCodes::LOGICAL_ERROR);
-
-    const auto * chunk_info = typeid_cast<const SelectorInfo *>(input.chunk.getChunkInfo().get());
-    if (!chunk_info)
-        throw Exception("IMergingTransformBase expected SelectorInfo for input chunk", ErrorCodes::LOGICAL_ERROR);
-
-    const auto & selector = chunk_info->selector;
-
-    IColumn::Filter filter;
-    filter.resize_fill(selector.size());
-
-    size_t num_rows = input.chunk.getNumRows();
-    auto columns = input.chunk.detachColumns();
-
-    size_t num_result_rows = 0;
-
-    for (size_t row = 0; row < num_rows; ++row)
-    {
-        if (selector[row] == selector_position)
-        {
-            ++num_result_rows;
-            filter[row] = 1;
-        }
-    }
-
-    if (!filter.empty() && filter.back() == 0)
-    {
-        filter.back() = 1;
-        ++num_result_rows;
-        input.skip_last_row = true;
-    }
-
-    for (auto & column : columns)
-        column = column->filter(filter, num_result_rows);
-
-    input.chunk.clear();
-    input.chunk.setColumns(std::move(columns), num_result_rows);
-}
-
-void IMergingTransformBase::filterChunks()
-{
-    if (state.selector_position < 0)
-        return;
-
-    if (!state.init_chunks.empty())
-    {
-        for (size_t i = 0; i < input_states.size(); ++i)
-        {
-            auto & input = state.init_chunks[i];
-            if (!input.chunk)
-                continue;
-
-            filterChunk(input, state.selector_position);
-        }
-    }
-
-    if (state.has_input)
-        filterChunk(state.input_chunk, state.selector_position);
-}
-
 
 }

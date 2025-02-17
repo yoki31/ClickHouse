@@ -10,7 +10,7 @@ class LimitStep : public ITransformingStep
 {
 public:
     LimitStep(
-        const DataStream & input_stream_,
+        const Header & input_header_,
         size_t limit_, size_t offset_,
         bool always_read_till_end_ = false, /// Read all data even if limit is reached. Needed for totals.
         bool with_ties_ = false, /// Limit with ties.
@@ -31,12 +31,18 @@ public:
         return limit + offset;
     }
 
-    /// Change input stream when limit is pushed up. TODO: add clone() for steps.
-    void updateInputStream(DataStream input_stream);
-
     bool withTies() const { return with_ties; }
 
+    void serialize(Serialization & ctx) const override;
+
+    static std::unique_ptr<IQueryPlanStep> deserialize(Deserialization & ctx);
+
 private:
+    void updateOutputHeader() override
+    {
+        output_header = input_headers.front();
+    }
+
     size_t limit;
     size_t offset;
     bool always_read_till_end;

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 # Test fix for issue #5066
 
 CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

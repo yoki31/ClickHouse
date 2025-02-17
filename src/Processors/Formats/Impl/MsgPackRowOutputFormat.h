@@ -1,12 +1,9 @@
 #pragma once
 
-#include "config_formats.h"
-#include "config_core.h"
+#include "config.h"
 
 #if USE_MSGPACK
 
-#include <Core/Block.h>
-#include <IO/WriteBuffer.h>
 #include <Processors/Formats/IRowOutputFormat.h>
 #include <Formats/FormatSettings.h>
 #include <msgpack.hpp>
@@ -18,7 +15,7 @@ namespace DB
 class MsgPackRowOutputFormat final : public IRowOutputFormat
 {
 public:
-    MsgPackRowOutputFormat(WriteBuffer & out_, const Block & header_, const RowOutputFormatParams & params_, const FormatSettings & format_settings_);
+    MsgPackRowOutputFormat(WriteBuffer & out_, const Block & header_, const FormatSettings & format_settings_);
 
     String getName() const override { return "MsgPackRowOutputFormat"; }
 

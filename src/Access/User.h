@@ -2,7 +2,7 @@
 
 #include <Access/IAccessEntity.h>
 #include <Access/AccessRights.h>
-#include <Access/Common/AuthenticationData.h>
+#include <Access/AuthenticationData.h>
 #include <Access/Common/AllowedClientHosts.h>
 #include <Access/GrantedRoles.h>
 #include <Access/RolesOrUsersSet.h>
@@ -15,7 +15,7 @@ namespace DB
   */
 struct User : public IAccessEntity
 {
-    AuthenticationData auth_data;
+    std::vector<AuthenticationData> authentication_methods;
     AllowedClientHosts allowed_client_hosts = AllowedClientHosts::AnyHostTag{};
     AccessRights access;
     GrantedRoles granted_roles;
@@ -28,6 +28,16 @@ struct User : public IAccessEntity
     std::shared_ptr<IAccessEntity> clone() const override { return cloneImpl<User>(); }
     static constexpr const auto TYPE = AccessEntityType::USER;
     AccessEntityType getType() const override { return TYPE; }
+    void setName(const String & name_) override;
+
+    std::vector<UUID> findDependencies() const override;
+    bool hasDependencies(const std::unordered_set<UUID> & ids) const override;
+    void replaceDependencies(const std::unordered_map<UUID, UUID> & old_to_new_ids) override;
+    void copyDependenciesFrom(const IAccessEntity & src, const std::unordered_set<UUID> & ids) override;
+    void removeDependencies(const std::unordered_set<UUID> & ids) override;
+    void clearAllExceptDependencies() override;
+
+    bool isBackupAllowed() const override { return settings.isBackupAllowed(); }
 };
 
 using UserPtr = std::shared_ptr<const User>;

@@ -1,11 +1,18 @@
 #include <Functions/FunctionFactory.h>
 #include <Functions/IFunction.h>
 #include <Core/Field.h>
+#include <Core/Settings.h>
 #include <DataTypes/DataTypeString.h>
+#include <Interpreters/Context.h>
 
 
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsBool print_pretty_type_names;
+}
+
 namespace
 {
 
@@ -15,12 +22,15 @@ namespace
 class FunctionToTypeName : public IFunction
 {
 public:
+    explicit FunctionToTypeName(bool print_pretty_type_names_) : print_pretty_type_names(print_pretty_type_names_)
+    {
+    }
 
     static constexpr auto name = "toTypeName";
 
-    static FunctionPtr create(ContextPtr)
+    static FunctionPtr create(ContextPtr context)
     {
-        return std::make_shared<FunctionToTypeName>();
+        return std::make_shared<FunctionToTypeName>(context->getSettingsRef()[Setting::print_pretty_type_names]);
     }
 
     String getName() const override
@@ -30,13 +40,8 @@ public:
 
     bool useDefaultImplementationForNulls() const override { return false; }
 
-    bool isShortCircuit(ShortCircuitSettings & settings, size_t /*number_of_arguments*/) const override
-    {
-        settings.enable_lazy_execution_for_first_argument = false;
-        settings.enable_lazy_execution_for_common_descendants_of_arguments = true;
-        settings.force_enable_lazy_execution = true;
-        return true;
-    }
+    bool useDefaultImplementationForNothing() const override { return false; }
+
 
     bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
 
@@ -54,20 +59,23 @@ public:
 
     ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override
     {
-        return DataTypeString().createColumnConst(input_rows_count, arguments[0].type->getName());
+        return DataTypeString().createColumnConst(input_rows_count, print_pretty_type_names ? arguments[0].type->getPrettyName() : arguments[0].type->getName());
     }
 
     ColumnPtr getConstantResultForNonConstArguments(const ColumnsWithTypeAndName & arguments, const DataTypePtr &) const override
     {
-        return DataTypeString().createColumnConst(1, arguments[0].type->getName());
+        return DataTypeString().createColumnConst(1, print_pretty_type_names ? arguments[0].type->getPrettyName() : arguments[0].type->getName());
     }
 
     ColumnNumbers getArgumentsThatDontImplyNullableReturnType(size_t /*number_of_arguments*/) const override { return {0}; }
+
+private:
+    bool print_pretty_type_names;
 };
 
 }
 
-void registerFunctionToTypeName(FunctionFactory & factory)
+REGISTER_FUNCTION(ToTypeName)
 {
     factory.registerFunction<FunctionToTypeName>();
 }

@@ -1,6 +1,7 @@
 ---
-toc_priority: 50
-toc_title: cluster
+slug: /ru/sql-reference/table-functions/cluster
+sidebar_position: 50
+sidebar_label: cluster
 ---
 
 # cluster, clusterAllReplicas {#cluster-clusterallreplicas}
@@ -9,9 +10,9 @@ toc_title: cluster
 
 Функция `clusterAllReplicas` работает также как `cluster`, но каждая реплика в кластере используется как отдельный шард/отдельное соединение.
 
-!!! note "Примечание"
-    Все доступные кластеры перечислены в таблице [system.clusters](../../operations/system-tables/clusters.md).
-
+:::note Примечание
+Все доступные кластеры перечислены в таблице [system.clusters](../../operations/system-tables/clusters.md).
+:::
 **Синтаксис**
 
 ``` sql
@@ -32,7 +33,7 @@ clusterAllReplicas('cluster_name', db, table[, sharding_key])
 
 **Использование макросов**
 
-`cluster_name` может содержать макрос — подстановку в фигурных скобках. Эта подстановка заменяется на соответствующее значение из секции [macros](../../operations/server-configuration-parameters/settings.md#macros) конфигурационного файла .
+`cluster_name` может содержать макрос — подстановку в фигурных скобках. Эта подстановка заменяется на соответствующее значение из секции [macros](../../operations/server-configuration-parameters/settings.md#macros) конфигурационного файла.
 
 Пример:
 

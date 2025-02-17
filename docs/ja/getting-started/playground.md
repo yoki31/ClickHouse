@@ -1,62 +1,46 @@
 ---
-toc_priority: 14
-toc_title: Playground
+sidebar_label: ClickHouse Playground
+sidebar_position: 2
+keywords: [clickhouse, playground, getting, started, docs]
+description: ClickHouse Playgroundを使用すると、サーバーやクラスタを設定せずにクエリを即座に実行して、ClickHouseを試すことができます。
+slug: /ja/getting-started/playground
 ---
 
-# ClickHouse Playground {#clickhouse-playground}
+# ClickHouse Playground
 
-!!! warning "Warning"
-    This service is deprecated and will be replaced in foreseeable future.
+[ClickHouse Playground](https://sql.clickhouse.com)を使用すると、サーバーやクラスタを設定せずにクエリを即座に実行して、ClickHouseを試すことができます。
+Playgroundにはいくつかのサンプルデータセットが用意されています。
 
-[ClickHouse Playground](https://play.clickhouse.com) では、サーバーやクラスタを設定することなく、即座にクエリを実行して ClickHouse を試すことができます。
-いくつかの例のデータセットは、Playground だけでなく、ClickHouse の機能を示すサンプルクエリとして利用可能です. また、 ClickHouse の LTS リリースで試すこともできます。
+Playgroundに対してクエリを行うには、任意のHTTPクライアントを使用できます。例えば、[curl](https://curl.haxx.se)や[wget](https://www.gnu.org/software/wget/)を使用する方法や、[JDBC](../interfaces/jdbc.md)や[ODBC](../interfaces/odbc.md)ドライバを使用して接続を設定する方法があります。ClickHouseをサポートするソフトウェア製品に関する詳細情報は[こちら](../integrations/index.mdx)で確認できます。
 
-任意の HTTP クライアントを使用してプレイグラウンドへのクエリを作成することができます。例えば[curl](https://curl.haxx.se)、[wget](https://www.gnu.org/software/wget/)、[JDBC](../interfaces/jdbc.md)または[ODBC](../interfaces/odbc.md)ドライバを使用して接続を設定します。
-ClickHouse をサポートするソフトウェア製品の詳細情報は[こちら](../interfaces/index.md)をご覧ください。
+## 認証情報 {#credentials}
 
-## 資格情報 {#credentials}
-
-| パラメータ                    | 値                                      |
-| :---------------------------- | :-------------------------------------- |
-| HTTPS エンドポイント          | `https://play-api.clickhouse.com:8443` |
-| ネイティブ TCP エンドポイント | `play-api.clickhouse.com:9440`         |
-| ユーザ名                      | `playgrounnd`                           |
-| パスワード                    | `clickhouse`                            |
-
-
-特定のClickHouseのリリースで試すために、追加のエンドポイントがあります。（ポートとユーザー/パスワードは上記と同じです）。
-
-- 20.3 LTS: `play-api-v20-3.clickhouse.com`
-- 19.14 LTS: `play-api-v19-14.clickhouse.com`
-
-!!! note "備考"
-これらのエンドポイントはすべて、安全なTLS接続が必要です。
-
+| パラメータ          | 値                                 |
+|:-------------------|:-----------------------------------|
+| HTTPSエンドポイント | `https://play.clickhouse.com:443/` |
+| ネイティブTCPエンドポイント | `play.clickhouse.com:9440`         |
+| ユーザー            | `explorer` または `play`          |
+| パスワード          | （空）                             |
 
 ## 制限事項 {#limitations}
 
-クエリは読み取り専用のユーザとして実行されます。これにはいくつかの制限があります。
+クエリは読み取り専用のユーザーとして実行されます。それはいくつかの制限を意味します：
 
-- DDL クエリは許可されていません。
-- INSERT クエリは許可されていません。
+- DDLクエリは許可されていません
+- INSERTクエリは許可されていません
 
-また、以下の設定がなされています。
-
-- [max_result_bytes=10485760](../operations/settings/query_complexity/#max-result-bytes)
-- [max_result_rows=2000](../operations/settings/query_complexity/#setting-max_result_rows)
-- [result_overflow_mode=break](../operations/settings/query_complexity/#result-overflow-mode)
-- [max_execution_time=60000](../operations/settings/query_complexity/#max-execution-time)
+サービスの使用にはクォータもあります。
 
 ## 例 {#examples}
 
-`curl` を用いて HTTPSエンドポイントへ接続する例:
+`curl`を使用したHTTPSエンドポイントの例：
 
 ``` bash
-curl "https://play-api.clickhouse.com:8443/?query=SELECT+'Play+ClickHouse\!';&user=playground&password=clickhouse&database=datasets"
+curl "https://play.clickhouse.com/?user=explorer" --data-binary "SELECT 'Play ClickHouse'"
 ```
 
-[CLI](../interfaces/cli.md) で TCP エンドポイントへ接続する例:
+[CLI](../interfaces/cli.md)を使用したTCPエンドポイントの例：
 
 ``` bash
-clickhouse client --secure -h play-api.clickhouse.com --port 9440 -u playground --password clickhouse -q "SELECT 'Play ClickHouse\!'"
+clickhouse client --secure --host play.clickhouse.com --user explorer
 ```

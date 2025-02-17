@@ -1,6 +1,7 @@
 #pragma once
 
-#include <IO/SeekableReadBuffer.h>
+#include <atomic>
+#include <IO/ReadBufferFromFileBase.h>
 #include <IO/BufferWithOwnMemory.h>
 #include <IO/ReadSettings.h>
 #include <Interpreters/Context.h>
@@ -12,14 +13,14 @@ namespace DB
 
 /* Read buffer, which reads via http, but is used as ReadBufferFromFileBase.
  * Used to read files, hosted on a web server with static files.
- *
- * Usage: ReadIndirectBufferFromRemoteFS -> SeekAvoidingReadBuffer -> ReadBufferFromWebServer -> ReadWriteBufferFromHTTP.
  */
-class ReadBufferFromWebServer : public SeekableReadBuffer
+class ReadBufferFromWebServer : public ReadBufferFromFileBase
 {
 public:
     explicit ReadBufferFromWebServer(
-        const String & url_, ContextPtr context_,
+        const String & url_,
+        ContextPtr context_,
+        size_t file_size_,
         const ReadSettings & settings_ = {},
         bool use_external_buffer_ = false,
         size_t read_until_position = 0);
@@ -30,18 +31,24 @@ public:
 
     off_t getPosition() override;
 
-    size_t getFileOffsetOfBufferEnd() const override { return offset; }
+    String getFileName() const override { return url; }
+
+    void setReadUntilPosition(size_t position) override;
+
+    size_t getFileOffsetOfBufferEnd() const override { return offset.load(std::memory_order_relaxed); }
+
+    bool supportsRightBoundedReads() const override { return true; }
 
 private:
-    std::unique_ptr<ReadBuffer> initialize();
+    std::unique_ptr<SeekableReadBuffer> initialize();
 
-    Poco::Logger * log;
+    LoggerPtr log;
     ContextPtr context;
 
     const String url;
     size_t buf_size;
 
-    std::unique_ptr<ReadBuffer> impl;
+    std::unique_ptr<SeekableReadBuffer> impl;
 
     ReadSettings read_settings;
 
@@ -49,7 +56,10 @@ private:
 
     bool use_external_buffer;
 
-    off_t offset = 0;
+    /// atomic is required for CachedOnDiskReadBufferFromFile, which can access
+    /// to this variable via getFileOffsetOfBufferEnd()/seek() from multiple
+    /// threads.
+    std::atomic<off_t> offset = 0;
     off_t read_until_position = 0;
 };
 

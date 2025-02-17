@@ -1,6 +1,7 @@
 ---
-toc_priority: 36
-toc_title: "Функции сравнения"
+slug: /ru/sql-reference/functions/comparison-functions
+sidebar_position: 36
+sidebar_label: "Функции сравнения"
 ---
 
 # Функции сравнения {#funktsii-sravneniia}
@@ -22,15 +23,14 @@ toc_title: "Функции сравнения"
 
 Замечание. До версии 1.1.54134 сравнение знаковых и беззнаковых целых чисел производилось также, как в C++. То есть, вы могли получить неверный результат в таких случаях: SELECT 9223372036854775807 \> -1. С версии 1.1.54134 поведение изменилось и стало математически корректным.
 
-## equals, оператор a = b и a == b {#function-equals}
+## equals, оператор a = b и a == b {#equals}
 
-## notEquals, оператор a != b и a `<>` b {#function-notequals}
+## notEquals, оператор a != b и a `<>` b {#notequals}
 
-## less, оператор `<` {#function-less}
+## less, оператор `<` {#less}
 
-## greater, оператор `>` {#function-greater}
+## greater, оператор `>` {#greater}
 
-## lessOrEquals, оператор `<=` {#function-lessorequals}
+## lessOrEquals, оператор `<=` {#lessorequals}
 
-## greaterOrEquals, оператор `>=` {#function-greaterorequals}
-
+## greaterOrEquals, оператор `>=` {#greaterorequals}

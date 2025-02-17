@@ -12,7 +12,7 @@ class DatabaseLazyIterator;
 class Context;
 
 /** Lazy engine of databases.
-  * Works like DatabaseOrdinary, but stores in memory only cache.
+  * Works like DatabaseOrdinary, but stores only recently accessed tables in memory.
   * Can be used only with *Log engines.
   */
 class DatabaseLazy final : public DatabaseOnDisk
@@ -26,7 +26,7 @@ public:
 
     bool canContainDistributedTables() const override { return false; }
 
-    void loadStoredObjects(ContextMutablePtr context, bool force_restore, bool force_attach, bool skip_startup_tables) override;
+    void loadStoredObjects(ContextMutablePtr context, LoadingStrictnessLevel /*mode*/) override;
 
     void createTable(
         ContextPtr context,
@@ -37,7 +37,7 @@ public:
     void dropTable(
         ContextPtr context,
         const String & table_name,
-        bool no_delay) override;
+        bool sync) override;
 
     void renameTable(
         ContextPtr context,
@@ -62,7 +62,7 @@ public:
 
     bool empty() const override;
 
-    DatabaseTablesIteratorPtr getTablesIterator(ContextPtr context, const FilterByNameFunction & filter_by_table_name) const override;
+    DatabaseTablesIteratorPtr getTablesIterator(ContextPtr context, const FilterByNameFunction & filter_by_table_name, bool skip_not_loaded) const override;
 
     void attachTable(ContextPtr context, const String & table_name, const StoragePtr & table, const String & relative_table_path) override;
 
@@ -102,8 +102,8 @@ private:
     const time_t expiration_time;
 
     /// TODO use DatabaseWithOwnTablesBase::tables
-    mutable TablesCache tables_cache;
-    mutable CacheExpirationQueue cache_expiration_queue;
+    mutable TablesCache tables_cache TSA_GUARDED_BY(mutex);
+    mutable CacheExpirationQueue cache_expiration_queue TSA_GUARDED_BY(mutex);
 
     StoragePtr loadTable(const String & table_name) const;
 

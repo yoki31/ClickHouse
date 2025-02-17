@@ -1,110 +1,185 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 37
-toc_title: "\u6F14\u7B97\u5B50"
+slug: /ja/sql-reference/operators/
+sidebar_position: 38
+sidebar_label: Operators
 ---
 
-# 演算子 {#operators}
+# Operators
 
-ClickHouseは、優先順位、優先順位、および連想に従って、クエリ解析段階で演算子を対応する関数に変換します。
+ClickHouseは、演算子をその優先度、結合性、結びつきを考慮してクエリ解析時に対応する関数に変換します。
 
-## アクセス演算子 {#access-operators}
+## アクセス演算子
 
-`a[N]` – Access to an element of an array. The `arrayElement(a, N)` 機能。
+`a[N]` – 配列要素へのアクセス。`arrayElement(a, N)`関数。
 
-`a.N` – Access to a tuple element. The `tupleElement(a, N)` 機能。
+`a.N` – タプル要素へのアクセス。`tupleElement(a, N)`関数。
 
-## 数値否定演算子 {#numeric-negation-operator}
+## 数値の否定演算子
 
-`-a` – The `negate (a)` 機能。
+`-a` – `negate(a)`関数。
 
-## 乗算演算子と除算演算子 {#multiplication-and-division-operators}
+タプルの否定については：[tupleNegate](../../sql-reference/functions/tuple-functions.md#tuplenegate)。
 
-`a * b` – The `multiply (a, b)` 機能。
+## 乗算と除算演算子
 
-`a / b` – The `divide(a, b)` 機能。
+`a * b` – `multiply(a, b)`関数。
 
-`a % b` – The `modulo(a, b)` 機能。
+タプルに数値を乗じる場合：[tupleMultiplyByNumber](../../sql-reference/functions/tuple-functions.md#tuplemultiplybynumber)、スカラー積の場合：[dotProduct](../../sql-reference/functions/tuple-functions.md#dotproduct)。
 
-## 加算演算子と減算演算子 {#addition-and-subtraction-operators}
+`a / b` – `divide(a, b)`関数。
 
-`a + b` – The `plus(a, b)` 機能。
+タプルを数値で除算する場合：[tupleDivideByNumber](../../sql-reference/functions/tuple-functions.md#tupledividebynumber)。
 
-`a - b` – The `minus(a, b)` 機能。
+`a % b` – `modulo(a, b)`関数。
 
-## 比較演算子 {#comparison-operators}
+## 加算と減算演算子
 
-`a = b` – The `equals(a, b)` 機能。
+`a + b` – `plus(a, b)`関数。
 
-`a == b` – The `equals(a, b)` 機能。
+タプルの加算については：[tuplePlus](../../sql-reference/functions/tuple-functions.md#tupleplus)。
 
-`a != b` – The `notEquals(a, b)` 機能。
+`a - b` – `minus(a, b)`関数。
 
-`a <> b` – The `notEquals(a, b)` 機能。
+タプルの減算については：[tupleMinus](../../sql-reference/functions/tuple-functions.md#tupleminus)。
 
-`a <= b` – The `lessOrEquals(a, b)` 機能。
+## 比較演算子
 
-`a >= b` – The `greaterOrEquals(a, b)` 機能。
+### equals関数
+`a = b` – `equals(a, b)`関数。
 
-`a < b` – The `less(a, b)` 機能。
+`a == b` – `equals(a, b)`関数。
 
-`a > b` – The `greater(a, b)` 機能。
+### notEquals関数
+`a != b` – `notEquals(a, b)`関数。
 
-`a LIKE s` – The `like(a, b)` 機能。
+`a <> b` – `notEquals(a, b)`関数。
 
-`a NOT LIKE s` – The `notLike(a, b)` 機能。
+### lessOrEquals関数
+`a <= b` – `lessOrEquals(a, b)`関数。
 
-`a BETWEEN b AND c` – The same as `a >= b AND a <= c`.
+### greaterOrEquals関数
+`a >= b` – `greaterOrEquals(a, b)`関数。
 
-`a NOT BETWEEN b AND c` – The same as `a < b OR a > c`.
+### less関数
+`a < b` – `less(a, b)`関数。
 
-## データセットを操作する演算子 {#operators-for-working-with-data-sets}
+### greater関数
+`a > b` – `greater(a, b)`関数。
 
-*見る [演算子で](in.md).*
+### like関数
+`a LIKE s` – `like(a, b)`関数。
 
-`a IN ...` – The `in(a, b)` 機能。
+### notLike関数
+`a NOT LIKE s` – `notLike(a, b)`関数。
 
-`a NOT IN ...` – The `notIn(a, b)` 機能。
+### ilike関数
+`a ILIKE s` – `ilike(a, b)`関数。
 
-`a GLOBAL IN ...` – The `globalIn(a, b)` 機能。
+### BETWEEN関数
+`a BETWEEN b AND c` – `a >= b AND a <= c`と同じ。
 
-`a GLOBAL NOT IN ...` – The `globalNotIn(a, b)` 機能。
+`a NOT BETWEEN b AND c` – `a < b OR a > c`と同じ。
 
-## 日付と時刻を操作する演算子 {#operators-datetime}
+## データセット操作用演算子
 
-### EXTRACT {#operator-extract}
+[IN演算子](../../sql-reference/operators/in.md)および[EXISTS](../../sql-reference/operators/exists.md)演算子を参照してください。
 
-``` sql
+### in関数
+`a IN ...` – `in(a, b)`関数。
+
+### notIn関数
+`a NOT IN ...` – `notIn(a, b)`関数。
+
+### globalIn関数
+`a GLOBAL IN ...` – `globalIn(a, b)`関数。
+
+### globalNotIn関数
+`a GLOBAL NOT IN ...` – `globalNotIn(a, b)`関数。
+
+### inサブクエリ関数
+`a = ANY (subquery)` – `in(a, subquery)`関数。  
+
+### notInサブクエリ関数
+`a != ANY (subquery)` – `a NOT IN (SELECT singleValueOrNull(*) FROM subquery)`と同じ。
+
+### inサブクエリ関数
+`a = ALL (subquery)` – `a IN (SELECT singleValueOrNull(*) FROM subquery)`と同じ。
+
+### notInサブクエリ関数
+`a != ALL (subquery)` – `notIn(a, subquery)`関数。 
+
+**例**
+
+ALLを使用したクエリ:
+
+```sql
+SELECT number AS a FROM numbers(10) WHERE a > ALL (SELECT number FROM numbers(3, 3));
+```
+
+結果:
+
+```text
+┌─a─┐
+│ 6 │
+│ 7 │
+│ 8 │
+│ 9 │
+└───┘
+```
+
+ANYを使用したクエリ:
+
+```sql
+SELECT number AS a FROM numbers(10) WHERE a > ANY (SELECT number FROM numbers(3, 3));
+```
+
+結果:
+
+```text
+┌─a─┐
+│ 4 │
+│ 5 │
+│ 6 │
+│ 7 │
+│ 8 │
+│ 9 │
+└───┘
+```
+
+## 日付および時刻の操作用演算子
+
+### EXTRACT
+
+```sql
 EXTRACT(part FROM date);
 ```
 
-特定の日付から部品を抽出します。 たとえば、特定の日付から月、または時間から秒を取得できます。
+日付から部分を抽出します。例えば、与えられた日付から月を取得したり、時刻から秒を取得できます。
 
-その `part` パラメータ取得する日付のどの部分を指定します。 使用可能な値は次のとおりです:
+`part`パラメーターは、取得したい日付の部分を指定します。以下の値が利用可能です：
 
--   `DAY` — The day of the month. Possible values: 1–31.
--   `MONTH` — The number of a month. Possible values: 1–12.
--   `YEAR` — The year.
--   `SECOND` — The second. Possible values: 0–59.
--   `MINUTE` — The minute. Possible values: 0–59.
--   `HOUR` — The hour. Possible values: 0–23.
+- `DAY` — 月の日。可能な値：1〜31。
+- `MONTH` — 月。可能な値：1〜12。
+- `YEAR` — 年。
+- `SECOND` — 秒。可能な値：0〜59。
+- `MINUTE` — 分。可能な値：0〜59。
+- `HOUR` — 時。可能な値：0〜23。
 
-その `part` パラメータは大文字と小文字を区別する.
+`part`パラメーターは大文字小文字を区別しません。
 
-その `date` パラメータ処理する日付または時刻を指定します。 どちらか [日付](../../sql-reference/data-types/date.md) または [DateTime](../../sql-reference/data-types/datetime.md) タイプに対応しています。
+`date`パラメーターは、処理対象の日付または時刻を指定します。[Date](../../sql-reference/data-types/date.md)または[DateTime](../../sql-reference/data-types/datetime.md)型がサポートされます。
 
-例:
+例：
 
-``` sql
+```sql
 SELECT EXTRACT(DAY FROM toDate('2017-06-15'));
 SELECT EXTRACT(MONTH FROM toDate('2017-06-15'));
 SELECT EXTRACT(YEAR FROM toDate('2017-06-15'));
 ```
 
-次の例では、テーブルを作成し、そこに値を挿入します `DateTime` タイプ。
+次の例では、テーブルを作成し、そのテーブルに`DateTime`タイプの値を挿入しています。
 
-``` sql
+```sql
 CREATE TABLE test.Orders
 (
     OrderId UInt64,
@@ -114,11 +189,11 @@ CREATE TABLE test.Orders
 ENGINE = Log;
 ```
 
-``` sql
+```sql
 INSERT INTO test.Orders VALUES (1, 'Jarlsberg Cheese', toDateTime('2008-10-11 13:23:44'));
 ```
 
-``` sql
+```sql
 SELECT
     toYear(OrderDate) AS OrderYear,
     toMonth(OrderDate) AS OrderMonth,
@@ -129,19 +204,19 @@ SELECT
 FROM test.Orders;
 ```
 
-``` text
+```text
 ┌─OrderYear─┬─OrderMonth─┬─OrderDay─┬─OrderHour─┬─OrderMinute─┬─OrderSecond─┐
 │      2008 │         10 │       11 │        13 │          23 │          44 │
 └───────────┴────────────┴──────────┴───────────┴─────────────┴─────────────┘
 ```
 
-以下の例を見ることができます [テスト](https://github.com/ClickHouse/ClickHouse/blob/master/tests/queries/0_stateless/00619_extract.sql).
+追加の例は[テスト](https://github.com/ClickHouse/ClickHouse/blob/master/tests/queries/0_stateless/00619_extract.sql)で確認できます。
 
-### INTERVAL {#operator-interval}
+### INTERVAL
 
-を作成します。 [間隔](../../sql-reference/data-types/special-data-types/interval.md)-算術演算で使用されるべき型の値 [日付](../../sql-reference/data-types/date.md) と [DateTime](../../sql-reference/data-types/datetime.md)-値を入力します。
+[Date](../../sql-reference/data-types/date.md)および[DateTime](../../sql-reference/data-types/datetime.md)タイプとの算術操作で使用される[Interval](../../sql-reference/data-types/special-data-types/interval.md)タイプの値を作成します。
 
-間隔のタイプ:
+インターバルの種類：
 - `SECOND`
 - `MINUTE`
 - `HOUR`
@@ -151,49 +226,88 @@ FROM test.Orders;
 - `QUARTER`
 - `YEAR`
 
-!!! warning "警告"
-    異なるタイプの間隔は結合できません。 次のような式は使用できません `INTERVAL 4 DAY 1 HOUR`. 間隔は、間隔の最小単位より小さい単位または等しい単位で指定します。, `INTERVAL 25 HOUR`. 次の例のように、連続した操作を使用できます。
+`INTERVAL`の値を設定する際に文字列リテラルも使用できます。例えば、`INTERVAL 1 HOUR`は`INTERVAL '1 hour'`または`INTERVAL '1' hour`と同一です。
 
-例:
+:::tip    
+異なるタイプのインターバルは組み合わせることができません。`INTERVAL 4 DAY 1 HOUR`のような式は使用できません。インターバルを指定する際には、最小のインターバルユニットと同等またはそれより小さい単位を使用してください。例えば`INTERVAL 25 HOUR`など。以下の例のように逐次的な操作を行うことができます。
+:::
 
-``` sql
-SELECT now() AS current_date_time, current_date_time + INTERVAL 4 DAY + INTERVAL 3 HOUR
+例：
+
+```sql
+SELECT now() AS current_date_time, current_date_time + INTERVAL 4 DAY + INTERVAL 3 HOUR;
 ```
 
-``` text
+```text
 ┌───current_date_time─┬─plus(plus(now(), toIntervalDay(4)), toIntervalHour(3))─┐
-│ 2019-10-23 11:16:28 │                                    2019-10-27 14:16:28 │
+│ 2020-11-03 22:09:50 │                                    2020-11-08 01:09:50 │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ```
 
-**も参照。**
+```sql
+SELECT now() AS current_date_time, current_date_time + INTERVAL '4 day' + INTERVAL '3 hour';
+```
 
--   [間隔](../../sql-reference/data-types/special-data-types/interval.md) データ型
--   [toInterval](../../sql-reference/functions/type-conversion-functions.md#function-tointerval) 型変換関数
+```text
+┌───current_date_time─┬─plus(plus(now(), toIntervalDay(4)), toIntervalHour(3))─┐
+│ 2020-11-03 22:12:10 │                                    2020-11-08 01:12:10 │
+└─────────────────────┴────────────────────────────────────────────────────────┘
+```
 
-## 論理否定演算子 {#logical-negation-operator}
+```sql
+SELECT now() AS current_date_time, current_date_time + INTERVAL '4' day + INTERVAL '3' hour;
+```
 
-`NOT a` – The `not(a)` 機能。
+```text
+┌───current_date_time─┬─plus(plus(now(), toIntervalDay('4')), toIntervalHour('3'))─┐
+│ 2020-11-03 22:33:19 │                                        2020-11-08 01:33:19 │
+└─────────────────────┴────────────────────────────────────────────────────────────┘
+```
 
-## 論理And演算子 {#logical-and-operator}
+:::note    
+`INTERVAL`構文または`addDays`関数は常に優先されます。単純な加算または減算（例：`now() + ...`のような構文）は、時間の設定を考慮しません。例えば、夏時間など。
+:::
 
-`a AND b` – The`and(a, b)` 機能。
+例：
 
-## 論理OR演算子 {#logical-or-operator}
+```sql
+SELECT toDateTime('2014-10-26 00:00:00', 'Asia/Istanbul') AS time, time + 60 * 60 * 24 AS time_plus_24_hours, time + toIntervalDay(1) AS time_plus_1_day;
+```
 
-`a OR b` – The `or(a, b)` 機能。
+```text
+┌────────────────time─┬──time_plus_24_hours─┬─────time_plus_1_day─┐
+│ 2014-10-26 00:00:00 │ 2014-10-26 23:00:00 │ 2014-10-27 00:00:00 │
+└─────────────────────┴─────────────────────┴─────────────────────┘
+```
 
-## 条件演算子 {#conditional-operator}
+**関連項目**
 
-`a ? b : c` – The `if(a, b, c)` 機能。
+- [Interval](../../sql-reference/data-types/special-data-types/interval.md)データタイプ
+- [toInterval](../../sql-reference/functions/type-conversion-functions.md#function-tointerval)タイプ変換関数
 
-注:
+## 論理AND演算子
 
-条件演算子は、bとcの値を計算し、条件aが満たされているかどうかをチェックし、対応する値を返します。 もし `b` または `C` は [アレイジョイン()](../../sql-reference/functions/array-join.md#functions_arrayjoin) 関数は、各行は関係なく、レプリケートされます “a” 条件だ
+構文 `SELECT a AND b` — `a`と`b`の論理積を計算する関数[and](../../sql-reference/functions/logical-functions.md#logical-and-function)。
 
-## 条件式 {#operator_case}
+## 論理OR演算子
 
-``` sql
+構文 `SELECT a OR b` — `a`と`b`の論理和を計算する関数[or](../../sql-reference/functions/logical-functions.md#logical-or-function)。
+
+## 論理否定演算子
+
+構文 `SELECT NOT a` — `a`の論理否定を計算する関数[not](../../sql-reference/functions/logical-functions.md#logical-not-function)。
+
+## 条件演算子
+
+`a ? b : c` – `if(a, b, c)`関数。
+
+注意：
+
+条件演算子は、bとcの値を計算した後、条件aが満たされているかを確認し、対応する値を返します。`b`または`c`が[arrayJoin()](../../sql-reference/functions/array-join.md#functions_arrayjoin)関数であるとき、a条件に関わらず各行が複製されます。
+
+## 条件式
+
+```sql
 CASE [x]
     WHEN a THEN b
     [WHEN ... THEN ...]
@@ -201,77 +315,74 @@ CASE [x]
 END
 ```
 
-もし `x` が指定される。 `transform(x, [a, ...], [b, ...], c)` function is used. Otherwise – `multiIf(a, b, ..., c)`.
+`x`が指定されている場合、`transform(x, [a, ...], [b, ...], c)`関数が使用されます。そうでなければ`multiIf(a, b, ..., c)`。
 
-がない場合 `ELSE c` 句式のデフォルト値は次のとおりです `NULL`.
+式中に`ELSE c`句がない場合、デフォルト値は`NULL`です。
 
-その `transform` 関数は動作しません `NULL`.
+`transform`関数は`NULL`を扱いません。
 
-## 連結演算子 {#concatenation-operator}
+## 連結演算子
 
-`s1 || s2` – The `concat(s1, s2) function.`
+`s1 || s2` – `concat(s1, s2)関数。`
 
-## ラムダ作成演算子 {#lambda-creation-operator}
+## ラムダ生成演算子
 
-`x -> expr` – The `lambda(x, expr) function.`
+`x -> expr` – `lambda(x, expr)`関数。
 
-次の演算子は角かっこであるため、優先順位はありません:
+以下の演算子は優先度を持たず、括弧です：
 
-## 配列作成演算子 {#array-creation-operator}
+## 配列生成演算子
 
-`[x1, ...]` – The `array(x1, ...) function.`
+`[x1, ...]` – `array(x1, ...)`関数。
 
-## タプル作成演算子 {#tuple-creation-operator}
+## タプル生成演算子
 
-`(x1, x2, ...)` – The `tuple(x2, x2, ...) function.`
+`(x1, x2, ...)` – `tuple(x1, x2, ...)`関数。
 
-## 連想性 {#associativity}
+## 結合性
 
-すべての二項演算子は連想性を残しています。 例えば, `1 + 2 + 3` に変換されます `plus(plus(1, 2), 3)`.
-時にはこれはあなたが期待するように動作しません。 例えば, `SELECT 4 > 2 > 3` 結果は0になります。
+全ての二項演算子は左結合性を持ちます。例えば、`1 + 2 + 3`は`plus(plus(1, 2), 3)`に変換されます。このため、時には予想通りに動作しないことがあります。例えば、`SELECT 4 > 2 > 3`は0を返します。
 
-効率のために、 `and` と `or` 関数は任意の数の引数を受け入れます。 の対応する鎖 `AND` と `OR` 演算子は、これらの関数の単一の呼び出しに変換されます。
+効率化のため、`and`や`or`関数は任意の数の引数を受け付けることができます。対応する`AND`と`OR`演算子のチェーンはこれらの関数の単一の呼び出しに変換されます。
 
-## チェック `NULL` {#checking-for-null}
+## `NULL`の確認
 
-クリックハウスは `IS NULL` と `IS NOT NULL` 演算子。
+ClickHouseは`IS NULL`と`IS NOT NULL`演算子をサポートしています。
 
-### IS NULL {#operator-is-null}
+### IS NULL {#is_null}
 
--   のために [Null可能](../../sql-reference/data-types/nullable.md) 型の値は、 `IS NULL` 演算子の戻り値:
-    -   `1` 値が `NULL`.
-    -   `0` そうでなければ
--   その他の値については、 `IS NULL` 演算子は常に返します `0`.
+- [Nullable](../../sql-reference/data-types/nullable.md)型の値の場合、`IS NULL`演算子は以下を返します：
+    - 値が`NULL`の場合は`1`。
+    - それ以外の場合は`0`。
+- その他の値の場合、`IS NULL`演算子は常に`0`を返します。
 
-<!-- -->
+[optimize_functions_to_subcolumns](../../operations/settings/settings.md#optimize-functions-to-subcolumns)設定を有効にすることで最適化することができます。`optimize_functions_to_subcolumns = 1`の場合、関数は全カラムデータを読み取るのではなく、[null](../../sql-reference/data-types/nullable.md#finding-null)サブカラムのみを読み取ります。クエリ`SELECT n IS NULL FROM table`は`SELECT n.null FROM TABLE`に変換されます。
 
-``` sql
+```sql
 SELECT x+100 FROM t_null WHERE y IS NULL
 ```
 
-``` text
+```text
 ┌─plus(x, 100)─┐
 │          101 │
 └──────────────┘
 ```
 
-### IS NOT NULL {#is-not-null}
+### IS NOT NULL {#is_not_null}
 
--   のために [Null可能](../../sql-reference/data-types/nullable.md) 型の値は、 `IS NOT NULL` 演算子の戻り値:
-    -   `0` 値が `NULL`.
-    -   `1` そうでなければ
--   その他の値については、 `IS NOT NULL` 演算子は常に返します `1`.
+- [Nullable](../../sql-reference/data-types/nullable.md)型の値の場合、`IS NOT NULL`演算子は以下を返します：
+    - 値が`NULL`の場合は`0`。
+    - それ以外の場合は`1`。
+- その他の値の場合、`IS NOT NULL`演算子は常に`1`を返します。
 
-<!-- -->
-
-``` sql
+```sql
 SELECT * FROM t_null WHERE y IS NOT NULL
 ```
 
-``` text
+```text
 ┌─x─┬─y─┐
 │ 2 │ 3 │
 └───┴───┘
 ```
 
-[元の記事](https://clickhouse.com/docs/en/query_language/operators/) <!--hide-->
+[optimize_functions_to_subcolumns](../../operations/settings/settings.md#optimize-functions-to-subcolumns)設定を有効にすることで最適化することができます。`optimize_functions_to_subcolumns = 1`の場合、関数は全カラムデータを読み取るのではなく、[null](../../sql-reference/data-types/nullable.md#finding-null)サブカラムのみを読み取ります。クエリ`SELECT n IS NOT NULL FROM table`は`SELECT NOT n.null FROM TABLE`に変換されます。

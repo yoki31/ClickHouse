@@ -1,44 +1,37 @@
-# rebuild in #33610
 # docker build -t clickhouse/docs-builder .
-FROM ubuntu:20.04
+FROM golang:alpine AS htmltest-builder
 
-# ARG for quick switch to a given ubuntu mirror
-ARG apt_archive="http://archive.ubuntu.com"
-RUN sed -i "s|http://archive.ubuntu.com|$apt_archive|g" /etc/apt/sources.list
+ARG HTMLTEST_VERSION=0.17.0
 
-ENV LANG=C.UTF-8
+RUN CGO_ENABLED=0 go install github.com/wjdp/htmltest@v${HTMLTEST_VERSION} \
+    && mv "${GOPATH}/bin/htmltest" /usr/bin/htmltest
 
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
-            wget \
-            bash \
-            python \
-            curl \
-            python3-requests \
-            sudo \
-            git \
-            openssl \
-            python3-pip \
-            software-properties-common \
-            language-pack-zh* \
-            chinese* \
-            fonts-arphic-ukai \
-            fonts-arphic-uming \
-            fonts-ipafont-mincho \
-            fonts-ipafont-gothic \
-            fonts-unfonts-core \
-            xvfb \
-            nodejs \
-            npm \
-            openjdk-11-jdk \
-            ssh-client \
-    && pip --no-cache-dir install scipy \
-    && apt-get autoremove --yes \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+FROM node:20-bookworm-slim
 
-RUN wget 'https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.focal_amd64.deb'
+RUN apt-get update && \
+    apt install -y --no-install-recommends git openssh-server bash ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*:
 
-RUN npm i -g purify-css
+# At this point we want to really update /opt/clickhouse-docs directory
+# So we reset the cache
+ARG CACHE_INVALIDATOR=0
 
-RUN pip3 install --ignore-installed --upgrade setuptools pip virtualenv
+RUN git clone https://github.com/ClickHouse/clickhouse-docs.git \
+    --depth=1 --branch=main /opt/clickhouse-docs
+
+WORKDIR /opt/clickhouse-docs
+
+RUN yarn config set registry https://registry.npmjs.org \
+    && yarn install \
+    && yarn cache clean
+
+ENV HOME=/opt/clickhouse-docs
+
+RUN mkdir /output_path \
+  && chmod -R a+w . /output_path \
+  && git config --global --add safe.directory /opt/clickhouse-docs
+
+COPY run.sh /run.sh
+COPY --from=htmltest-builder /usr/bin/htmltest /usr/bin/htmltest
+
+ENTRYPOINT ["/run.sh"]

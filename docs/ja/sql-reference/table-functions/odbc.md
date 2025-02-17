@@ -1,13 +1,12 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 44
-toc_title: odbc
+slug: /ja/sql-reference/table-functions/odbc
+sidebar_position: 150
+sidebar_label: odbc
 ---
 
-# odbc {#table-functions-odbc}
+# odbc
 
-接続されているテーブルを返します [ODBC](https://en.wikipedia.org/wiki/Open_Database_Connectivity).
+[ODBC](https://en.wikipedia.org/wiki/Open_Database_Connectivity)を介して接続されたテーブルを返します。
 
 ``` sql
 odbc(connection_settings, external_database, external_table)
@@ -15,23 +14,23 @@ odbc(connection_settings, external_database, external_table)
 
 パラメータ:
 
--   `connection_settings` — Name of the section with connection settings in the `odbc.ini` ファイル
--   `external_database` — Name of a database in an external DBMS.
--   `external_table` — Name of a table in the `external_database`.
+- `connection_settings` — `odbc.ini`ファイル内の接続設定が書かれたセクションの名前。
+- `external_database` — 外部DBMSのデータベース名。
+- `external_table` — `external_database`内のテーブル名。
 
-ODBC接続を安全に実装するために、ClickHouseは別のプログラムを使用します `clickhouse-odbc-bridge`. ODBCドライバーが直接ロードされる場合 `clickhouse-server` ドライバの問題でクラッシュのClickHouseサーバーです。 ClickHouseは自動的に起動します `clickhouse-odbc-bridge` それが必要なとき。 ODBC bridgeプログラムは、 `clickhouse-server`.
+ODBC接続を安全に実装するために、ClickHouseは別のプログラム `clickhouse-odbc-bridge` を使用します。ODBCドライバーを直接`clickhouse-server`からロードすると、ドライバーの問題がClickHouseサーバーをクラッシュさせる可能性があります。必要に応じて、ClickHouseは自動的に`clickhouse-odbc-bridge`を起動します。このODBCブリッジプログラムは`clickhouse-server`と同じパッケージからインストールされます。
 
-を持つフィールド `NULL` 外部テーブルの値は、基本データ型の既定値に変換されます。 たとえば、リモートMySQLテーブルフィールドに `INT NULL` 0に変換される型(ClickHouseのデフォルト値 `Int32` データ型）。
+外部テーブルから`NULL`値を持つフィールドは、基本データ型のデフォルト値に変換されます。例えば、リモートのMySQLテーブルフィールドが`INT NULL`型である場合、0（ClickHouseの`Int32`データ型のデフォルト値）に変換されます。
 
-## 使用例 {#usage-example}
+## 使用例
 
-**PpsはインタラクティブのMySQLのインストール目盛**
+**ODBCを介してローカルのMySQLインストールからデータを取得**
 
-この例では、Ubuntu Linux18.04およびMySQL server5.7がチェックされています。
+この例は Ubuntu Linux 18.04 と MySQL サーバー 5.7 で確認されています。
 
-UnixODBCとMySQL Connectorがインストールされていることを確認します。
+unixODBCとMySQL Connectorがインストールされていることを確認してください。
 
-デフォルトでインストールされた場合、パッケージから),ClickHouse開始してユーザー `clickhouse`. したがって、MySQLサーバでこのユーザを作成して構成する必要があります。
+デフォルトでは（パッケージからインストールされた場合）、ClickHouseはユーザー`clickhouse`として起動します。したがって、このユーザーをMySQLサーバーに作成して設定する必要があります。
 
 ``` bash
 $ sudo mysql
@@ -39,10 +38,10 @@ $ sudo mysql
 
 ``` sql
 mysql> CREATE USER 'clickhouse'@'localhost' IDENTIFIED BY 'clickhouse';
-mysql> GRANT ALL PRIVILEGES ON *.* TO 'clickhouse'@'clickhouse' WITH GRANT OPTION;
+mysql> GRANT ALL PRIVILEGES ON *.* TO 'clickhouse'@'localhost' WITH GRANT OPTION;
 ```
 
-次に、接続を設定します `/etc/odbc.ini`.
+次に、`/etc/odbc.ini`で接続を設定します。
 
 ``` bash
 $ cat /etc/odbc.ini
@@ -55,13 +54,13 @@ USERNAME = clickhouse
 PASSWORD = clickhouse
 ```
 
-接続を確認するには `isql` unixODBCの取付けからの実用性。
+unixODBCインストールからの`isql`ユーティリティを使用して接続を確認できます。
 
 ``` bash
 $ isql -v mysqlconn
 +-------------------------+
-| Connected!                            |
-|                                       |
+| Connected!              |
+|                         |
 ...
 ```
 
@@ -80,15 +79,15 @@ mysql> insert into test (`int_id`, `float`) VALUES (1,2);
 Query OK, 1 row affected (0,00 sec)
 
 mysql> select * from test;
-+------+----------+-----+----------+
++--------+--------------+-------+----------------+
 | int_id | int_nullable | float | float_nullable |
-+------+----------+-----+----------+
++--------+--------------+-------+----------------+
 |      1 |         NULL |     2 |           NULL |
-+------+----------+-----+----------+
++--------+--------------+-------+----------------+
 1 row in set (0,00 sec)
 ```
 
-ClickHouseのMySQLテーブルからのデータの取得:
+ClickHouseでMySQLテーブルからデータを取得:
 
 ``` sql
 SELECT * FROM odbc('DSN=mysqlconn', 'test', 'test')
@@ -100,9 +99,7 @@ SELECT * FROM odbc('DSN=mysqlconn', 'test', 'test')
 └────────┴──────────────┴───────┴────────────────┘
 ```
 
-## も参照。 {#see-also}
+## 関連項目
 
--   [ODBC外部辞書](../../sql-reference/dictionaries/external-dictionaries/external-dicts-dict-sources.md#dicts-external_dicts_dict_sources-odbc)
--   [ODBCテーブルエンジン](../../engines/table-engines/integrations/odbc.md).
-
-[元の記事](https://clickhouse.com/docs/en/query_language/table_functions/jdbc/) <!--hide-->
+- [ODBC dictionaries](../../sql-reference/dictionaries/index.md#dictionary-sources#dicts-external_dicts_dict_sources-odbc)
+- [ODBC table engine](../../engines/table-engines/integrations/odbc.md).

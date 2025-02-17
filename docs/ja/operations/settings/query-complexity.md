@@ -1,123 +1,154 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 59
-toc_title: "\u30AF\u30A8\u30EA\u306E\u8907\u96D1\u3055\u306E\u5236\u9650"
+slug: /ja/operations/settings/query-complexity
+sidebar_position: 59
+sidebar_label: クエリの複雑さの制限
 ---
 
-# クエリの複雑さの制限 {#restrictions-on-query-complexity}
+# クエリの複雑さの制限
 
-クエリの複雑さに関する制限は、設定の一部です。
-これらをより安全な実行のユーザーインターフェースです。
-ほとんどすべての制限が適用されます `SELECT`. 分散クエリ処理では、各サーバーに個別に制限が適用されます。
+クエリの複雑さの制限は設定の一部です。これらはユーザーインターフェースからの安全な実行を提供するために使用されます。ほとんどの制限は`SELECT`にのみ適用されます。分散クエリ処理のために、制限は各サーバーごとに個別に適用されます。
 
-ClickHouseは、各行ではなく、データ部分の制限をチェックします。 これは、データ部分のサイズで制限の値を超えることができることを意味します。
+ClickHouse はデータパーツの制限をチェックし、各行ごとではありません。つまり、制限の値をデータパーツのサイズで超えることができます。
 
-の制限 “maximum amount of something” 値0を取ることができます。 “unrestricted”.
-ほとんどの制限には ‘overflow_mode’ 設定、制限を超えたときに何をすべきかを意味します。
-での値: `throw` または `break`. 集計の制限(group_by_overflow_mode)にも値があります `any`.
+「何かの最大量」の制限は 0 の値を取ることができ、これは「制限なし」を意味します。ほとんどの制限には、制限を超えた場合にどうするかを決定する「overflow_mode」設定もあります。それは 2 つの値のいずれかを取ることができます: `throw`または`break`。集計（group_by_overflow_mode）の制限には、`any`の値もあります。
 
-`throw` – Throw an exception (default).
+`throw` – 例外を投げる（デフォルト）。
 
-`break` – Stop executing the query and return the partial result, as if the source data ran out.
+`break` – クエリの実行を停止し、部分的な結果を返す（ソースデータが尽きたかのように）。
 
-`any (only for group_by_overflow_mode)` – Continuing aggregation for the keys that got into the set, but don't add new keys to the set.
+`any（group_by_overflow_mode のみ）` – 集約のキーがセットに入ったキーに対してのみ継続し、新しいキーをセットに追加しない。
 
 ## max_memory_usage {#settings_max_memory_usage}
 
-単一サーバーでクエリを実行するために使用するRAMの最大量。
+単一サーバーでクエリの実行に使用される最大RAM量。
 
-既定の構成ファイルでは、最大10GBです。
+デフォルト設定は無制限（`0`に設定）。
 
-この設定では、使用可能なメモリの容量やマシン上のメモリの合計容量は考慮されません。
-この制限は、単一サーバー内の単一のクエリに適用されます。
-以下を使用できます `SHOW PROCESSLIST` 各クエリの現在のメモリ消費量を確認します。
-さらに、ピークメモリ消費は各クエリに対して追跡され、ログに書き込まれます。
+クラウドのデフォルト値：レプリカのRAM量に依存。
 
-特定の集計関数の状態については、メモリ使用量は監視されません。
+この設定は、利用可能なメモリの容量やマシンのメモリの合計容量を考慮しません。この制限は単一サーバー内の単一クエリに適用されます。`SHOW PROCESSLIST`を使用すると、各クエリの現在のメモリ消費を確認できます。さらに、各クエリのピークメモリ消費が追跡され、ログに書き込まれます。
 
-集計関数の状態に対してメモリ使用量が完全に追跡されません `min`, `max`, `any`, `anyLast`, `argMin`, `argMax` から `String` と `Array` 引数。
+特定の集計関数の状態のメモリ使用量は監視されません。
 
-メモリ消費もパラメータによって制限されます `max_memory_usage_for_user` と `max_memory_usage_for_all_queries`.
+`min`、`max`、`any`、`anyLast`、`argMin`、`argMax`の集計関数の状態のメモリ使用量は完全には追跡されていません。
+
+メモリ消費は`max_memory_usage_for_user`および[max_server_memory_usage](../../operations/server-configuration-parameters/settings.md#max_server_memory_usage)のパラメータによっても制限されます。
 
 ## max_memory_usage_for_user {#max-memory-usage-for-user}
 
-単一サーバー上でユーザーのクエリを実行するために使用するRAMの最大量。
+単一サーバーでユーザーのクエリの実行に使用される最大RAM量。
 
-デフォルト値は [設定。h](https://github.com/ClickHouse/ClickHouse/blob/master/src/Core/Settings.h#L288). デフォルトでは、金額は制限されません (`max_memory_usage_for_user = 0`).
+デフォルト値は[Settings.h](https://github.com/ClickHouse/ClickHouse/blob/master/src/Core/Settings.h#L288)で定義されています。デフォルトでは、量は制限されていません（`max_memory_usage_for_user = 0`）。
 
-の説明も参照してください [max_memory_usage](#settings_max_memory_usage).
+[max_memory_usage](#settings_max_memory_usage)の説明も参照してください。
 
-## max_memory_usage_for_all_queries {#max-memory-usage-for-all-queries}
+たとえば、`clickhouse_read`という名前のユーザーに対して`max_memory_usage_for_user`を1000バイトに設定したい場合は、次のステートメントを使用します。
 
-単一サーバー上ですべてのクエリを実行するために使用するRAMの最大量。
+``` sql
+ALTER USER clickhouse_read SETTINGS max_memory_usage_for_user = 1000;
+```
 
-デフォルト値は [設定。h](https://github.com/ClickHouse/ClickHouse/blob/master/src/Core/Settings.h#L289). デフォルトでは、金額は制限されません (`max_memory_usage_for_all_queries = 0`).
+それが機能したことを確認するには、クライアントからログアウトし、再度ログインしてから、`getSetting`関数を使用します：
 
-の説明も参照してください [max_memory_usage](#settings_max_memory_usage).
+```sql
+SELECT getSetting('max_memory_usage_for_user');
+```
 
 ## max_rows_to_read {#max-rows-to-read}
 
-次の制限は、各ブロック（各行ではなく）で確認できます。 つまり、制限は少し壊れる可能性があります。
-複数のスレッドでクエリを実行する場合、次の制限は各スレッドに個別に適用されます。
+次の制限は各ブロックでチェックされる場合があります（各行ではありません）。つまり、制限を少し超えることができます。
 
-クエリの実行時にテーブルから読み取ることができる最大行数。
+クエリを実行する際にテーブルから読み取ることができる最大行数。
 
 ## max_bytes_to_read {#max-bytes-to-read}
 
-クエリの実行時にテーブルから読み取ることができる最大バイト数(非圧縮データ)。
+クエリを実行する際にテーブルから読み取ることができる最大バイト数（非圧縮データ）。
 
 ## read_overflow_mode {#read-overflow-mode}
 
-読み込まれるデータ量がいずれかの制限を超えた場合の対処方法: ‘throw’ または ‘break’. デフォルトでは、throw。
+読み取りデータボリュームが制限を超えた場合にどうするか：`throw`または`break`。デフォルトは`trow`。
+
+## max_rows_to_read_leaf {#max-rows-to-read-leaf}
+
+次の制限は各ブロックでチェックされる場合があります（各行ではありません）。つまり、制限を少し超えることができます。
+
+分散クエリを実行する際にリーフノード上のローカルテーブルから読み取ることができる最大行数です。分散クエリは各シャード（リーフ）に対する複数のサブクエリを発行することができます - この制限はリーフノードでの読み取り段階でのみチェックされ、ルートノードでの結果マージ段階では無視されます。たとえば、2つのシャードから成るクラスターがあり、各シャードに100行のテーブルがあるとします。それから分散クエリは両方のテーブルからすべてのデータを読み取ろうとしているので、`max_rows_to_read=150`を設定するとトータルで200行になるため失敗します。一方で`max_rows_to_read_leaf=150`を設定したクエリは成功します、なぜならリーフノードが最大で100行を読み取るからです。
+
+## max_bytes_to_read_leaf {#max-bytes-to-read-leaf}
+
+分散クエリを実行する際にリーフノード上のローカルテーブルから読み取ることができる最大バイト数（非圧縮データ）。分散クエリは各シャード（リーフ）に対する複数のサブクエリを発行することができます - この制限はリーフノードでの読み取り段階でのみチェックされ、ルートノードでの結果マージ段階では無視されます。たとえば、2つのシャードから成るクラスターがあり、各シャードに100バイトのデータテーブルがあるとします。それから分散クエリがすべてのデータを両方のテーブルから読み取ろうとしているので、`max_bytes_to_read=150`を設定するとトータルで200バイトになるため失敗します。一方で`max_bytes_to_read_leaf=150`を設定したクエリは成功します、なぜならリーフノードが最大で100バイトを読み取るからです。
+
+## read_overflow_mode_leaf {#read-overflow-mode-leaf}
+
+リーフ制限を超えるデータ量で読み取りが行われた場合にどのようにするか：`throw`または`break`です。デフォルトは`trow`です。
 
 ## max_rows_to_group_by {#settings-max-rows-to-group-by}
 
-集計から受け取った一意のキーの最大数。 この設定を使用すると、集計時のメモリ消費量を制限できます。
+集計から受け取るユニークなキーの最大数。この設定は集計時のメモリ消費を制限することを可能にします。
 
 ## group_by_overflow_mode {#group-by-overflow-mode}
 
-集計の一意キーの数が制限を超えた場合の対処方法: ‘throw’, ‘break’,または ‘any’. デフォルトでは、throw。
-を使用して ‘any’ valueでは、GROUP BYの近似を実行できます。 この近似の品質は、データの統計的性質に依存します。
+集計のユニークなキー数が制限を超えた場合にどうするか：`throw`、 `break`、または `any`。 デフォルトは `throw` です。 `any` 値を使用すると、GROUP BY の近似値を実行できます。この近似値の精度はデータの統計的性質に依存します。
 
 ## max_bytes_before_external_group_by {#settings-max_bytes_before_external_group_by}
 
-の実行を有効または無効にします。 `GROUP BY` 外部メモリ内の句。 見る [外部メモリのGROUP BY](../../sql-reference/statements/select/group-by.md#select-group-by-in-external-memory).
+`GROUP BY`句の外部メモリでの実行を有効または無効にします。 詳細は[外部メモリでのGROUP BY](../../sql-reference/statements/select/group-by.md#select-group-by-in-external-memory)を参照してください。
 
-可能な値:
+可能な値：
 
--   シングルで使用できるRAMの最大ボリューム(バイト単位) [GROUP BY](../../sql-reference/statements/select/group-by.md#select-group-by-clause) 作戦だ
--   0 — `GROUP BY` 外部メモリでは無効です。
+- 単一の[GROUP BY](../../sql-reference/statements/select/group-by.md#select-group-by-clause)操作で使用できる最大のRAMボリューム（バイト単位）。
+- 0 — 外部メモリでの`GROUP BY`が無効。
 
-デフォルト値は0です。
+デフォルト値：`0`.
+
+クラウドのデフォルト値：レプリカあたりのメモリ量の半分。
+
+## max_bytes_before_external_sort {#settings-max_bytes_before_external_sort}
+
+`ORDER BY`句の外部メモリでの実行を有効または無効にします。 詳細は[ORDER BY の実装方法](../../sql-reference/statements/select/order-by.md#implementation-details)を参照してください。
+
+- 単一の[ORDER BY](../../sql-reference/statements/select/order-by.md)操作で使用可能な最大RAMボリューム（バイト単位）。 推奨値は、利用可能なシステムメモリの半分です。
+- 0 — 外部メモリでの`ORDER BY`が無効。
+
+デフォルト値：0。
+
+クラウドのデフォルト値：レプリカあたりのメモリ量の半分。
 
 ## max_rows_to_sort {#max-rows-to-sort}
 
-並べ替え前の最大行数。 これにより、ソート時のメモリ消費を制限できます。
+ソート前の最大行数。これにより、ソート時のメモリ消費を制限することができます。
 
 ## max_bytes_to_sort {#max-bytes-to-sort}
 
-並べ替え前の最大バイト数。
+ソート前の最大バイト数。
 
 ## sort_overflow_mode {#sort-overflow-mode}
 
-ソート前に受信した行数がいずれかの制限を超えた場合の対処方法: ‘throw’ または ‘break’. デフォルトでは、throw。
+ソートする前に受け取った行の数が制限を超えた場合にどうするか：`throw`または`break`。 デフォルトは`throw`です。
 
 ## max_result_rows {#setting-max_result_rows}
 
-結果の行数を制限します。 またチェックサブクエリは、windowsアプリケーションの実行時にパーツの分散を返します。
+結果の行数の制限。サブクエリでもチェックされ、分散クエリの一部を実行する際のリモートサーバーでもチェックされます。値が`0`の場合は制限は適用されません。
+
+デフォルト値：`0`.
+
+クラウドのデフォルト値：`0`.
 
 ## max_result_bytes {#max-result-bytes}
 
-結果のバイト数を制限します。 前の設定と同じです。
+結果のバイト数の制限。前の設定と同様。
 
 ## result_overflow_mode {#result-overflow-mode}
 
-結果の量が制限のいずれかを超えた場合の対処方法: ‘throw’ または ‘break’. デフォルトでは、throw。
+結果のボリュームがいずれかの制限を超えた場合にどうするか：`throw`または`break`。
 
-を使用して ‘break’ LIMITの使用に似ています。 `Break` ブロックレベルでのみ実行を中断します。 これは、返される行の量が [max_result_rows](#setting-max_result_rows) の倍数 [max_block_size](settings.md#setting-max_block_size) そして依存する [max_threads](settings.md#settings-max_threads).
+`break`を使用することは、LIMITを使用することと似ています。`Break`はブロックレベルでのみ実行を中断します。これは、返される行数が[max_result_rows](#setting-max_result_rows)より多いことを意味し、[max_block_size](../../operations/settings/settings.md#setting-max_block_size)の倍数であり、[max_threads](../../operations/settings/settings.md#max_threads)に依存します。
 
-例:
+デフォルト値：`throw`.
+
+クラウドのデフォルト値：`throw`.
+
+例：
 
 ``` sql
 SET max_threads = 3, max_block_size = 3333;
@@ -128,7 +159,7 @@ FROM numbers_mt(100000)
 FORMAT Null;
 ```
 
-結果:
+結果：
 
 ``` text
 6666 rows in set. ...
@@ -136,166 +167,257 @@ FORMAT Null;
 
 ## max_execution_time {#max-execution-time}
 
-クエリの最大実行時間を秒単位で指定します。
-現時点では、ソートステージのいずれか、または集計関数のマージおよびファイナライズ時にはチェックされません。
+クエリの最大実行時間（秒単位）。この時間、ソート段階のいずれか、または集計関数のマージや最終化時にはチェックされません。
+
+`max_execution_time`パラメータは理解しづらい場合があります。これは現在のクエリ実行速度に対する補間に基づいて動作します（この動作は[timeout_before_checking_execution_speed](#timeout-before-checking-execution-speed)によって制御されます）。ClickHouseは、指定された`max_execution_time`を超えると予測される実行時間がある場合、クエリを中断します。デフォルトで、timeout_before_checking_execution_speedは10秒に設定されています。これは、クエリの実行開始から10秒後に、ClickHouseが総実行時間を見積もり始めることを意味します。たとえば、`max_execution_time`が3600秒（1時間）に設定されている場合、見積もり時間がこの3600秒の制限を超えると、ClickHouseはクエリを終了します。`timeout_before_checking_execution_speed`を0に設定すると、ClickHouseはクロック時間を`max_execution_time`の基準として使用します。
 
 ## timeout_overflow_mode {#timeout-overflow-mode}
 
-クエリが実行される時間よりも長い場合の対処方法 ‘max_execution_time’: ‘throw’ または ‘break’. デフォルトでは、throw。
+クエリが`max_execution_time`を超えて実行された場合または見積もり実行時間が`max_estimated_execution_time`を超えている場合にどうするか：`throw`または`break`。デフォルトは`throw`。
+
+## max_execution_time_leaf
+
+`max_execution_time`と同様の意味ですが、分散またはリモートクエリのリーフノードにのみ適用されます。
+
+たとえば、リーフノードの実行時間を`10s`に制限して、初期ノードには制限をかけない場合、入れ子のサブクエリ設定の中で`max_execution_time`を持つ代わりに：
+
+``` sql
+SELECT count() FROM cluster(cluster, view(SELECT * FROM t SETTINGS max_execution_time = 10));
+```
+
+クエリ設定として`max_execution_time_leaf`を使用できます：
+
+``` sql
+SELECT count() FROM cluster(cluster, view(SELECT * FROM t)) SETTINGS max_execution_time_leaf = 10;
+```
+
+## timeout_overflow_mode_leaf
+
+リーフノードのクエリが`max_execution_time_leaf`より長く実行された場合にどうするか：`throw`または`break`。デフォルトは`throw`。
 
 ## min_execution_speed {#min-execution-speed}
 
-毎秒行単位の最小実行速度。 すべてのデータブロックで ‘timeout_before_checking_execution_speed’ 有効期限が切れます。 実行速度が低い場合は、例外がスローされます。
+秒あたりの行数での最小実行速度。‘timeout_before_checking_execution_speed’が期限切れになった時点で各データブロックでチェックされます。実行速度が低い場合、例外がスローされます。
 
 ## min_execution_speed_bytes {#min-execution-speed-bytes}
 
-秒あたりの最小実行バイト数。 すべてのデータブロックで ‘timeout_before_checking_execution_speed’ 有効期限が切れます。 実行速度が低い場合は、例外がスローされます。
+1秒あたりの最小実行バイト数。‘timeout_before_checking_execution_speed’が期限切れになった時点で各データブロックでチェックされます。実行速度が低い場合、例外がスローされます。
 
 ## max_execution_speed {#max-execution-speed}
 
-毎秒の実行行の最大数。 すべてのデータブロックで ‘timeout_before_checking_execution_speed’ 有効期限が切れます。 実行速度が高い場合は、実行速度が低下します。
+1秒あたりの最大実行行数。‘timeout_before_checking_execution_speed’が期限切れになった時点で各データブロックでチェックされます。実行速度が高い場合、実行速度は低減されます。
 
 ## max_execution_speed_bytes {#max-execution-speed-bytes}
 
-毎秒の実行バイト数の最大値。 すべてのデータブロックで ‘timeout_before_checking_execution_speed’ 有効期限が切れます。 実行速度が高い場合は、実行速度が低下します。
+1秒あたりの最大実行バイト数。‘timeout_before_checking_execution_speed’が期限切れになった時点で各データブロックでチェックされます。実行速度が高い場合、実行速度は低減されます。
 
 ## timeout_before_checking_execution_speed {#timeout-before-checking-execution-speed}
 
-実行速度が遅すぎないことをチェックします ‘min_execution_speed’)、指定された時間が秒単位で経過した後。
+指定された秒数が過ぎた後に、実行速度が遅すぎないこと（‘min_execution_speed’以上であること）をチェックします。
+
+## max_estimated_execution_time {#max_estimated_execution_time}
+
+秒単位のクエリ推定実行時間の最大値。‘timeout_before_checking_execution_speed’が期限切れになった時点で各データブロックでチェックされます。
 
 ## max_columns_to_read {#max-columns-to-read}
 
-単一のクエリ内のテーブルから読み取ることができる列の最大数。 クエリでより多くの列を読み取る必要がある場合は、例外がスローされます。
+1つのクエリでテーブルから読み取れるカラムの最大数。クエリがより多くのカラムを読み取る必要がある場合、例外がスローされます。
 
 ## max_temporary_columns {#max-temporary-columns}
 
-定数列を含む、クエリを実行するときに同時にRAMに保持する必要がある一時列の最大数。 これよりも多くの一時列がある場合、例外がスローされます。
+クエリ実行中に同時にRAMに保持される一時カラムの最大数で、定数カラムを含みます。一時カラムがこの数を超えた場合、例外がスローされます。
 
 ## max_temporary_non_const_columns {#max-temporary-non-const-columns}
 
-同じことと ‘max_temporary_columns’ しかし、定数列を数えずに。
-定数列は、クエリを実行するときにかなり頻繁に形成されますが、計算リソースはほぼゼロです。
+‘max_temporary_columns’と同じですが、定数カラムをカウントしません。クエリ実行中、一時的に生成される定数カラムは非常に頻繁に形成されますが、計算資源はほとんど必要としません。
 
 ## max_subquery_depth {#max-subquery-depth}
 
-サブクエリの最大ネスト深さ。 サブクエリが深い場合は、例外がスローされます。 既定では100です。
+サブクエリの最大ネスト深度。サブクエリがより深い場合、例外がスローされます。デフォルトで100です。
 
 ## max_pipeline_depth {#max-pipeline-depth}
 
-最大パイプライン深さ。 クエリ処理中に各データブロックが処理する変換の数に対応します。 単一サーバーの範囲内でカウントされます。 パイプラインの深さが大きい場合は、例外がスローされます。 既定では、1000です。
+最大パイプライン深度。クエリ処理中に各データブロックが通過する変換の数に対応します。単一サーバー内での制限内でカウントされます。パイプラインの深さが大きい場合、例外がスローされます。デフォルトで1000です。
 
 ## max_ast_depth {#max-ast-depth}
 
-クエリ構文ツリーの最大ネスト深さ。 超過すると、例外がスローされます。
-現時点では、解析中にはチェックされず、クエリの解析後にのみチェックされます。 つまり、解析中に深すぎる構文ツリーを作成することができますが、クエリは失敗します。 既定では、1000です。
+クエリの構文木の最大ネスト深度。超過すると、例外がスローされます。この時点では、解析中ではなく、クエリの解析後にのみチェックされます。つまり、解析中に深すぎる構文木を作成することができるが、クエリは失敗します。デフォルトで1000です。
 
 ## max_ast_elements {#max-ast-elements}
 
-クエリ構文ツリー内の要素の最大数。 超過すると、例外がスローされます。
-前の設定と同じように、クエリを解析した後にのみチェックされます。 既定では、50,000です。
+クエリの構文木の要素の最大数。超過すると、例外がスローされます。前の設定と同様に、クエリの解析後にのみチェックされます。デフォルトで50,000です。
 
 ## max_rows_in_set {#max-rows-in-set}
 
-サブクエリから作成されたIN句内のデータ-セットの最大行数。
+サブクエリから作成されたIN句のデータセットの最大行数。
 
 ## max_bytes_in_set {#max-bytes-in-set}
 
-サブクエリから作成されたIN句のセットで使用される最大バイト数(非圧縮データ)。
+サブクエリから作成されたIN句で使用されるセットの最大バイト数（非圧縮データ）。
 
 ## set_overflow_mode {#set-overflow-mode}
 
-データ量がいずれかの制限を超えた場合の対処方法: ‘throw’ または ‘break’. デフォルトでは、throw。
+データ量が制限を超えた場合にどうするか：`throw`または`break`。デフォルトで`trow`。
 
 ## max_rows_in_distinct {#max-rows-in-distinct}
 
-DISTINCTを使用する場合の最大行数。
+DISTINCTを使用する際の異なる行数の最大数。
 
 ## max_bytes_in_distinct {#max-bytes-in-distinct}
 
-DISTINCTを使用するときにハッシュテーブルで使用される最大バイト数。
+DISTINCTを使用する際にハッシュテーブルで使用される最大バイト数。
 
 ## distinct_overflow_mode {#distinct-overflow-mode}
 
-データ量がいずれかの制限を超えた場合の対処方法: ‘throw’ または ‘break’. デフォルトでは、throw。
+データ量が制限を超えた場合にどうするか：`throw`または`break`。デフォルトで`trow`。
 
 ## max_rows_to_transfer {#max-rows-to-transfer}
 
-グローバルINを使用するときに、リモートサーバーに渡すか、一時テーブルに保存できる最大行数。
+GLOBAL INを使用する際にリモートサーバーに渡されるか、一時テーブルに保存される最大行数。
 
 ## max_bytes_to_transfer {#max-bytes-to-transfer}
 
-グローバルINを使用するときに、リモートサーバーに渡すか、一時テーブルに保存できる最大バイト数(非圧縮データ)。
+GLOBAL INを使用する際にリモートサーバーに渡されるか、一時テーブルに保存される最大バイト数（非圧縮データ）。
 
 ## transfer_overflow_mode {#transfer-overflow-mode}
 
-データ量がいずれかの制限を超えた場合の対処方法: ‘throw’ または ‘break’. デフォルトでは、throw。
+データ量が制限を超えた場合にどうするか：'throw'または'break'。デフォルトで`throw`。
 
 ## max_rows_in_join {#settings-max_rows_in_join}
 
-テーブルを結合するときに使用されるハッシュテーブル内の行数を制限します。
+テーブル結合時に使用されるハッシュテーブルの行数を制限します。
 
-この設定は以下に適用されます [SELECT … JOIN](../../sql-reference/statements/select/join.md#select-join) 操作および [参加](../../engines/table-engines/special/join.md) テーブルエンジン。
+この設定は[SELECT ... JOIN](../../sql-reference/statements/select/join.md#select-join)操作および[Join](../../engines/table-engines/special/join.md)テーブルエンジンに適用されます。
 
-クエリに複数の結合が含まれている場合、ClickHouseはこの設定で中間結果をすべてチェックします。
+クエリに複数の結合が含まれる場合、ClickHouseはこの設定を各中間結果に対してチェックします。
 
-ClickHouseは、制限に達したときにさまざまなアクションを続行できます。 使用する [join_overflow_mode](#settings-join_overflow_mode) アクションを選択する設定。
+制限に達した場合、ClickHouseは異なるアクションを実行することができます。アクションを選択するには[join_overflow_mode](#settings-join_overflow_mode)設定を使用します。
 
-可能な値:
+可能な値：
 
--   正の整数。
--   0 — Unlimited number of rows.
+- 正の整数
+- 0 — 無制限の行数
 
-デフォルト値は0です。
+デフォルト値：0
 
 ## max_bytes_in_join {#settings-max_bytes_in_join}
 
-制限サイズをバイトのハッシュテーブルが参加す。
+テーブル結合時に使用されるハッシュテーブルのサイズをバイト単位で制限します。
 
-この設定は以下に適用されます [SELECT … JOIN](../../sql-reference/statements/select/join.md#select-join) 操作および [結合テーブルエンジン](../../engines/table-engines/special/join.md).
+この設定は[SELECT ... JOIN](../../sql-reference/statements/select/join.md#select-join)操作および[Joinテーブルエンジン](../../engines/table-engines/special/join.md)に適用されます。
 
-クエリに結合が含まれている場合、ClickHouseは中間結果ごとにこの設定をチェックします。
+クエリに結合が含まれている場合、ClickHouseはこの設定を各中間結果に対してチェックします。
 
-ClickHouseは、制限に達したときにさまざまなアクションを続行できます。 使用 [join_overflow_mode](#settings-join_overflow_mode) アクションを選択する設定。
+制限に達した場合、ClickHouseは異なるアクションを実行することができます。アクションを選択するには[join_overflow_mode](#settings-join_overflow_mode)設定を使用します。
 
-可能な値:
+可能な値：
 
--   正の整数。
--   0 — Memory control is disabled.
+- 正の整数
+- 0 — メモリ管理が無効
 
-デフォルト値は0です。
+デフォルト値：0
 
 ## join_overflow_mode {#settings-join_overflow_mode}
 
-次のいずれかの結合制限に達したときにClickHouseが実行するアクションを定義します:
+次の結合制限のいずれかに達した場合にClickHouseがどのアクションを実行するかを定義します：
 
--   [max_bytes_in_join](#settings-max_bytes_in_join)
--   [max_rows_in_join](#settings-max_rows_in_join)
+- [max_bytes_in_join](#settings-max_bytes_in_join)
+- [max_rows_in_join](#settings-max_rows_in_join)
 
-可能な値:
+可能な値：
 
--   `THROW` — ClickHouse throws an exception and breaks operation.
--   `BREAK` — ClickHouse breaks operation and doesn't throw an exception.
+- `THROW` — ClickHouseが例外をスローし、操作を中断。
+- `BREAK` — ClickHouseが操作を中断し、例外をスローしない。
 
-デフォルト値: `THROW`.
+デフォルト値：`THROW`。
 
-**も参照。**
+**関連情報**
 
--   [JOIN句](../../sql-reference/statements/select/join.md#select-join)
--   [結合テーブルエンジン](../../engines/table-engines/special/join.md)
+- [JOIN句](../../sql-reference/statements/select/join.md#select-join)
+- [Joinテーブルエンジン](../../engines/table-engines/special/join.md)
 
-## max_partitions_per_insert_block {#max-partitions-per-insert-block}
+## max_partitions_per_insert_block {#settings-max_partitions_per_insert_block}
 
-単一挿入ブロック内のパーティションの最大数を制限します。
+単一の挿入ブロックにおける最大パーティション数を制限します。
 
--   正の整数。
--   0 — Unlimited number of partitions.
+- 正の整数
+- 0 — パーティション数無制限。
 
-デフォルト値は100です。
+デフォルト値：100
 
 **詳細**
 
-を挿入する際、データClickHouse計算パーティションの数に挿入されます。 パーティションの数が `max_partitions_per_insert_block`,ClickHouseは、次のテキストで例外をスローします:
+データを挿入すると、ClickHouseは挿入ブロックのパーティション数を計算します。もしパーティション数が`max_partitions_per_insert_block`より多い場合、`throw_on_max_partitions_per_insert_block`に基づいて、ClickHouseは警告をログするか、例外をスローします。例外のテキストは次のとおりです：
 
-> “Too many partitions for single INSERT block (more than” +toString(max_parts)+ “). The limit is controlled by ‘max_partitions_per_insert_block’ setting. A large number of partitions is a common misconception. It will lead to severe negative performance impact, including slow server startup, slow INSERT queries and slow SELECT queries. Recommended total number of partitions for a table is under 1000..10000. Please note, that partitioning is not intended to speed up SELECT queries (ORDER BY key is sufficient to make range queries fast). Partitions are intended for data manipulation (DROP PARTITION, etc).”
+> “1つのINSERTブロックに対してパーティションが多すぎます（`partitions_count`パーティション、制限は” + toString(max_partitions) + “）。制限は‘max_partitions_per_insert_block’設定で制御されます。大量のパーティションは一般的な誤解であり、深刻なパフォーマンスの悪影響をもたらします、例えばサーバーの起動時間が遅くなったり、INSERTクエリとSELECTクエリが遅くなったりします。推奨されるテーブルのパーティションの合計数は1000〜10000以下です。SELECTクエリを高速化するためにパーティションが意図されていないことに注意してください（ORDER BYキーは範囲クエリを高速化するのに十分です）。パーティションはデータ操作（DROP PARTITIONなど）のために意図されています。”
 
-[元の記事](https://clickhouse.com/docs/en/operations/settings/query_complexity/) <!--hide-->
+## throw_on_max_partitions_per_insert_block {#settings-throw_on_max_partition_per_insert_block}
+
+`max_partitions_per_insert_block`に達した場合の動作を制御します。
+
+- `true`  - 挿入ブロックが`max_partitions_per_insert_block`に達した場合、例外を発生します。
+- `false` - `max_partitions_per_insert_block`に達した場合に警告をログします。
+
+デフォルト値：`true`
+
+## max_temporary_data_on_disk_size_for_user {#settings_max_temporary_data_on_disk_size_for_user}
+
+すべての同時実行されているユーザークエリのためにディスク上で消費される一時ファイルのデータの最大量（バイト単位）。ゼロは無制限を意味します。
+
+デフォルト値：0。
+
+## max_temporary_data_on_disk_size_for_query {#settings_max_temporary_data_on_disk_size_for_query}
+
+すべての同時実行されているクエリのためにディスク上で消費される一時ファイルのデータの最大量（バイト単位）。ゼロは無制限を意味します。
+
+デフォルト値：0。
+
+## max_sessions_for_user {#max-sessions-per-user}
+
+ClickHouseサーバーへの認証済みユーザーごとの同時セッションの最大数。
+
+例：
+
+``` xml
+<profiles>
+    <single_session_profile>
+        <max_sessions_for_user>1</max_sessions_for_user>
+    </single_session_profile>
+    <two_sessions_profile>
+        <max_sessions_for_user>2</max_sessions_for_user>
+    </two_sessions_profile>
+    <unlimited_sessions_profile>
+        <max_sessions_for_user>0</max_sessions_for_user>
+    </unlimited_sessions_profile>
+</profiles>
+<users>
+     <!-- ユーザーAliceは、一度にClickHouseサーバーに接続できるのは1回のみです。 -->
+    <Alice>
+        <profile>single_session_user</profile>
+    </Alice>
+    <!-- ユーザーBobは、2つの同時セッションを使用できます。 -->
+    <Bob>
+        <profile>two_sessions_profile</profile>
+    </Bob>
+    <!-- ユーザーチャールズは無制限の同時セッションを使用できます。 -->
+    <Charles>
+       <profile>unlimited_sessions_profile</profile>
+    </Charles>
+</users>
+```
+
+デフォルト値：0（無制限の同時セッション数）。
+
+## max_partitions_to_read {#max-partitions-to-read}
+
+1つのクエリでアクセスできる最大パーティション数を制限します。
+
+テーブルが作成されたときに指定された設定値は、クエリレベルの設定で上書きできます。
+
+可能な値：
+
+- 任意の正の整数
+
+デフォルト値：-1（無制限）。
+
+テーブルの設定でMergeTree設定[max_partitions_to_read](merge-tree-settings#max-partitions-to-read)を指定することもできます。

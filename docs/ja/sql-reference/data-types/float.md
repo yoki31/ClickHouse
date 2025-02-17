@@ -1,24 +1,58 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 41
-toc_title: "Float32\u3001Float64"
+slug: /ja/sql-reference/data-types/float
+sidebar_position: 4
+sidebar_label: Float32, Float64
 ---
 
-# Float32、Float64 {#float32-float64}
+# Float32, Float64
 
-[浮動小数点数](https://en.wikipedia.org/wiki/IEEE_754).
+:::note
+高精度が求められる計算、特に金融やビジネスデータの処理には、[Decimal](../data-types/decimal.md) の使用を検討してください。
 
-型はCの型と同等です:
+[浮動小数点数](https://en.wikipedia.org/wiki/IEEE_754)は以下の例のように不正確な結果を招くことがあります：
 
--   `Float32` - `float`
--   `Float64` - `double`
+```sql
+CREATE TABLE IF NOT EXISTS float_vs_decimal
+(
+   my_float Float64,
+   my_decimal Decimal64(3)
+)
+Engine=MergeTree
+ORDER BY tuple();
 
-可能な限り整数形式でデータを格納することをお勧めします。 たとえば、固定精度の数値を、金額やページの読み込み時間などの整数値にミリ秒単位で変換します。
+# 1 000 000 個の小数点以下 2 桁のランダムな数値を生成し、float と decimal として格納
+INSERT INTO float_vs_decimal SELECT round(randCanonical(), 3) AS res, res FROM system.numbers LIMIT 1000000;
+```
+```
+SELECT sum(my_float), sum(my_decimal) FROM float_vs_decimal;
 
-## 浮動小数点数の使用 {#using-floating-point-numbers}
+┌──────sum(my_float)─┬─sum(my_decimal)─┐
+│ 499693.60500000004 │      499693.605 │
+└────────────────────┴─────────────────┘
 
--   浮動小数点数を使用した計算では、丸め誤差が生じることがあります。
+SELECT sumKahan(my_float), sumKahan(my_decimal) FROM float_vs_decimal;
+
+┌─sumKahan(my_float)─┬─sumKahan(my_decimal)─┐
+│         499693.605 │           499693.605 │
+└────────────────────┴──────────────────────┘
+```
+:::
+
+ClickHouseとCでの対応する型は以下の通りです：
+
+- `Float32` — `float`
+- `Float64` — `double`
+
+ClickHouseにおけるFloat型のエイリアスは以下の通りです：
+
+- `Float32` — `FLOAT`, `REAL`, `SINGLE`
+- `Float64` — `DOUBLE`, `DOUBLE PRECISION`
+
+テーブル作成時に、浮動小数点数の数値パラメータを設定することができます（例：`FLOAT(12)`, `FLOAT(15, 22)`, `DOUBLE(12)`, `DOUBLE(4, 18)`）が、ClickHouseはそれらを無視します。
+
+## 浮動小数点数の使用
+
+- 浮動小数点数を利用した計算は、丸め誤差を生じる可能性があります。
 
 <!-- -->
 
@@ -32,15 +66,15 @@ SELECT 1 - 0.9
 └─────────────────────┘
 ```
 
--   計算の結果は、計算方法（コンピュータシステムのプロセッサタイプおよびアーキテクチャ）に依存する。
--   浮動小数点計算では、無限大などの数値が生成されることがあります (`Inf`)と “not-a-number” (`NaN`). これは、計算結果を処理するときに考慮する必要があります。
--   テキストから浮動小数点数を解析する場合、結果が最も近いマシン表現可能な数値ではない可能性があります。
+- 計算結果は計算方法（プロセッサタイプやコンピュータシステムのアーキテクチャ）に依存します。
+- 浮動小数点計算の結果として、無限大（`Inf`）や「数ではない」（`NaN`）といった数値を取得することがあります。これを計算結果の処理時に考慮する必要があります。
+- テキストから浮動小数点数をパースする際、結果が最も近い機械表現可能な数にならないことがあります。
 
-## NaNおよびInf {#data_type-float-nan-inf}
+## NaNとInf
 
-標準のSQLとは対照的に、ClickHouseは浮動小数点数の次のカテゴリをサポートしています:
+標準SQLとは異なり、ClickHouseは以下の浮動小数点数のカテゴリーをサポートしています：
 
--   `Inf` – Infinity.
+- `Inf` – 無限大
 
 <!-- -->
 
@@ -54,7 +88,7 @@ SELECT 0.5 / 0
 └────────────────┘
 ```
 
--   `-Inf` – Negative infinity.
+- `-Inf` — 負の無限大
 
 <!-- -->
 
@@ -68,7 +102,7 @@ SELECT -0.5 / 0
 └─────────────────┘
 ```
 
--   `NaN` – Not a number.
+- `NaN` — 数ではない
 
 <!-- -->
 
@@ -82,6 +116,4 @@ SELECT 0 / 0
 └──────────────┘
 ```
 
-    See the rules for `NaN` sorting in the section [ORDER BY clause](../sql_reference/statements/select/order-by.md).
-
-[元の記事](https://clickhouse.com/docs/en/data_types/float/) <!--hide-->
+`NaN`のソート順については、[ORDER BY句](../../sql-reference/statements/select/order-by.md)のセクションを参照してください。

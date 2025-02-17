@@ -1,27 +1,33 @@
 #pragma once
 
-#include <Backups/IBackupEntry.h>
-#include <IO/ReadBufferFromString.h>
+#include <Backups/BackupEntryWithChecksumCalculation.h>
 
 
 namespace DB
 {
 
 /// Represents small preloaded data to be included in a backup.
-class BackupEntryFromMemory : public IBackupEntry
+class BackupEntryFromMemory : public BackupEntryWithChecksumCalculation
 {
 public:
     /// The constructor is allowed to not set `checksum_`, in that case it will be calculated from the data.
-    BackupEntryFromMemory(const void * data_, size_t size_, const std::optional<UInt128> & checksum_ = {});
-    explicit BackupEntryFromMemory(String data_, const std::optional<UInt128> & checksum_ = {});
+    BackupEntryFromMemory(const void * data_, size_t size_);
+    explicit BackupEntryFromMemory(String data_);
 
+    std::unique_ptr<SeekableReadBuffer> getReadBuffer(const ReadSettings &) const override;
     UInt64 getSize() const override { return data.size(); }
-    std::optional<UInt128> getChecksum() const override { return checksum; }
-    std::unique_ptr<ReadBuffer> getReadBuffer() const override;
+
+    DataSourceDescription getDataSourceDescription() const override
+    {
+        DataSourceDescription res;
+        res.type = DataSourceType::RAM;
+        return res;
+    }
+
+    bool isPartialChecksumAllowed() const override { return true; }
 
 private:
     const String data;
-    const std::optional<UInt128> checksum;
 };
 
 }

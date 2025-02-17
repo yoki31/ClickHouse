@@ -9,9 +9,7 @@ SCHEMADIR=$CURDIR/format_schemas
 set -eo pipefail
 
 # Run the client.
-$CLICKHOUSE_CLIENT --multiquery <<EOF
-SET allow_experimental_map_type = 1;
-
+$CLICKHOUSE_CLIENT <<EOF
 DROP TABLE IF EXISTS map_protobuf_00825;
 
 CREATE TABLE map_protobuf_00825
@@ -34,7 +32,7 @@ hexdump -C $BINARY_FILE_PATH
 
 # Check the input in the protobuf format (now the table contains the same data twice).
 echo
-$CLICKHOUSE_CLIENT --query "INSERT INTO map_protobuf_00825 FORMAT Protobuf SETTINGS format_schema='$SCHEMADIR/00825_protobuf_format_map:Message'" < "$BINARY_FILE_PATH"
+$CLICKHOUSE_CLIENT --query "INSERT INTO map_protobuf_00825 SETTINGS format_schema='$SCHEMADIR/00825_protobuf_format_map:Message' FORMAT Protobuf" < "$BINARY_FILE_PATH"
 $CLICKHOUSE_CLIENT --query "SELECT * FROM map_protobuf_00825"
 
 rm "$BINARY_FILE_PATH"

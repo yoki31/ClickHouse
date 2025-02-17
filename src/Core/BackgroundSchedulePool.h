@@ -1,21 +1,20 @@
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
+#include <functional>
+#include <map>
+#include <mutex>
+#include <vector>
+#include <base/scope_guard.h>
+#include <boost/noncopyable.hpp>
 #include <Poco/Notification.h>
 #include <Poco/NotificationQueue.h>
 #include <Poco/Timestamp.h>
-#include <thread>
-#include <atomic>
-#include <mutex>
-#include <condition_variable>
-#include <vector>
-#include <map>
-#include <functional>
-#include <boost/noncopyable.hpp>
-#include <Common/ZooKeeper/Types.h>
 #include <Common/CurrentMetrics.h>
-#include <Common/CurrentThread.h>
-#include <Common/ThreadPool.h>
-
+#include <Common/ThreadPool_fwd.h>
+#include <Common/ZooKeeper/Types.h>
+#include <Core/BackgroundSchedulePoolTaskHolder.h>
 
 namespace DB
 {
@@ -48,17 +47,23 @@ public:
 
     TaskHolder createTask(const std::string & log_name, const TaskFunc & function);
 
-    size_t getNumberOfThreads() const { return size; }
+    /// As for MergeTreeBackgroundExecutor we refuse to implement tasks eviction, because it will
+    /// be error prone. We support only increasing number of threads at runtime.
+    void increaseThreadsCount(size_t new_threads_count);
 
     /// thread_name_ cannot be longer then 13 bytes (2 bytes is reserved for "/D" suffix for delayExecutionThreadFunction())
-    BackgroundSchedulePool(size_t size_, CurrentMetrics::Metric tasks_metric_, const char *thread_name_);
+    BackgroundSchedulePool(size_t size_, CurrentMetrics::Metric tasks_metric_, CurrentMetrics::Metric size_metric_, const char *thread_name_);
     ~BackgroundSchedulePool();
 
 private:
-    using Threads = std::vector<ThreadFromGlobalPool>;
+    /// BackgroundSchedulePool schedules a task on its own task queue, there's no need to construct/restore tracing context on this level.
+    /// This is also how ThreadPool class treats the tracing context. See ThreadPool for more information.
+    using Threads = std::vector<ThreadFromGlobalPoolNoTracingContextPropagation>;
 
     void threadFunction();
     void delayExecutionThreadFunction();
+
+    void scheduleTask(TaskInfoPtr task_info);
 
     /// Schedule task for execution after specified delay from now.
     void scheduleDelayedTask(const TaskInfoPtr & task_info, size_t ms, std::lock_guard<std::mutex> & task_schedule_mutex_lock);
@@ -66,28 +71,26 @@ private:
     /// Remove task, that was scheduled with delay, from schedule.
     void cancelDelayedTask(const TaskInfoPtr & task_info, std::lock_guard<std::mutex> & task_schedule_mutex_lock);
 
-    /// Number for worker threads.
-    const size_t size;
     std::atomic<bool> shutdown {false};
+
+    /// Tasks.
+    std::condition_variable tasks_cond_var;
+    std::mutex tasks_mutex;
+    std::deque<TaskInfoPtr> tasks;
     Threads threads;
-    Poco::NotificationQueue queue;
 
-    /// Delayed notifications.
+    /// Delayed tasks.
 
-    std::condition_variable wakeup_cond;
+    std::condition_variable delayed_tasks_cond_var;
     std::mutex delayed_tasks_mutex;
     /// Thread waiting for next delayed task.
-    ThreadFromGlobalPool delayed_thread;
+    std::unique_ptr<ThreadFromGlobalPoolNoTracingContextPropagation> delayed_thread;
     /// Tasks ordered by scheduled time.
     DelayedTasks delayed_tasks;
 
-    /// Thread group used for profiling purposes
-    ThreadGroupStatusPtr thread_group;
-
     CurrentMetrics::Metric tasks_metric;
+    CurrentMetrics::Increment size_metric;
     std::string thread_name;
-
-    void attachToThreadGroup();
 };
 
 
@@ -101,8 +104,10 @@ public:
     bool schedule();
 
     /// Schedule for execution after specified delay.
-    /// If overwrite is set then the task will be re-scheduled (if it was already scheduled, i.e. delayed == true).
-    bool scheduleAfter(size_t ms, bool overwrite = true);
+    /// If overwrite is set, and the task is already scheduled with a delay (delayed == true),
+    /// the task will be re-scheduled with the new delay.
+    /// If only_if_scheduled is set, don't do anything unless the task is already scheduled with a delay.
+    bool scheduleAfter(size_t milliseconds, bool overwrite = true, bool only_if_scheduled = false);
 
     /// Further attempts to schedule become no-op. Will wait till the end of the current execution of the task.
     void deactivate();
@@ -114,6 +119,10 @@ public:
 
     /// get Coordination::WatchCallback needed for notifications from ZooKeeper watches.
     Coordination::WatchCallback getWatchCallback();
+
+    /// Returns lock that protects from concurrent task execution.
+    /// This lock should not be held for a long time.
+    std::unique_lock<std::mutex> getExecLock();
 
 private:
     friend class TaskNotification;
@@ -143,31 +152,5 @@ private:
 };
 
 using BackgroundSchedulePoolTaskInfoPtr = std::shared_ptr<BackgroundSchedulePoolTaskInfo>;
-
-
-class BackgroundSchedulePoolTaskHolder
-{
-public:
-    BackgroundSchedulePoolTaskHolder() = default;
-    explicit BackgroundSchedulePoolTaskHolder(const BackgroundSchedulePoolTaskInfoPtr & task_info_) : task_info(task_info_) {}
-    BackgroundSchedulePoolTaskHolder(const BackgroundSchedulePoolTaskHolder & other) = delete;
-    BackgroundSchedulePoolTaskHolder(BackgroundSchedulePoolTaskHolder && other) noexcept = default;
-    BackgroundSchedulePoolTaskHolder & operator=(const BackgroundSchedulePoolTaskHolder & other) noexcept = delete;
-    BackgroundSchedulePoolTaskHolder & operator=(BackgroundSchedulePoolTaskHolder && other) noexcept = default;
-
-    ~BackgroundSchedulePoolTaskHolder()
-    {
-        if (task_info)
-            task_info->deactivate();
-    }
-
-    operator bool() const { return task_info != nullptr; } /// NOLINT
-
-    BackgroundSchedulePoolTaskInfo * operator->() { return task_info.get(); }
-    const BackgroundSchedulePoolTaskInfo * operator->() const { return task_info.get(); }
-
-private:
-    BackgroundSchedulePoolTaskInfoPtr task_info;
-};
 
 }

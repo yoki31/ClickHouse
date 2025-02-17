@@ -1,11 +1,9 @@
-#include <Common/DateLUT.h>
-
 #include <Core/Field.h>
-
 #include <DataTypes/DataTypeDate.h>
-
-#include <Functions/IFunction.h>
 #include <Functions/FunctionFactory.h>
+#include <Functions/IFunction.h>
+#include <Common/DateLUT.h>
+#include <Common/DateLUTImpl.h>
 
 
 namespace DB
@@ -51,7 +49,6 @@ public:
     }
 
     bool isDeterministic() const override { return false; }
-    bool isDeterministicInScopeOfQuery() const override { return true; }
     bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
 
 private:
@@ -81,7 +78,7 @@ public:
     }
 };
 
-void registerFunctionYesterday(FunctionFactory & factory)
+REGISTER_FUNCTION(Yesterday)
 {
     factory.registerFunction<YesterdayOverloadResolver>();
 }

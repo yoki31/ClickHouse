@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Core/Block.h>
 #include <Processors/Formats/IRowInputFormat.h>
 #include <Processors/Formats/ISchemaReader.h>
 #include <Formats/FormatSettings.h>
@@ -36,6 +35,10 @@ private:
     bool allowSyncAfterError() const override { return true; }
     void syncAfterError() override;
 
+    bool supportsCountRows() const override { return true; }
+    size_t countRows(size_t max_block_size) override;
+    bool supportsCustomSerializations() const override { return true; }
+
     const FormatSettings format_settings;
 
     /// Buffer for the read from the stream the field name. Used when you have to copy it.
@@ -59,9 +62,8 @@ public:
     TSKVSchemaReader(ReadBuffer & in_, const FormatSettings & format_settings_);
 
 private:
-    std::unordered_map<String, DataTypePtr> readRowAndGetNamesAndDataTypes() override;
+    NamesAndTypesList readRowAndGetNamesAndDataTypes(bool & eof) override;
 
-    const FormatSettings format_settings;
     bool first_row = true;
 };
 

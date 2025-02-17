@@ -1,17 +1,21 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 34
-toc_title: JDBC
+slug: /ja/engines/table-engines/integrations/jdbc
+sidebar_position: 100
+sidebar_label: JDBC
 ---
 
-# JDBC {#table-engine-jdbc}
+# JDBC
 
-ClickHouseが外部データベースに接続できるようにする [JDBC](https://en.wikipedia.org/wiki/Java_Database_Connectivity).
+:::note
+clickhouse-jdbc-bridgeにはエクスペリメンタルなコードが含まれており、もはやサポートされていません。信頼性の問題やセキュリティの脆弱性を含む可能性があります。使用する際は自己責任でお願いします。
+ClickHouseでは、Postgres、MySQL、MongoDBなどのアドホックなクエリシナリオに対するより良い代替手段を提供するClickHouseに内蔵されたテーブル関数を使用することを推奨しています。
+:::
 
-JDBC接続を実装するには、ClickHouseは別のプログラムを使用します [clickhouse-jdbc-bridge](https://github.com/ClickHouse/clickhouse-jdbc-bridge) うにしてくれました。
+ClickHouseが外部データベースに[**JDBC**](https://en.wikipedia.org/wiki/Java_Database_Connectivity)経由で接続することを可能にします。
 
-このエンジンは [Null可能](../../../sql-reference/data-types/nullable.md) データ型。
+JDBC接続を実装するために、ClickHouseはデーモンとして実行される別個のプログラム[clickhouse-jdbc-bridge](https://github.com/ClickHouse/clickhouse-jdbc-bridge)を使用します。
+
+このエンジンは[Nullable](../../../sql-reference/data-types/nullable.md)データ型をサポートしています。
 
 ## テーブルの作成 {#creating-a-table}
 
@@ -23,20 +27,21 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name
 ENGINE = JDBC(datasource_uri, external_database, external_table)
 ```
 
-**エンジン変数**
+**エンジンパラメータ**
 
--   `datasource_uri` — URI or name of an external DBMS.
 
-    URI形式: `jdbc:<driver_name>://<host_name>:<port>/?user=<username>&password=<password>`.
-    MySQLの例: `jdbc:mysql://localhost:3306/?user=root&password=root`.
+- `datasource_uri` — 外部DBMSのURIまたは名前。
 
--   `external_database` — Database in an external DBMS.
+    URI形式: `jdbc:<driver_name>://<host_name>:<port>/?user=<username>&password=<password>`。
+    MySQLの例: `jdbc:mysql://localhost:3306/?user=root&password=root`。
 
--   `external_table` — Name of the table in `external_database` or a select query like `select * from table1 where column1=1`.
+- `external_database` — 外部DBMSのデータベース。
+
+- `external_table` — `external_database`内のテーブル名、または`select * from table1 where column1=1`のようなselect クエリ。
 
 ## 使用例 {#usage-example}
 
-コンソールクライアントに直接接続してMySQL serverでテーブルを作成する:
+MySQLサーバーのコンソールクライアントに直接接続してテーブルを作成します:
 
 ``` text
 mysql> CREATE TABLE `test`.`test` (
@@ -59,7 +64,7 @@ mysql> select * from test;
 1 row in set (0,00 sec)
 ```
 
-ClickHouse serverでテーブルを作成し、そこからデータを選択する:
+ClickHouseサーバーでテーブルを作成しデータを選択します:
 
 ``` sql
 CREATE TABLE jdbc_table
@@ -89,8 +94,6 @@ SELECT toInt32(number), toFloat32(number * 1.0)
 FROM system.numbers
 ```
 
-## も参照。 {#see-also}
+## 関連項目 {#see-also}
 
--   [JDBCテーブル関数](../../../sql-reference/table-functions/jdbc.md).
-
-[元の記事](https://clickhouse.com/docs/en/operations/table_engines/jdbc/) <!--hide-->
+- [JDBCテーブル関数](../../../sql-reference/table-functions/jdbc.md)。

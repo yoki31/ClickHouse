@@ -1,6 +1,22 @@
+---
+slug: /zh/interfaces/third-party/gui
+---
 # 第三方开发的可视化界面 {#di-san-fang-kai-fa-de-ke-shi-hua-jie-mian}
 
 ## 开源 {#kai-yuan}
+
+### ChartDB {#chartdb}
+
+ClickHouse 的数据库模式可视化工具 [ChartDB](https://chartdb.io)。
+
+主要功能：
+
+- 一键导入并可视化 ClickHouse 模式，包括带有物化视图和标准视图的 ER 图表，并显示表之间的引用关系。
+- 支持 AI 驱动的 DDL 导出功能，便于数据库模式管理和文档生成。
+- 支持多种 SQL 方言，适用于各种数据库环境。
+- 直接在浏览器中使用，无需数据库凭证或注册，使用简单且安全。
+
+[ChartDB 源代码](https://github.com/chartdb/chartdb).
 
 ### Tabix {#tabix}
 
@@ -88,6 +104,18 @@ ClickHouse Web 界面 [Tabix](https://github.com/tabixio/tabix).
 -   支持监控（处理进程、连接、查询）
 -   支持迁移数据
 
+### ClickVisual {#clickvisual}
+
+[ClickVisual](https://clickvisual.net/) ClickVisual是一款轻量级的开源日志查询、分析、报警的可视化平台！
+
+特征：
+
+- 支持分析日志库一键创建
+- 支持日志采集配置管理
+- 支持自定义索引配置
+- 支持报警配置
+- 支持权限粒度到库和表的权限配置
+
 ## 商业 {#shang-ye}
 
 ### Holistics {#holistics-software}
@@ -115,4 +143,17 @@ ClickHouse Web 界面 [Tabix](https://github.com/tabixio/tabix).
 -   重构。
 -   搜索和导航。
 
-[来源文章](https://clickhouse.com/docs/zh/interfaces/third-party/gui/) <!--hide-->
+### CKMAN {#ckman}
+
+[CKMAN](https://www.github.com/housepower/ckman) 是一个用于管理和监控ClickHouse集群的可视化工具！
+
+特征：
+
+- 非常快速便捷的通过浏览器界面自动化部署集群
+- 支持对集群进行扩缩容操作
+- 对集群的数据进行负载均衡
+- 对集群进行在线升级
+- 通过界面修改集群配置
+- 提供集群节点监控，zookeeper监控
+- 监控表、分区状态，慢SQL监控
+- 提供简单易操作的SQL执行页面

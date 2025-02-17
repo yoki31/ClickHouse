@@ -4,8 +4,8 @@
 #include <Storages/MergeTree/MergeProgress.h>
 #include <Storages/MergeTree/FutureMergedMutatedPart.h>
 #include <Storages/MergeTree/IMergedBlockOutputStream.h>
+#include <Storages/MergeTree/PartitionActionBlocker.h>
 #include <Storages/MutationCommands.h>
-#include <Interpreters/MutationsInterpreter.h>
 
 
 namespace DB
@@ -13,7 +13,7 @@ namespace DB
 
 
 class MutateTask;
-using MutateTaskPtr = std::shared_ptr<MutateTask>;\
+using MutateTaskPtr = std::shared_ptr<MutateTask>;
 
 
 class MergeTreeDataMergerMutator;
@@ -32,29 +32,35 @@ public:
         ContextPtr context_,
         ReservationSharedPtr space_reservation_,
         TableLockHolder & table_lock_holder_,
+        const MergeTreeTransactionPtr & txn,
         MergeTreeData & data_,
         MergeTreeDataMergerMutator & mutator_,
-        ActionBlocker & merges_blocker_);
+        PartitionActionBlocker & merges_blocker_,
+        bool need_prefix_);
 
     bool execute();
+    void cancel() noexcept;
+
+    void updateProfileEvents() const;
 
     std::future<MergeTreeData::MutableDataPartPtr> getFuture()
     {
         return promise.get_future();
     }
 
+    const HardlinkedFiles & getHardlinkedFiles() const;
+
 private:
 
     bool prepare();
 
-    enum class State
+    enum class State : uint8_t
     {
         NEED_PREPARE,
         NEED_EXECUTE
     };
 
     State state{State::NEED_PREPARE};
-
 
     std::promise<MergeTreeData::MutableDataPartPtr> promise;
 

@@ -1,15 +1,34 @@
 ---
-machine_translated: true
-machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_folder_title: "\u30C7\u30FC\u30BF\u578B"
-toc_priority: 37
-toc_title: "\u306F\u3058\u3081\u306B"
+slug: /ja/sql-reference/data-types/
+sidebar_label: データ型の一覧
+sidebar_position: 1
 ---
 
-# データ型 {#data_types}
+# ClickHouseのデータ型
 
-ClickHouseは、表のセルにさまざまな種類のデータを格納できます。
+ClickHouseは様々な種類のデータをテーブルのセルに格納できます。このセクションでは、サポートされているデータ型と、それを使用および/または実装する際の特別な考慮事項について説明します。
 
-この章ではサポートされているデータの種類と特別な配慮のための利用および/または実施しています。
+:::note
+データ型名が大文字と小文字を区別するかどうかは、[system.data_type_families](../../operations/system-tables/data_type_families.md#system_tables-data_type_families)テーブルで確認できます。
+:::
 
-[元の記事](https://clickhouse.com/docs/en/data_types/) <!--hide-->
+ClickHouseのデータ型には次のものがあります：
+
+- **整数型**：[符号付きおよび符号なし整数](./int-uint.md) (`UInt8`, `UInt16`, `UInt32`, `UInt64`, `UInt128`, `UInt256`, `Int8`, `Int16`, `Int32`, `Int64`, `Int128`, `Int256`)
+- **浮動小数点数**：[浮動小数点数](./float.md) (`Float32` と `Float64`) と [`Decimal` 値](./decimal.md)
+- **ブール型**：ClickHouseには[`Boolean`型](./boolean.md)があります
+- **文字列**：[文字列型 `String`](./string.md) と [`FixedString`](./fixedstring.md)
+- **日付**：日付には[`Date`](./date.md) と [`Date32`](./date32.md)を、時間には[`DateTime`](./datetime.md) と [`DateTime64`](./datetime64.md)を使用
+- **オブジェクト**：[`Object`](./json.md)は1つのカラムでJSONドキュメントを保存（非推奨）
+- **JSON**：[`JSON`オブジェクト](./newjson.md)は1つのカラムでJSONドキュメントを保存
+- **UUID**：[`UUID`値](./uuid.md)を効率的に保存するための選択肢
+- **低いカーディナリティ型**：少数のユニークな値がある場合は[`Enum`](./enum.md)を、最大10,000のユニークなカラム値がある場合は[`LowCardinality`](./lowcardinality.md)を使用
+- **配列**：任意のカラムは[`Array` 型](./array.md)として定義可能
+- **マップ**：キーと値のペアを保存するには[`Map`](./map.md)を使用
+- **集約関数型**：集約関数の中間状態を保存するには[`SimpleAggregateFunction`](./simpleaggregatefunction.md) と [`AggregateFunction`](./aggregatefunction.md)を使用
+- **ネストされたデータ構造**：[`Nested`データ構造](./nested-data-structures/index.md)はセル内のテーブルのようなもの
+- **タプル**：個別の型をもつ要素の[`Tuple`](./tuple.md)
+- **Nullable**：値が"欠けている"場合にデータ型のデフォルト値ではなく`NULL`として保存する場合に[`Nullable`](./nullable.md)を使用
+- **IPアドレス**：IPアドレスを効率的に保存するには[`IPv4`](./ipv4.md) と [`IPv6`](./ipv6.md)を使用
+- **ジオタイプ**：[地理データ](./geo.md)用の`Point`, `Ring`, `Polygon`, `MultiPolygon`
+- **特別なデータ型**：[`Expression`](./special-data-types/expression.md), [`Set`](./special-data-types/set.md), [`Nothing`](./special-data-types/nothing.md), [`Interval`](./special-data-types/interval.md)など含む

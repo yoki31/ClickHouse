@@ -1,5 +1,5 @@
 #pragma once
-#include "config_formats.h"
+#include "config.h"
 #if USE_ORC
 
 #include <Processors/Formats/IInputFormat.h>
@@ -27,17 +27,20 @@ public:
 
     void resetParser() override;
 
-    const BlockMissingValues & getMissingValues() const override;
+    const BlockMissingValues * getMissingValues() const override;
+
+    size_t getApproxBytesReadForChunk() const override { return approx_bytes_read_for_chunk; }
 
 protected:
-    Chunk generate() override;
+    Chunk read() override;
 
-    void onCancel() override
+    void onCancel() noexcept override
     {
         is_stopped = 1;
     }
 
 private:
+    void prepareReader();
 
     // TODO: check that this class implements every part of its parent
 
@@ -47,14 +50,15 @@ private:
 
     // indices of columns to read from ORC file
     std::vector<int> include_indices;
-    std::vector<String> include_column_names;
 
-    std::vector<size_t> missing_columns;
     BlockMissingValues block_missing_values;
+    size_t approx_bytes_read_for_chunk = 0;
 
     const FormatSettings format_settings;
+    const std::unordered_set<int> & skip_stripes;
 
-    void prepareReader();
+    int stripe_total = 0;
+    int stripe_current = 0;
 
     std::atomic<int> is_stopped{0};
 };
@@ -65,8 +69,13 @@ public:
     ORCSchemaReader(ReadBuffer & in_, const FormatSettings & format_settings_);
 
     NamesAndTypesList readSchema() override;
+    std::optional<size_t> readNumberOrRows() override;
 
 private:
+    void initializeIfNeeded();
+
+    std::unique_ptr<arrow::adapters::orc::ORCFileReader> file_reader;
+    std::shared_ptr<arrow::Schema> schema;
     const FormatSettings format_settings;
 };
 

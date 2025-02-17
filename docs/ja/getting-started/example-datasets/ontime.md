@@ -1,26 +1,14 @@
 ---
-toc_priority: 15
-toc_title: OnTime
+slug: /ja/getting-started/example-datasets/ontime
+sidebar_label: OnTime 航空便データ
+description: 航空便のオンタイムパフォーマンスを含むデータセット
 ---
 
-# OnTime {#ontime}
+# OnTime
 
-このデータセットは二つの方法で取得できます:
+このデータセットには、交通統計局からのデータが含まれています。
 
--   生データからインポート
--   パーティション済みのダウンロード
-
-## 生データからインポート {#import-from-raw-data}
-
-データのダウンロード:
-
-``` bash
-wget --no-check-certificate --continue https://transtats.bts.gov/PREZIP/On_Time_Reporting_Carrier_On_Time_Performance_1987_present_{1987..2021}_{1..12}.zip
-```
-
-（https://github.com/Percona-Lab/ontime-airline-performance/blob/master/download.sh より)
-
-テーブルの作成:
+## テーブルの作成
 
 ``` sql
 CREATE TABLE `ontime`
@@ -31,133 +19,138 @@ CREATE TABLE `ontime`
     `DayofMonth`                      UInt8,
     `DayOfWeek`                       UInt8,
     `FlightDate`                      Date,
-    `Reporting_Airline`               String,
+    `Reporting_Airline`               LowCardinality(String),
     `DOT_ID_Reporting_Airline`        Int32,
-    `IATA_CODE_Reporting_Airline`     String,
-    `Tail_Number`                     String,
-    `Flight_Number_Reporting_Airline` String,
+    `IATA_CODE_Reporting_Airline`     LowCardinality(String),
+    `Tail_Number`                     LowCardinality(String),
+    `Flight_Number_Reporting_Airline` LowCardinality(String),
     `OriginAirportID`                 Int32,
     `OriginAirportSeqID`              Int32,
     `OriginCityMarketID`              Int32,
     `Origin`                          FixedString(5),
-    `OriginCityName`                  String,
+    `OriginCityName`                  LowCardinality(String),
     `OriginState`                     FixedString(2),
-    `OriginStateFips`                 String,
-    `OriginStateName`                 String,
+    `OriginStateFips`                 FixedString(2),
+    `OriginStateName`                 LowCardinality(String),
     `OriginWac`                       Int32,
     `DestAirportID`                   Int32,
     `DestAirportSeqID`                Int32,
     `DestCityMarketID`                Int32,
     `Dest`                            FixedString(5),
-    `DestCityName`                    String,
+    `DestCityName`                    LowCardinality(String),
     `DestState`                       FixedString(2),
-    `DestStateFips`                   String,
-    `DestStateName`                   String,
+    `DestStateFips`                   FixedString(2),
+    `DestStateName`                   LowCardinality(String),
     `DestWac`                         Int32,
     `CRSDepTime`                      Int32,
     `DepTime`                         Int32,
     `DepDelay`                        Int32,
     `DepDelayMinutes`                 Int32,
     `DepDel15`                        Int32,
-    `DepartureDelayGroups`            String,
-    `DepTimeBlk`                      String,
+    `DepartureDelayGroups`            LowCardinality(String),
+    `DepTimeBlk`                      LowCardinality(String),
     `TaxiOut`                         Int32,
-    `WheelsOff`                       Int32,
-    `WheelsOn`                        Int32,
+    `WheelsOff`                       LowCardinality(String),
+    `WheelsOn`                        LowCardinality(String),
     `TaxiIn`                          Int32,
     `CRSArrTime`                      Int32,
     `ArrTime`                         Int32,
     `ArrDelay`                        Int32,
     `ArrDelayMinutes`                 Int32,
     `ArrDel15`                        Int32,
-    `ArrivalDelayGroups`              Int32,
-    `ArrTimeBlk`                      String,
-    `Cancelled`                       UInt8,
+    `ArrivalDelayGroups`              LowCardinality(String),
+    `ArrTimeBlk`                      LowCardinality(String),
+    `Cancelled`                       Int8,
     `CancellationCode`                FixedString(1),
-    `Diverted`                        UInt8,
+    `Diverted`                        Int8,
     `CRSElapsedTime`                  Int32,
     `ActualElapsedTime`               Int32,
-    `AirTime`                         Nullable(Int32),
+    `AirTime`                         Int32,
     `Flights`                         Int32,
     `Distance`                        Int32,
-    `DistanceGroup`                   UInt8,
+    `DistanceGroup`                   Int8,
     `CarrierDelay`                    Int32,
     `WeatherDelay`                    Int32,
     `NASDelay`                        Int32,
     `SecurityDelay`                   Int32,
     `LateAircraftDelay`               Int32,
-    `FirstDepTime`                    String,
-    `TotalAddGTime`                   String,
-    `LongestAddGTime`                 String,
-    `DivAirportLandings`              String,
-    `DivReachedDest`                  String,
-    `DivActualElapsedTime`            String,
-    `DivArrDelay`                     String,
-    `DivDistance`                     String,
-    `Div1Airport`                     String,
+    `FirstDepTime`                    Int16,
+    `TotalAddGTime`                   Int16,
+    `LongestAddGTime`                 Int16,
+    `DivAirportLandings`              Int8,
+    `DivReachedDest`                  Int8,
+    `DivActualElapsedTime`            Int16,
+    `DivArrDelay`                     Int16,
+    `DivDistance`                     Int16,
+    `Div1Airport`                     LowCardinality(String),
     `Div1AirportID`                   Int32,
     `Div1AirportSeqID`                Int32,
-    `Div1WheelsOn`                    String,
-    `Div1TotalGTime`                  String,
-    `Div1LongestGTime`                String,
-    `Div1WheelsOff`                   String,
-    `Div1TailNum`                     String,
-    `Div2Airport`                     String,
+    `Div1WheelsOn`                    Int16,
+    `Div1TotalGTime`                  Int16,
+    `Div1LongestGTime`                Int16,
+    `Div1WheelsOff`                   Int16,
+    `Div1TailNum`                     LowCardinality(String),
+    `Div2Airport`                     LowCardinality(String),
     `Div2AirportID`                   Int32,
     `Div2AirportSeqID`                Int32,
-    `Div2WheelsOn`                    String,
-    `Div2TotalGTime`                  String,
-    `Div2LongestGTime`                String,
-    `Div2WheelsOff`                   String,
-    `Div2TailNum`                     String,
-    `Div3Airport`                     String,
+    `Div2WheelsOn`                    Int16,
+    `Div2TotalGTime`                  Int16,
+    `Div2LongestGTime`                Int16,
+    `Div2WheelsOff`                   Int16,
+    `Div2TailNum`                     LowCardinality(String),
+    `Div3Airport`                     LowCardinality(String),
     `Div3AirportID`                   Int32,
     `Div3AirportSeqID`                Int32,
-    `Div3WheelsOn`                    String,
-    `Div3TotalGTime`                  String,
-    `Div3LongestGTime`                String,
-    `Div3WheelsOff`                   String,
-    `Div3TailNum`                     String,
-    `Div4Airport`                     String,
+    `Div3WheelsOn`                    Int16,
+    `Div3TotalGTime`                  Int16,
+    `Div3LongestGTime`                Int16,
+    `Div3WheelsOff`                   Int16,
+    `Div3TailNum`                     LowCardinality(String),
+    `Div4Airport`                     LowCardinality(String),
     `Div4AirportID`                   Int32,
     `Div4AirportSeqID`                Int32,
-    `Div4WheelsOn`                    String,
-    `Div4TotalGTime`                  String,
-    `Div4LongestGTime`                String,
-    `Div4WheelsOff`                   String,
-    `Div4TailNum`                     String,
-    `Div5Airport`                     String,
+    `Div4WheelsOn`                    Int16,
+    `Div4TotalGTime`                  Int16,
+    `Div4LongestGTime`                Int16,
+    `Div4WheelsOff`                   Int16,
+    `Div4TailNum`                     LowCardinality(String),
+    `Div5Airport`                     LowCardinality(String),
     `Div5AirportID`                   Int32,
     `Div5AirportSeqID`                Int32,
-    `Div5WheelsOn`                    String,
-    `Div5TotalGTime`                  String,
-    `Div5LongestGTime`                String,
-    `Div5WheelsOff`                   String,
-    `Div5TailNum`                     String
+    `Div5WheelsOn`                    Int16,
+    `Div5TotalGTime`                  Int16,
+    `Div5LongestGTime`                Int16,
+    `Div5WheelsOff`                   Int16,
+    `Div5TailNum`                     LowCardinality(String)
 ) ENGINE = MergeTree
-      PARTITION BY Year
-      ORDER BY (IATA_CODE_Reporting_Airline, FlightDate)
-      SETTINGS index_granularity = 8192;
+  ORDER BY (Year, Quarter, Month, DayofMonth, FlightDate, IATA_CODE_Reporting_Airline);
 ```
 
-データのロード:
+## 生データからのインポート {#import-from-raw-data}
+
+データのダウンロード:
 
 ``` bash
-ls -1 *.zip | xargs -I{} -P $(nproc) bash -c "echo {}; unzip -cq {} '*.csv' | sed 's/\.00//g' | clickhouse-client --input_format_with_names_use_header=0 --query='INSERT INTO ontime FORMAT CSVWithNames'"
+wget --no-check-certificate --continue https://transtats.bts.gov/PREZIP/On_Time_Reporting_Carrier_On_Time_Performance_1987_present_{1987..2022}_{1..12}.zip
 ```
 
-## パーティション済みデータのダウンロード {#download-of-prepared-partitions}
+マルチスレッドでのデータ読み込み:
 
 ``` bash
-$ curl -O https://datasets.clickhouse.com/ontime/partitions/ontime.tar
-$ tar xvf ontime.tar -C /var/lib/clickhouse # path to ClickHouse data directory
-$ # check permissions of unpacked data, fix if required
-$ sudo service clickhouse-server restart
-$ clickhouse-client --query "select count(*) from datasets.ontime"
+ls -1 *.zip | xargs -I{} -P $(nproc) bash -c "echo {}; unzip -cq {} '*.csv' | sed 's/\.00//g' | clickhouse-client --input_format_csv_empty_as_default 1 --query='INSERT INTO ontime FORMAT CSVWithNames'"
 ```
 
-!!! info "情報"
-    以下で説明するクエリを実行する場合は、`datasets.ontime` のような 完全なテーブル名を使用する必要があります。
+(サーバでメモリ不足または他の問題が発生した場合、`-P $(nproc)` 部分を削除してください)
+
+## 保存済みのコピーからのインポート
+
+代替として、以下のクエリを使用して保存済みのコピーからデータをインポートできます:
+
+```
+INSERT INTO ontime SELECT * FROM s3('https://clickhouse-public-datasets.s3.amazonaws.com/ontime/csv_by_year/*.csv.gz', CSVWithNames) SETTINGS max_insert_threads = 40;
+```
+
+このスナップショットは2022-05-29に作成されました。
 
 ## クエリ {#queries}
 
@@ -173,7 +166,7 @@ FROM
 );
 ```
 
-Q1. 2000年から2008年までの一日あたりのフライト数
+Q1. 2000年から2008年の1日あたりの便数
 
 ``` sql
 SELECT DayOfWeek, count(*) AS c
@@ -183,7 +176,7 @@ GROUP BY DayOfWeek
 ORDER BY c DESC;
 ```
 
-Q2. 2000年から2008年までの10分以上遅延したフライトの数を曜日ごとにグループ化
+Q2. 10分以上遅延した便の数、2000-2008年の曜日ごとのグループ
 
 ``` sql
 SELECT DayOfWeek, count(*) AS c
@@ -193,7 +186,7 @@ GROUP BY DayOfWeek
 ORDER BY c DESC;
 ```
 
-Q3. 2000年から2008年までの空港別の遅延件数
+Q3. 2000-2008年の空港別の遅延数
 
 ``` sql
 SELECT Origin, count(*) AS c
@@ -204,17 +197,17 @@ ORDER BY c DESC
 LIMIT 10;
 ```
 
-Q4. 2007年のキャリア別の遅延の数
+Q4. 2007年の空港ごとの遅延数
 
 ``` sql
 SELECT IATA_CODE_Reporting_Airline AS Carrier, count(*)
 FROM ontime
 WHERE DepDelay>10 AND Year=2007
-GROUP BY IATA_CODE_Reporting_Airline
+GROUP BY Carrier
 ORDER BY count(*) DESC;
 ```
 
-Q5. 2007年のキャリア別遅延の割合
+Q5. 2007年の航空会社ごとの遅延割合
 
 ``` sql
 SELECT Carrier, c, c2, c*100/c2 as c3
@@ -240,17 +233,17 @@ JOIN
 ORDER BY c3 DESC;
 ```
 
-同じクエリのより良いバージョン:
+同じクエリの改良版:
 
 ``` sql
 SELECT IATA_CODE_Reporting_Airline AS Carrier, avg(DepDelay>10)*100 AS c3
 FROM ontime
 WHERE Year=2007
-GROUP BY IATA_CODE_Reporting_Airline
+GROUP BY Carrier
 ORDER BY c3 DESC
 ```
 
-Q6. 前のリクエストを2000年から2008年までに広げたもの
+Q6. 2000-2008年の広範な年範囲のため
 
 ``` sql
 SELECT Carrier, c, c2, c*100/c2 as c3
@@ -276,7 +269,7 @@ JOIN
 ORDER BY c3 DESC;
 ```
 
-同じクエリのより良いバージョン:
+同じクエリの改良版:
 
 ``` sql
 SELECT IATA_CODE_Reporting_Airline AS Carrier, avg(DepDelay>10)*100 AS c3
@@ -286,7 +279,7 @@ GROUP BY Carrier
 ORDER BY c3 DESC;
 ```
 
-Q7. 年別の、10分以上遅延したフライトの割合
+Q7. 年ごとの10分以上の遅延便の割合
 
 ``` sql
 SELECT Year, c1/c2
@@ -310,7 +303,7 @@ JOIN
 ORDER BY Year;
 ```
 
-同じクエリのより良いバージョン:
+同じクエリの改良版:
 
 ``` sql
 SELECT Year, avg(DepDelay>10)*100
@@ -319,7 +312,7 @@ GROUP BY Year
 ORDER BY Year;
 ```
 
-Q8. 複数年の、直行都市数別の人気の高い目的地
+Q8. 直接接続された都市数による最も人気のある目的地、さまざまな年の範囲
 
 ``` sql
 SELECT DestCityName, uniqExact(OriginCityName) AS u
@@ -393,13 +386,13 @@ ORDER BY c DESC
 LIMIT 10;
 ```
 
-このパフォーマンステストは、Vadim Tkachenkoによって作成されました。以下を参照してください。
+また、Playgroundでデータを操作することもできます。[例](https://sql.clickhouse.com?query_id=M4FSVBVMSHY98NKCQP8N4K)。
 
--   https://www.percona.com/blog/2009/10/02/analyzing-air-traffic-performance-with-infobright-and-monetdb/
--   https://www.percona.com/blog/2009/10/26/air-traffic-queries-in-luciddb/
--   https://www.percona.com/blog/2009/11/02/air-traffic-queries-in-infinidb-early-alpha/
--   https://www.percona.com/blog/2014/04/21/using-apache-hadoop-and-impala-together-with-mysql-for-data-analysis/
--   https://www.percona.com/blog/2016/01/07/apache-spark-with-air-ontime-performance-data/
--   http://nickmakos.blogspot.ru/2012/08/analyzing-air-traffic-performance-with.html
+この性能テストはVadim Tkachenkoによって作成されました。次を参照してください：
 
-[元の記事](https://clickhouse.com/docs/en/getting_started/example_datasets/ontime/) <!--hide-->
+- https://www.percona.com/blog/2009/10/02/analyzing-air-traffic-performance-with-infobright-and-monetdb/
+- https://www.percona.com/blog/2009/10/26/air-traffic-queries-in-luciddb/
+- https://www.percona.com/blog/2009/11/02/air-traffic-queries-in-infinidb-early-alpha/
+- https://www.percona.com/blog/2014/04/21/using-apache-hadoop-and-impala-together-with-mysql-for-data-analysis/
+- https://www.percona.com/blog/2016/01/07/apache-spark-with-air-ontime-performance-data/
+- http://nickmakos.blogspot.ru/2012/08/analyzing-air-traffic-performance-with.html

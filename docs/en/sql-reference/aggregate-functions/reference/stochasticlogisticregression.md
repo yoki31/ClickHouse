@@ -1,16 +1,17 @@
 ---
-toc_priority: 222
+slug: /en/sql-reference/aggregate-functions/reference/stochasticlogisticregression
+sidebar_position: 193
 ---
 
-# stochasticLogisticRegression {#agg_functions-stochasticlogisticregression}
+# stochasticLogisticRegression
 
 This function implements stochastic logistic regression. It can be used for binary classification problem, supports the same custom parameters as stochasticLinearRegression and works the same way.
 
-### Parameters {#agg_functions-stochasticlogisticregression-parameters}
+### Parameters
 
 Parameters are exactly the same as in stochasticLinearRegression:
 `learning rate`, `l2 regularization coefficient`, `mini-batch size`, `method for updating weights`.
-For more information see [parameters](#agg_functions-stochasticlinearregression-parameters).
+For more information see [parameters](../reference/stochasticlinearregression.md/#parameters).
 
 ``` text
 stochasticLogisticRegression(1.0, 1.0, 10, 'SGD')
@@ -20,7 +21,7 @@ stochasticLogisticRegression(1.0, 1.0, 10, 'SGD')
 
 <!-- -->
 
-    See the `Fitting` section in the [stochasticLinearRegression](#stochasticlinearregression-usage-fitting) description.
+    See the `Fitting` section in the [stochasticLinearRegression](/docs/en/sql-reference/aggregate-functions/reference/stochasticlinearregression) description.
 
     Predicted labels have to be in \[-1, 1\].
 
@@ -51,5 +52,5 @@ stochasticLogisticRegression(1.0, 1.0, 10, 'SGD')
 
 **See Also**
 
--   [stochasticLinearRegression](../../../sql-reference/aggregate-functions/reference/stochasticlinearregression.md#agg_functions-stochasticlinearregression)
--   [Difference between linear and logistic regressions.](https://stackoverflow.com/questions/12146914/what-is-the-difference-between-linear-regression-and-logistic-regression)
+- [stochasticLinearRegression](../../../sql-reference/aggregate-functions/reference/stochasticlinearregression.md#agg_functions-stochasticlinearregression)
+- [Difference between linear and logistic regressions.](https://stackoverflow.com/questions/12146914/what-is-the-difference-between-linear-regression-and-logistic-regression)

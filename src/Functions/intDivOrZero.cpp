@@ -13,7 +13,7 @@ struct DivideIntegralOrZeroImpl
     static const constexpr bool allow_string_integer = false;
 
     template <typename Result = ResultType>
-    static inline Result apply(A a, B b)
+    static Result apply(A a, B b)
     {
         if (unlikely(divisionLeadsToFPE(a, b)))
             return 0;
@@ -29,7 +29,7 @@ struct DivideIntegralOrZeroImpl
 struct NameIntDivOrZero { static constexpr auto name = "intDivOrZero"; };
 using FunctionIntDivOrZero = BinaryArithmeticOverloadResolver<DivideIntegralOrZeroImpl, NameIntDivOrZero>;
 
-void registerFunctionIntDivOrZero(FunctionFactory & factory)
+REGISTER_FUNCTION(IntDivOrZero)
 {
     factory.registerFunction<FunctionIntDivOrZero>();
 }
